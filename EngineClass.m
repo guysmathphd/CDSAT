@@ -20,8 +20,26 @@ classdef EngineClass <  handle
         f_dM2 %derivative of M2
         Dii % vector representing diagonal of Jacobian
         Wij % matrix representing Jacobian without diagonal
+        Dii_asy
+        Wij_asy
+        Dii_num
+        Wij_num
         M2_i_bigodot
         M2_k_bigodot
+        perturbation
+        half_life
+        eigenvalues_ana
+        eigenvectors_ana
+        eigenvalues_asy
+        eigenvectors_asy
+        eigenvalues_num
+        eigenvectors_num
+        node_relax_time
+        sys_relax_time
+        node_half_life
+        sys_half_life
+        N
+        k_nn
         
         difEqSolver %function handle
         absTol % positive double
@@ -34,7 +52,6 @@ classdef EngineClass <  handle
         degree_vector_weighted
         steady_state
         steady_state_calculated
-        
         mu
         nu
         rho
@@ -67,6 +84,10 @@ classdef EngineClass <  handle
             obj.set_dM2();
             obj.set_R();
             obj.set_const_functions();
+            obj.set_N();
+            obj.set_knn();
+            obj.set_Dii_asy();
+            obj.set_Wij_asy();
             obj.save_obj();
         end
         function obj = set_R(obj)
@@ -74,7 +95,7 @@ classdef EngineClass <  handle
             disp('set_R(obj): obj.f_R = ');
             disp(obj.f_R);
         end
-        function obj = set_const_functions(obj);
+        function obj = set_const_functions(obj)
             syms x;
             if nargin(obj.f_M0) == 0
                 c = obj.f_M0();
@@ -185,6 +206,21 @@ classdef EngineClass <  handle
                 obj.adjacencyMatrix.*double(obj.f_dM2(x));
             disp('set_Wij(obj): obj.Wij = ');
             %disp(obj.Wij);
+        end
+        function obj = set_N(obj)
+            tmp = size(obj.adjacencyMatrix);
+            obj.N = tmp(1,1);
+        end
+        function obj = set_knn(obj)
+            tmp = obj.adjacencyMatrix*obj.degree_vector_weighted;
+            tmp = tmp./obj.degree_vector_weighted;
+            obj.k_nn = sum(tmp)/obj.N;
+        end
+        function obj = set_Dii_asy(obj)
+            obj.Dii_asy = -obj.k_nn^obj.eta*obj.degree_vector_weighted.^obj.mu;
+        end
+        function obj = set_Wij_asy(obj)
+            obj.Wij_asy = obj.adjacencyMatrix .* (obj.degree_vector_weighted.^obj.nu * obj.degree_vector_weighted'.^obj.rho);
         end
         function obj = print_output(obj) %create output file
             T = array2table([obj.solution_t,obj.solution_x],'VariableNames',obj.header);
