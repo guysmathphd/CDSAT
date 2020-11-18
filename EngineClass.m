@@ -52,10 +52,10 @@ classdef EngineClass <  handle
         degree_vector_weighted
         steady_state
         steady_state_calculated
-        mu
-        nu
-        rho
-        eta
+        mu = 0
+        nu = 0
+        rho = 0
+        eta = 0
     end
     methods
         function obj = EngineClass(propertiesMap)
@@ -143,6 +143,7 @@ classdef EngineClass <  handle
         function obj = solve(obj)
             %Solve the system
             tic;
+            opts = odeset('RelTol',obj.relTol,'AbsTol',obj.absTol);
             odefun = @(t,x) (obj.f_M0(x) + (obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x));
             t = 0; %initial step start time
             init = obj.initialValues; % set initial value for step
@@ -157,7 +158,7 @@ classdef EngineClass <  handle
                 end
                 % run solver step
                 display(['stepEndTime = ' num2str(stepEndTime)]);
-                [sol_t,sol_x] = obj.difEqSolver(odefun,[t stepEndTime],init);
+                [sol_t,sol_x] = obj.difEqSolver(odefun,[t stepEndTime],init,opts);
                 t = stepEndTime;
                 init = sol_x(end,:);
                 % append results to solution_t and solution_x
@@ -208,8 +209,7 @@ classdef EngineClass <  handle
             %disp(obj.Wij);
         end
         function obj = set_N(obj)
-            tmp = size(obj.adjacencyMatrix);
-            obj.N = tmp(1,1);
+            obj.N = size(obj.adjacencyMatrix,1);
         end
         function obj = set_knn(obj)
             tmp = obj.adjacencyMatrix*obj.degree_vector_weighted;
@@ -233,7 +233,7 @@ classdef EngineClass <  handle
         function obj = plot_results(obj, isDilute)
             if isDilute
                 step = 100;
-                suffix = '_diluted';
+                suffix = '-diluted';
             else
                 step = 1;
                 suffix = [];
@@ -247,7 +247,7 @@ classdef EngineClass <  handle
             f = figure('Name',name,'NumberTitle','off');
             plot(t,x,'.-','MarkerSize',12);
             legend(obj.header(2:step:end));
-            title({obj.scenarioName;obj.desc});
+            title({[name ' ' obj.scenarioName];obj.desc});
             xlabel(obj.header{1});
             ylabel('x');
             obj.save_fig(f,name);
@@ -262,26 +262,26 @@ classdef EngineClass <  handle
             disp(obj.degree_vector_weighted);
         end
         function obj = plot_steady_vs_degree(obj)
-            name = 'fig3.fig';
+            name = 'fig3';
             f = figure('Name',name,'NumberTitle','off');
             plot(obj.degree_vector,obj.steady_state,'.','MarkerSize',12);
-            title(obj.scenarioName);
+            title({[name ' ' obj.scenarioName];obj.desc});
             xlabel('k - node degree');
             ylabel('Steady State');
             obj.save_fig(f,name);
-            name = 'fig3a.fig';
+            name = 'fig3a';
             f = figure('Name',name,'NumberTitle','off');
             plot(log(obj.degree_vector),log(obj.steady_state),'.','MarkerSize',12);
-            title({obj.scenarioName;obj.desc});
+            title({[name ' ' obj.scenarioName];obj.desc});
             xlabel('log(k) - node degree');
             ylabel('log(Steady State)');
             obj.save_fig(f,name);
-            name = 'fig3b.fig';
+            name = 'fig3b';
             f = figure('Name',name,'NumberTitle','off');
             plot(obj.degree_vector_weighted,obj.steady_state,'.','MarkerSize',12);
             hold on;
             plot(obj.degree_vector_weighted,obj.steady_state_calculated,'^r');
-            title({obj.scenarioName;obj.desc});
+            title({[name ' ' obj.scenarioName];obj.desc});
             xlabel('k - weighted node degree');
             ylabel('Steady State');
             legend('Numerical Integration','x_i = R^{-1}(q_i)');
@@ -296,7 +296,7 @@ classdef EngineClass <  handle
             legend('Numerical Integration', 'Second order approximation k^{-1}','Third order approximation k^{-1} - k^{-2}');
             xlabel('k - weighted node degree');
             ylabel('1 - Steady State');
-            title({obj.scenarioName;obj.desc});
+            title({[name ' ' obj.scenarioName];obj.desc});
             obj.save_fig(f,name);
             % Relevant for SIS
             name = 'fig3d';
@@ -308,7 +308,7 @@ classdef EngineClass <  handle
             legend('Numerical Integration', 'Second order approximation k^{-1}','-1*Third order approximation k^{-2} - k^{-1}');
             xlabel('log(k) - weighted node degree');
             ylabel('log(1 - Steady State)');
-            title({obj.scenarioName;obj.desc});
+            title({[name ' ' obj.scenarioName];obj.desc});
             obj.save_fig(f,name);
             %Relevant for REG
             name = 'fig3e';
@@ -319,7 +319,7 @@ classdef EngineClass <  handle
             legend('Numerical Integration', 'First order approximation k');
             xlabel('k - weighted node degree');
             ylabel('Steady State');
-            title({obj.scenarioName;obj.desc});
+            title({[name ' ' obj.scenarioName];obj.desc});
             obj.save_fig(f,name);
             % Relevant for REG
             name = 'fig3f';
@@ -330,39 +330,47 @@ classdef EngineClass <  handle
             legend('Numerical Integration', 'First order approximation k');
             xlabel('log(k) - weighted node degree');
             ylabel('log(Steady State)');
-            title({obj.scenarioName;obj.desc});
+            title({[name ' ' obj.scenarioName];obj.desc});
             obj.save_fig(f,name);
         end
         function obj = plot_jacobian(obj)
-            name = 'fig4a.fig';
+            name = 'fig4a';
             f = figure('Name',name,'NumberTitle','off');
             x = obj.degree_vector_weighted;
             y = obj.Dii;
             loglog(x,y,'.','MarkerSize',12);
+            hold on;
+            y1 = obj.Dii_asy;
+            loglog(x,y1,'^','MarkerSize',10);
             xlabel('k_i - weighted');
             ylabel('J_{ii}');
-            title({obj.scenarioName;obj.desc});
-            legend('Analytic Jacobian');
+            title({[name ' ' obj.scenarioName];obj.desc});
+            legend('Analytic Jacobian', 'Asymptotic Jacobian');
             obj.save_fig(f,name);
             name = 'fig4b';
             f = figure('Name',name,'NumberTitle','off');
             x1 = x * x';
             y = obj.Wij;
             loglog(x1(:),y(:),'.','MarkerSize',12);
+            hold on;
+            y1 = obj.Wij_asy;
+            loglog(x1(:),y1(:),'^','MarkerSize',10);
             xlabel('k_ik_j - weighted');
             ylabel('W_{ij}');
-            title({obj.scenarioName;obj.desc});
-            legend('Analytic Jacobian');
+            title({[name ' ' obj.scenarioName];obj.desc});
+            legend('Analytic Jacobian','Asymptotic Jacobian');
             obj.save_fig(f,name);
             name = 'fig4c';
             f = figure('Name',name,'NumberTitle','off');
             x2 = (x.^obj.nu) * (x.^obj.rho)';
-            loglog(x2(:),y(:),'.','MarkerSize',12);
+            loglog(x2(:),y1(:),'.','MarkerSize',12);
+            hold on;
+            loglog(x2(:),y(:),'^','MarkerSize',10);
             xlabel(['k_i^{\nu}k_j^{\rho} - weighted, \nu = ' num2str(obj.nu)...
                 ', \rho = ' num2str(obj.rho)]);
             ylabel('W_{ij}');
-            title({obj.scenarioName;obj.desc});
-            legend('Analytic Jacobian');
+            title({[name ' ' obj.scenarioName];obj.desc});
+            legend('Analytic Jacobian','Asymptotic Jacobian');
             obj.save_fig(f,name);
         end
         function obj = save_fig(obj,f,name)
