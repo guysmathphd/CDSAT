@@ -18,8 +18,8 @@ classdef EngineClass <  handle
         f_dM0 %function handle, derivate of M0
         f_dM1 %derivative of M1
         f_dM2 %derivative of M2
-        Dii % vector representing diagonal of Jacobian
-        Wij % matrix representing Jacobian without diagonal
+        Dii_ana % vector representing diagonal of Jacobian
+        Wij_ana % matrix representing Jacobian without diagonal
         Dii_asy
         Wij_asy
         Dii_num
@@ -40,6 +40,17 @@ classdef EngineClass <  handle
         sys_half_life
         N
         k_nn
+        numbins
+        bins
+        binsij
+        kbinned
+        kijbinned
+        Dii_anabinned
+        Dii_asybinned
+        Wij_anabinned
+        Wij_asybinned
+        numeigen
+        
         
         difEqSolver %function handle
         absTol % positive double
@@ -88,8 +99,120 @@ classdef EngineClass <  handle
             obj.set_knn();
             obj.set_Dii_asy();
             obj.set_Wij_asy();
+            obj.set_eig_asy();
+            obj.set_bins();
+            obj.set_kbinned();
+            obj.set_Dii_asybinned();
+            obj.set_Wij_asybinned();
             obj.save_obj();
         end
+        function obj = set_bins(obj)
+            obj.bins = cell(1,obj.numbins);
+            obj.binsij = cell(1,obj.numbins);
+            obj.kijbinned = zeros(obj.numbins,1);
+            kmax = max(obj.degree_vector_weighted);
+            kmin = min(obj.degree_vector_weighted);
+            kmaxmin = kmax/kmin;
+            c = kmaxmin ^ (1/obj.numbins);
+            n0 = log(kmin)/log(c);
+            nn = log(kmax)/log(c);
+            ns = n0:n0+obj.numbins;
+            %c = kmax^(1/obj.numbins);
+            x = obj.degree_vector_weighted;
+            x2 = (x.^obj.nu) * (x.^obj.rho)';
+            x2max = max(max(x2));
+            x2min = min(min(x2));
+            x2maxmin = x2max/x2min;
+            c1 = x2maxmin ^ (1/obj.numbins);
+            m0 = log(x2min)/log(c);
+            mm = log(x2max)/log(c);
+            ms = m0:m0+obj.numbins;
+            %c1 = x2max^(1/obj.numbins);
+            l = 0;
+            for k = 2:obj.numbins+1
+                if k == 2
+                    ind = find(obj.degree_vector_weighted>=c^ns(k-1) & obj.degree_vector_weighted<=c^ns(k));
+                else
+                    ind = find(obj.degree_vector_weighted>c^ns(k-1) & obj.degree_vector_weighted<=c^ns(k));
+                end
+                obj.bins{k-1} = ind;
+                l = l + 1;
+                disp(l);
+                w = [];
+                for i = 1:obj.N
+                    %ki = obj.degree_vector_weighted(i);
+                    for j = 1:obj.N
+                        %kj = obj.degree_vector_weighted(j);
+                        kk = x2(i,j);
+                        %kk = ki^obj.nu * kj^obj.rho;
+                        if obj.adjacencyMatrix(i,j) > 0 && (kk > c1^ms(k-1) || (k==2 && kk==c1^ms(k-1))) && kk <=c1^ms(k)
+                            obj.binsij{k-1}(end+1,:) = [i j];
+                            w(end+1) = kk;
+                        end
+                    end
+                end
+                if ~isempty(w)
+                    obj.kijbinned(k-1,1) = mean(w);
+                end
+            end            
+        end
+        function obj = set_kbinned(obj)
+            obj.kbinned = zeros(obj.numbins,1);
+            for i=1:obj.numbins
+                ind = obj.bins{i};
+                if ~isempty(ind)
+                    obj.kbinned(i,1) = mean(obj.degree_vector_weighted(ind));
+                end
+            end
+        end
+        function obj = set_Dii_anabinned(obj)
+            obj.Dii_anabinned = zeros(obj.numbins,1);
+            for i=1:obj.numbins
+                ind = obj.bins{i};
+                if ~isempty(ind)
+                    obj.Dii_anabinned(i,1) = mean(obj.Dii_ana(ind));
+                end
+            end
+        end
+        function obj = set_Dii_asybinned(obj)
+            obj.Dii_asybinned = zeros(obj.numbins,1);
+            for i = 1:obj.numbins
+                ind = obj.bins{i};
+                if ~isempty(ind)
+                    obj.Dii_asybinned(i,1) = mean(obj.Dii_asy(ind));
+                end
+            end
+        end
+        function obj = set_Wij_anabinned(obj)
+            obj.Wij_anabinned = zeros(obj.numbins,1);
+            for i = 1:obj.numbins
+                ind = obj.binsij{i};
+                if ~isempty(ind)
+                    w = [];
+                    for k = 1:size(ind,1)
+                        r = ind(k,1);
+                        c = ind(k,2);
+                        w(end+1) = obj.Wij_ana(r,c);
+                    end
+                    obj.Wij_anabinned(i,1) = mean(w);
+                end
+            end
+        end
+        function obj = set_Wij_asybinned(obj)
+            obj.Wij_asybinned = zeros(obj.numbins,1);
+            for i = 1:obj.numbins
+                ind = obj.binsij{i};
+                if ~isempty(ind)
+                    w = [];
+                    for k = 1:size(ind,1)
+                        r = ind(k,1);
+                        c = ind(k,2);
+                        w(end+1) = obj.Wij_asy(r,c);
+                    end
+                    obj.Wij_asybinned(i,1) = mean(w);
+                end
+            end
+        end        
         function obj = set_R(obj)
             obj.f_R = @(x) (-1*(obj.f_M1(x)./obj.f_M0(x)));
             disp('set_R(obj): obj.f_R = ');
@@ -169,14 +292,17 @@ classdef EngineClass <  handle
             obj.set_steady_state();
             obj.set_M2_i_bigodot();
             obj.set_steady_state_calculated();
-            obj.set_Dii();
-            obj.set_Wij();
+            obj.set_Dii_ana();
+            obj.set_Wij_ana();
+            obj.set_eig_ana();
+            obj.set_Dii_anabinned();
+            obj.set_Wij_anabinned();
             obj.save_obj();
         end
         function obj = set_steady_state(obj)
             obj.steady_state = obj.solution_x(end,:);
             disp('set_steady_state(obj): obj.steady_state = ');
-            disp(obj.steady_state);
+            %disp(obj.steady_state);
         end
         function obj = set_M2_i_bigodot(obj)
             obj.M2_i_bigodot = zeros(size(obj.initialValues));
@@ -192,21 +318,21 @@ classdef EngineClass <  handle
             x = 1./(obj.degree_vector_weighted .* obj.M2_i_bigodot);
             obj.steady_state_calculated = double(subs(R_inv));
             disp('set_steady_state_calculated(obj): obj.steady_state_calculated = ');
-            disp(obj.steady_state_calculated);
+            %disp(obj.steady_state_calculated);
         end
-        function obj = set_Dii(obj)
+        function obj = set_Dii_ana(obj)
             x = obj.steady_state';
-            obj.Dii = double(obj.f_dM0(x)) + ...
+            obj.Dii_ana = double(obj.f_dM0(x)) + ...
                 double(obj.f_dM1(x)).*double(obj.adjacencyMatrix*obj.f_M2(x));
-            disp('set_Dii(obj): obj.Dii = ');
-            %disp(obj.Dii);
+            disp('set_Dii_ana(obj): obj.Dii_ana = ');
+            %disp(obj.Dii_ana);
         end
-        function obj = set_Wij(obj)
+        function obj = set_Wij_ana(obj)
             x = obj.steady_state;
-            obj.Wij = double(obj.f_M1(x)).*...
-                obj.adjacencyMatrix.*double(obj.f_dM2(x));
-            disp('set_Wij(obj): obj.Wij = ');
-            %disp(obj.Wij);
+            obj.Wij_ana = obj.adjacencyMatrix .* (double(obj.f_M1(x))'*...
+                double(obj.f_dM2(x)));                
+            disp('set_Wij_ana(obj): obj.Wij_ana = ');
+            %disp(obj.Wij_ana);
         end
         function obj = set_N(obj)
             obj.N = size(obj.adjacencyMatrix,1);
@@ -221,6 +347,24 @@ classdef EngineClass <  handle
         end
         function obj = set_Wij_asy(obj)
             obj.Wij_asy = obj.adjacencyMatrix .* (obj.degree_vector_weighted.^obj.nu * obj.degree_vector_weighted'.^obj.rho);
+        end
+        function obj = set_eig_ana(obj)
+            J = obj.Wij_ana;
+            J = J - diag(diag(J));
+            J = J + diag(obj.Dii_ana);
+            %[v,d] = eig(J);
+            [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
+            obj.eigenvalues_ana = diag(d);
+            obj.eigenvectors_ana = v;
+        end
+        function obj = set_eig_asy(obj)
+            J = obj.Wij_asy;
+            J = J - diag(diag(J));
+            J = J + diag(obj.Dii_asy);
+            %[v,d] = eig(J);
+            [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
+            obj.eigenvalues_asy = diag(d);
+            obj.eigenvectors_asy = v;
         end
         function obj = print_output(obj) %create output file
             T = array2table([obj.solution_t,obj.solution_x],'VariableNames',obj.header);
@@ -337,7 +481,7 @@ classdef EngineClass <  handle
             name = 'fig4a';
             f = figure('Name',name,'NumberTitle','off');
             x = obj.degree_vector_weighted;
-            y = obj.Dii;
+            y = obj.Dii_ana;
             loglog(x,y,'.','MarkerSize',12);
             hold on;
             y1 = obj.Dii_asy;
@@ -347,10 +491,11 @@ classdef EngineClass <  handle
             title({[name ' ' obj.scenarioName];obj.desc});
             legend('Analytic Jacobian', 'Asymptotic Jacobian');
             obj.save_fig(f,name);
+            %%%%
             name = 'fig4b';
             f = figure('Name',name,'NumberTitle','off');
             x1 = x * x';
-            y = obj.Wij;
+            y = obj.Wij_ana;
             loglog(x1(:),y(:),'.','MarkerSize',12);
             hold on;
             y1 = obj.Wij_asy;
@@ -360,17 +505,131 @@ classdef EngineClass <  handle
             title({[name ' ' obj.scenarioName];obj.desc});
             legend('Analytic Jacobian','Asymptotic Jacobian');
             obj.save_fig(f,name);
+            %%%%
             name = 'fig4c';
             f = figure('Name',name,'NumberTitle','off');
             x2 = (x.^obj.nu) * (x.^obj.rho)';
-            loglog(x2(:),y1(:),'.','MarkerSize',12);
+            loglog(x2(:),y(:),'.','MarkerSize',12);
             hold on;
-            loglog(x2(:),y(:),'^','MarkerSize',10);
+            loglog(x2(:),y1(:),'^','MarkerSize',10);
             xlabel(['k_i^{\nu}k_j^{\rho} - weighted, \nu = ' num2str(obj.nu)...
                 ', \rho = ' num2str(obj.rho)]);
             ylabel('W_{ij}');
             title({[name ' ' obj.scenarioName];obj.desc});
             legend('Analytic Jacobian','Asymptotic Jacobian');
+            obj.save_fig(f,name);
+            %%%%
+            name = 'fig4d';
+            figdesc = 'Dii Real and Theoretical binned';
+            f = figure('Name',name,'NumberTitle','off');
+            x = obj.kbinned;
+            y1 = obj.Dii_anabinned;
+            y2 = obj.Dii_asybinned;
+            loglog(x,y1,'s','MarkerSize',12);
+            hold on;
+            loglog(x,y2,'^','MarkerSize',10);
+            xlabel('k_i - weighted');
+            ylabel('J_{ii}');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+            legend('Analytic Jacobian','Asymptotic Jacobian');
+            obj.save_fig(f,name);
+            %%%%
+            name = 'fig4e';
+            figdesc = 'Wij Real and Theoretical binned';
+            f = figure('Name',name,'NumberTitle','off');
+            x = obj.kijbinned;
+            y1 = obj.Wij_anabinned;
+            y2 = obj.Wij_asybinned;
+            loglog(x,y1,'s','MarkerSize',12);
+            hold on;
+            loglog(x,y2,'^','MarkerSize',10);
+            xlabel(['k_i^{\nu}k_j^{\rho} - weighted, \nu = ' num2str(obj.nu)...
+                ', \rho = ' num2str(obj.rho)]);
+            ylabel('W_{ij}');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+            legend('Analytic Jacobian','Asymptotic Jacobian');
+            obj.save_fig(f,name);
+        end
+        function plot_eigenvalues(obj)
+            name = 'fig5a';
+            figdesc = 'Jacobian Eigenvalues';
+            f = figure('Name',name,'NumberTitle','off');
+            plot(real(obj.eigenvalues_ana),'*-');
+            hold on;
+            plot(real(obj.eigenvalues_asy),'^-');
+            xlabel('n');
+            ylabel('real(\lambda_n)');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+            legend('Analytic Jacobian','Asymptotic Jacobian');
+            obj.save_fig(f,name);
+        end
+        function plot_eigenvectors(obj)
+            e1 = obj.eigenvectors_ana;
+            e2 = obj.eigenvectors_asy;
+            %%% fig6a
+            name = 'fig6a';
+            figdesc = 'Jacobian Eigenvectors Comparison';
+            f = figure('Name',name,'NumberTitle','off');
+            vhat = e1 - e2;
+            y = vecnorm(vhat);
+            plot(y,'*-');
+            xlabel('n');
+            ylabel('$\mid v-\hat{v} \mid$','interpreter','latex');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+            legend('Analytic Jacobian vs Asymptotic Jacobian');
+            obj.save_fig(f,name);
+            %%% fig6b
+            name = 'fig6b';
+            figdesc = 'Jacobian Eigenvectors Angle Comparison';
+            f = figure('Name',name,'NumberTitle','off');
+            d = dot(e1,e2);
+            th = acos(d)*180/pi;
+            plot(real(th),'*-');
+            xlabel('n');
+            ylabel('$\theta_{v,\hat{v}} [deg]$','interpreter','latex');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+            legend('Analytic Jacobian vs Asymptotic Jacobian');
+            obj.save_fig(f,name);
+            %%% fig6c
+            name = 'fig6c';
+            figdesc = 'Jacobian Eigenvectors Distance Comparison Matrix';
+            f = figure('Name',name,'NumberTitle','off');
+            M = zeros(size(e1,2));
+            NN = M;
+            for i = 1:size(e1,2)
+                if mod(i,100)==0
+                    disp(i);
+                end
+                v1 = e1(:,i); % ith analytic eigenvector
+                M(i,:) = vecnorm(e2 - v1);
+                for j = 1:size(e2,2)
+                    v2 = e2(:,j);
+                    NN(i,j) = acos(dot(v1,v2))*180/pi;
+                end
+%                 for j = 1:size(e2,2)
+%                     if mod(j,100) == 0
+%                         disp(j)
+%                     end
+%                     v1 = e1(:,i);
+%                     v2 = e2(:,j);
+%                     M(i,j) = norm(v1-v2);
+%                 end
+            end
+            image(M,'CDatamapping','scaled');
+            colorbar;
+            ylabel('Analytic Eigenvectors');
+            xlabel('Asymptotic Eigenvectors');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\mid v-\hat{v} \mid$'},'interpreter','latex');
+            obj.save_fig(f,name);
+            %%% fig6d
+            name = 'fig6d';
+            figdesc = 'Jacobian Eigenvectors Angle Comparison Matrix';
+            f = figure('Name',name,'NumberTitle','off');
+            image(NN,'CDatamapping','scaled');
+            colorbar;
+            ylabel('Analytic Eigenvectors');
+            xlabel('Asymptotic Eigenvectors');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\theta_{v,\hat{v}} [deg]$'},'interpreter','latex');
             obj.save_fig(f,name);
         end
         function obj = save_fig(obj,f,name)
@@ -386,7 +645,7 @@ classdef EngineClass <  handle
             end
         end
         function obj = save_obj(obj)
-            save(fullfile(obj.resultsPath,[obj.scenarioName 'Obj.mat']),'obj');
+            save(fullfile(obj.resultsPath,[obj.scenarioName 'Obj.mat']),'obj','-v7.3');
         end
         % plot results
 %             f = figure;

@@ -3,6 +3,8 @@ myKeys = {'scenarioName','adjacencyMatrix','initialValues','maxTime','maxDerivat
 myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath'};
 %%
 myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta'};
+%%
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins'};
 %% 
 % A simple system with two independent nodes whose solution is x = Cexp(-t)
 A = eye(2);
@@ -448,8 +450,12 @@ m2 = @(x) (4*x);
 difEqSolver = @ode45;
 absTol = 1e-12;
 relTol = 1e-12;
+mu = 1;
+nu = -1;
+rho = 0;
+eta = 0;
 resultsPath = fullfile('tests',name,'results');
-myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath};
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta};
 props = containers.Map(myKeys,myValues);
 SIS = EngineClass(props);
 display(SIS)
@@ -458,45 +464,19 @@ SIS.solve();
 SIS.print_output();
 SIS.plot_results(true);
 SIS.plot_steady_vs_degree();
-SIS.mu = 1; SIS.nu = -1; SIS.rho = 0; SIS.eta = 0;
+%SIS.mu = 1; SIS.nu = -1; SIS.rho = 0; SIS.eta = 0;
 SIS.plot_jacobian;
-            SIS.set_N();
-            SIS.set_knn();
-            SIS.set_Dii_asy();
-            SIS.set_Wij_asy();
-            SIS.save_obj();
-%% test19 engine set knn calculation
-name = 'test19';
-desc = 'knn_calculation';
-seed = 1;
-rng(seed);
-A = eye(3);
-x0 = rand(1,3)';
-maxT = 50;
-maxDt = 0.01;
-timeStep = 10;
-m0 = @(x) (-2*x);
-m1 = @(x) (1-x);
-m2 = @(x) (4*x);
-difEqSolver = @ode45;
-absTol = 1e-12;
-relTol = 1e-12;
-mu = 1;
-nu = 1;
-rho = 1;
-eta = 1;
-resultsPath = fullfile('tests','engset1',name,'results');
-myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta};
-props = containers.Map(myKeys,myValues);
-SIS = EngineClass(props);
-display(SIS)
-% disp('now solving');
-% SIS.solve();
-% SIS.print_output();
-% SIS.plot_results(true);
-% SIS.plot_steady_vs_degree();
-% SIS.plot_jacobian;
-%%%% test18 knn calculation
+%             SIS.set_N();
+%             SIS.set_knn();
+%             SIS.set_Dii_asy();
+%             SIS.set_Wij_asy();
+%             SIS.save_obj();
+% SIS.set_eig_ana();
+% SIS.set_eig_asy();
+SIS.plot_eigenvalues();
+SIS.plot_eigenvectors();
+% SIS.save_obj();
+%% test18 knn calculation
 name = 'test18';
 desc = 'knn_calculation';
 seed = 1;
@@ -521,6 +501,101 @@ myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,
 props = containers.Map(myKeys,myValues);
 SIS = EngineClass(props);
 display(SIS)
+%% test19 engine set knn calculation
+name = 'test19';
+desc = '';
+seed = 1;
+rng(seed);
+A = ones(3)-eye(3);
+x0 = rand(1,3)';
+maxT = 50;
+maxDt = 0.01;
+timeStep = 10;
+m0 = @(x) (-2*x);
+m1 = @() (1);
+m2 = @(x) (x.^2);
+difEqSolver = @ode45;
+absTol = 1e-5;
+relTol = 1e-5;
+mu = 0;
+nu = 0;
+rho = 2;
+eta = 4;
+resultsPath = fullfile('tests','engset1',name,'results');
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta};
+props = containers.Map(myKeys,myValues);
+SIS = EngineClass(props);
+display(SIS)
+disp('now solving');
+SIS.solve();
+SIS.print_output();
+SIS.plot_results(false);
+SIS.plot_steady_vs_degree();
+SIS.plot_jacobian;
+%% test20 engine set knn calculation
+name = 'test20';
+n = 100;
+desc = '';
+seed = 1;
+rng(seed);
+A = ones(n)-eye(n);
+x0 = rand(1,n)';
+maxT = 50;
+maxDt = 0.01;
+timeStep = 10;
+m0 = @(x) (-(n-1)*x);
+m1 = @() (1);
+m2 = @(x) (x.^2);
+difEqSolver = @ode45;
+absTol = 1e-5;
+relTol = 1e-5;
+mu = 0;
+nu = 0;
+rho = 2;
+eta = 4;
+resultsPath = fullfile('tests','engset1',name,'results');
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta};
+props = containers.Map(myKeys,myValues);
+SIS = EngineClass(props);
+display(SIS)
+disp('now solving');
+SIS.solve();
+SIS.print_output();
+SIS.plot_results(false);
+SIS.plot_steady_vs_degree();
+SIS.plot_jacobian;
+%% test21 J sanity test
+name = 'test21';
+n = 6000;
+desc = '';
+seed = 1;
+rng(seed);
+load(fullfile('networks','SF1.mat'));
+x0 = rand(1,n)';
+maxT = 5;
+maxDt = 0.01;
+timeStep = 10;
+m0 = @(x) (-(n-1)*x);
+m1 = @() (1);
+m2 = @(x) (x.^2);
+difEqSolver = @ode45;
+absTol = 1e-2;
+relTol = 1e-2;
+mu = 0;
+nu = 0;
+rho = 2;
+eta = 4;
+resultsPath = fullfile('tests','engset1',name,'results');
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta};
+props = containers.Map(myKeys,myValues);
+SIS = EngineClass(props);
+display(SIS)
+disp('now solving');
+SIS.solve();
+SIS.print_output();
+SIS.plot_results(false);
+SIS.plot_steady_vs_degree();
+SIS.plot_jacobian;
 %% test makePropertiesMaps
 myKeys = {'key1','key2','key3'};
 v1 = num2cell(1:4);
@@ -529,5 +604,47 @@ v3 = {eye(1),ones(2,2),zeros(3,3)};
 myValues = {v1,v2,v3};
 propMapsDefs = containers.Map(myKeys,myValues);
 propertiesMaps=makePropertiesMaps(propMapsDefs);
-
+%% test22SIS15 A = SF1 absTol, relTol = 1e-5
+name = 'test22SIS15';
+desc = 'SF1';
+seed = 1;
+rng(seed);
+load(fullfile('networks','SF1.mat'));
+x0 = rand(1,6000)';
+maxT = 50;
+maxDt = 0.01;
+timeStep = 10;
+m0 = @(x) (-2*x);
+m1 = @(x) (1-x);
+m2 = @(x) (4*x);
+difEqSolver = @ode45;
+absTol = 1e-5;
+relTol = 1e-5;
+mu = 1;
+nu = -1;
+rho = 0;
+eta = 0;
+numbins = 15;
+resultsPath = fullfile('tests',name,'results');
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,numbins};
+props = containers.Map(myKeys,myValues);
+SIS = EngineClass(props);
+display(SIS)
+disp('now solving');
+SIS.solve();
+SIS.print_output();
+SIS.plot_results(true);
+SIS.plot_steady_vs_degree();
+%SIS.mu = 1; SIS.nu = -1; SIS.rho = 0; SIS.eta = 0;
+SIS.plot_jacobian;
+%             SIS.set_N();
+%             SIS.set_knn();
+%             SIS.set_Dii_asy();
+%             SIS.set_Wij_asy();
+%             SIS.save_obj();
+% SIS.set_eig_ana();
+% SIS.set_eig_asy();
+SIS.plot_eigenvalues();
+SIS.plot_eigenvectors();
+% SIS.save_obj();
 
