@@ -40,7 +40,7 @@ classdef EngineClass <  handle
         sys_half_life
         N
         k_nn
-        numbins
+        ki_nn
         bins
         binsij
         kbinned
@@ -342,6 +342,12 @@ classdef EngineClass <  handle
             tmp = tmp./obj.degree_vector_weighted;
             obj.k_nn = sum(tmp)/obj.N;
         end
+        function obj = set_kinn(obj)
+            mask = ones(obj.N) - eye(obj.N);
+            tmp = obj.adjacencyMatrix .* mask;
+            tmp = tmp * obj.degree_vector_weighted;
+            obj.ki_nn = tmp ./ obj.degree_vector_weighted;
+        end
         function obj = set_Dii_asy(obj)
             obj.Dii_asy = -obj.k_nn^obj.eta*obj.degree_vector_weighted.^obj.mu;
         end
@@ -630,6 +636,66 @@ classdef EngineClass <  handle
             ylabel('Analytic Eigenvectors');
             xlabel('Asymptotic Eigenvectors');
             title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\theta_{v,\hat{v}} [deg]$'},'interpreter','latex');
+            obj.save_fig(f,name);
+        end
+        function obj = plot_eigenvectors2(obj,isFirst10,isKinn)
+            %%% fig7a,fig7b
+            if isKinn == true
+                fnumab = 'fig7b';
+                fnumcd = 'fig7d';
+                x = obj.ki_nn;
+                figdescab = 'Eigenvector Elements vs Node Average Nearest Neighbor Degree';
+                figdesccd = 'Eigenvector Elements Mean vs Node Average Nearest Neighbor Degree';
+                xlab = 'k_{nn,i} - weighted';
+            else
+                fnumab = 'fig7a';
+                fnumcd = 'fig7c';
+                x = obj.degree_vector_weighted;
+                figdescab = 'Eigenvector Elements vs Node Degree';
+                figdesccd = 'Eigenvector Elements Mean vs Node Degree';
+                xlab = 'k_i - weighted';
+            end
+            if isFirst10 == true
+                suffix = '-first10';
+                n = 10;
+            else
+                n = size(obj.eigenvectors_ana,2);
+                suffix = '';
+            end
+            CM = jet(n);
+            name = [fnumab suffix];
+            f = figure('Name',name,'NumberTitle','off');
+            hold on;
+            for i=1:n
+                plot(x,obj.eigenvectors_ana(:,i),'.','MarkerSize',18,'Color',CM(i,:));
+            end
+            for i=1:n
+                plot(x,obj.eigenvectors_asy(:,i),'^','MarkerSize',12,'Color',CM(i,:));
+            end
+            xlabel(xlab);
+            ylabel('v_i');
+            legendStr = cell(1, 2*n);
+            for i = 1:n
+                str = ['v^{(' num2str(i) ')} analytical'];
+                legendStr{i} = str;
+            end
+            for i = n+1:2*n
+                str = ['v^{(' num2str(i-n) ')} asymptotic'];
+                legendStr{i} = str;
+            end
+            legend(legendStr);
+            title({[name ' ' obj.scenarioName];obj.desc;figdescab;'v_i^{(j)} = i^{th} element of j^{th} eigenvector'});
+            obj.save_fig(f,name);
+            %%% fig7c fig7d            
+            name = [fnumcd suffix];
+            f = figure('Name',name,'NumberTitle','off');
+            hold on;
+            plot(x,mean(obj.eigenvectors_ana(:,1:n),2),'.','MarkerSize',18);
+            plot(x,mean(obj.eigenvectors_asy(:,1:n),2),'^','MarkerSize',12);
+            xlabel(xlab);
+            ylabel('$\bar{v_i}$','Interpreter','Latex');
+            legend('Analytic Eigenvectors Mean', 'Asymptotic Eigenvectors Mean');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesccd;'v_i^{(j)} = i^{th} element of j^{th} eigenvector'});
             obj.save_fig(f,name);
         end
         function obj = save_fig(obj,f,name)
