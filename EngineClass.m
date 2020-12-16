@@ -31,7 +31,9 @@ classdef EngineClass <  handle
         eigenvalues_ana
         eigenvectors_ana
         eigenvalues_asy
+        eigenvalues_asy_permuted
         eigenvectors_asy
+        eigenvectors_asy_permuted
         eigenvalues_num
         eigenvectors_num
         node_relax_time
@@ -50,6 +52,11 @@ classdef EngineClass <  handle
         Wij_anabinned
         Wij_asybinned
         numeigen
+        eigvec_dist_comparison_mat_ana2asy
+        eigvec_angle_comparison_mat_ana2asy
+        eigvec_dist_comparison_mat_ana2asy_permuted
+        eigvec_angle_comparison_mat_ana2asy_permuted
+        permutation_eigvec_ana2asy
         
         
         difEqSolver %function handle
@@ -57,6 +64,10 @@ classdef EngineClass <  handle
         relTol % positive double
         solution_t = 0;
         solution_x ;
+        solution_t_eigvecana;
+        solution_t_eigvecasy;
+        solution_x_eigvecana;
+        solution_x_eigvecasy;
         resultsPath
         header
         degree_vector
@@ -263,40 +274,87 @@ classdef EngineClass <  handle
             disp('set_dM2: obj.f_dM2 = ');
             disp(obj.f_dM2);
         end
-        function obj = solve(obj)
+        function obj = solve(obj,useEigVecAna,useEigVecAsy)
             %Solve the system
             tic;
+            %nn=10;
+            nn=1;
+            eps = 1;
+            ss = obj.steady_state;
+            pert = 0;
+            if useEigVecAsy
+                pert = eps * obj.eigenvectors_asy_permuted(:,1:nn);
+                inits = ss' + eps*pert;
+                obj.solution_t_eigvecasy = cell(1,nn);
+                obj.solution_t_eigvecasy = cell(1,nn);
+                for i = 1:nn
+                    obj.solution_t_eigvecasy{1,i} = 0;
+                    obj.solution_x_eigvecasy{1,i} = inits(:,i)';
+                end
+            elseif useEigVecAna
+                pert = eps * obj.eigenvectors_ana(:,1:nn);
+                inits = ss' + eps*pert;
+                obj.solution_t_eigvecana = cell(1,nn);
+                obj.solution_t_eigvecana = cell(1,nn);
+                for i = 1:nn
+                    obj.solution_t_eigvecana{1,i} = 0;
+                    obj.solution_x_eigvecana{1,i} = inits(:,i)';
+                end
+            else
+                nn=1;
+                pert = obj.initialValues;
+                inits = ss' + pert;
+            end
+            
             opts = odeset('RelTol',obj.relTol,'AbsTol',obj.absTol);
             odefun = @(t,x) (obj.f_M0(x) + (obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x));
-            t = 0; %initial step start time
-            init = obj.initialValues; % set initial value for step
-            setBreak = false; % stop while loop?
-            while ~setBreak
-                % check if this step passes maxTime and set stepEndTime
-                if t + obj.solverTimeStep >= obj.maxTime
-                    stepEndTime = obj.maxTime;
-                    setBreak = true;
-                else
-                    stepEndTime = t + obj.solverTimeStep;
+            for ii = 1:nn
+                disp(['ii = ' num2str(ii)]);
+                t = 0; %initial step start time
+                init = inits(:,ii);
+                %init = obj.initialValues; % set initial value for step
+                setBreak = false; % stop while loop?
+                while ~setBreak
+                    % check if this step passes maxTime and set stepEndTime
+                    if t + obj.solverTimeStep >= obj.maxTime
+                        stepEndTime = obj.maxTime;
+                        setBreak = true;
+                    else
+                        stepEndTime = t + obj.solverTimeStep;
+                    end
+                    % run solver step
+                    display(['stepEndTime = ' num2str(stepEndTime)]);
+                    [sol_t,sol_x] = obj.difEqSolver(odefun,[t stepEndTime],init,opts);
+                    t = stepEndTime;
+                    init = sol_x(end,:);
+                    % append results to solution_t and solution_x
+                    if useEigVecAna
+                        obj.solution_t_eigvecana{ii}(end+1:end+length(sol_t)-1,1) = sol_t(2:end,:);
+                        obj.solution_x_eigvecana{ii}(end+1:end+size((sol_x),1)-1,:) = sol_x(2:end,:);
+                    elseif useEigVecAsy
+                        obj.solution_t_eigvecasy{ii}(end+1:end+length(sol_t)-1) = sol_t(2:end,:);
+                        obj.solution_x_eigvecasy{ii}(end+1:end+size((sol_x),1)-1,:) = sol_x(2:end,:);
+                    else
+                        obj.solution_t = [obj.solution_t;sol_t(2:end,:)];
+                        obj.solution_x = [obj.solution_x;sol_x(2:end,:)];
+                    end
                 end
-                % run solver step
-                display(['stepEndTime = ' num2str(stepEndTime)]);
-                [sol_t,sol_x] = obj.difEqSolver(odefun,[t stepEndTime],init,opts);
-                t = stepEndTime;
-                init = sol_x(end,:);
-                % append results to solution_t and solution_x
-                obj.solution_t = [obj.solution_t;sol_t(2:end,:)];
-                obj.solution_x = [obj.solution_x;sol_x(2:end,:)];
             end
             toc;
-            obj.set_steady_state();
-            obj.set_M2_i_bigodot();
-            obj.set_steady_state_calculated();
-            obj.set_Dii_ana();
-            obj.set_Wij_ana();
-            obj.set_eig_ana();
-            obj.set_Dii_anabinned();
-            obj.set_Wij_anabinned();
+            if ~useEigVecAna && ~useEigVecAsy
+                obj.set_steady_state();
+                obj.set_M2_i_bigodot();
+                obj.set_steady_state_calculated();
+                obj.set_Dii_ana();
+                obj.set_Wij_ana();
+                obj.set_eig_ana();
+                obj.set_Dii_anabinned();
+                obj.set_Wij_anabinned();
+                obj.set_eigvec_comparison_mats(true,false);
+                obj.set_permutation_eigvec_ana2asy();
+                obj.set_eig_asy_permuted();
+                obj.set_eigvec_comparison_mats(false,true);
+            end
             obj.save_obj();
         end
         function obj = set_steady_state(obj)
@@ -372,6 +430,61 @@ classdef EngineClass <  handle
             obj.eigenvalues_asy = diag(d);
             obj.eigenvectors_asy = v;
         end
+        function obj = set_eigvec_comparison_mats(obj,computeRegular,computePermuted)
+            e1 = obj.eigenvectors_ana;
+            e2 = obj.eigenvectors_asy;
+            e3 = obj.eigenvectors_asy_permuted;
+            M = zeros(size(e1,2));
+            NN = M;
+            Mp = M;
+            NNp = M;
+            for i = 1:size(e1,2)
+                if mod(i,100)==0
+                    disp(i);
+                end
+                v1 = e1(:,i); % ith analytic eigenvector
+                if computeRegular
+                    M(i,:) = vecnorm(e2 - v1);
+                end
+                for j = 1:size(e2,2)
+                    if computeRegular
+                        v2 = e2(:,j);
+                        NN(i,j) = acos(dot(v1,v2))*180/pi;
+                    end
+                    if computePermuted
+                        v3 = e3(:,j);
+                        NNp(i,j) = acos(dot(v1,v3))*180/pi;
+                    end
+                end
+                if computePermuted
+                    Mp(i,:) = vecnorm(e3-v1);
+                end
+            end
+            obj.eigvec_dist_comparison_mat_ana2asy = M;
+            obj.eigvec_angle_comparison_mat_ana2asy = NN;
+            obj.eigvec_dist_comparison_mat_ana2asy_permuted = Mp;
+            obj.eigvec_angle_comparison_mat_ana2asy_permuted = NNp;
+            if ~isequal(real(NN),NN)
+                disp('Warning: eigvec_angle_comparison_mat has complex values');
+            end
+        end
+        function obj = set_permutation_eigvec_ana2asy(obj)
+            NN = obj.eigvec_angle_comparison_mat_ana2asy;
+            NN = abs(90 - NN);
+            [M,I] = max(NN,[],2);
+            M = M < 70;
+            ii = 1:size(I,1);
+            I(M) = ii(M);
+            [val,ind] = unique(I);
+            if isequal(ind,ii)
+                disp('I is a permutation')
+            end
+            obj.permutation_eigvec_ana2asy = I';
+        end
+        function obj = set_eig_asy_permuted(obj)
+            obj.eigenvalues_asy_permuted = obj.eigenvalues_asy(obj.permutation_eigvec_ana2asy);
+            obj.eigenvectors_asy_permuted = obj.eigenvectors_asy(:,obj.permutation_eigvec_ana2asy);
+        end
         function obj = print_output(obj) %create output file
             T = array2table([obj.solution_t,obj.solution_x],'VariableNames',obj.header);
             if ~isfolder(obj.resultsPath)
@@ -379,6 +492,15 @@ classdef EngineClass <  handle
             end
             %writetable(T,fullfile(obj.resultsPath,'output.csv'));
             save(fullfile(obj.resultsPath,'output.mat'),'T');
+        end
+        function obj = calculate_degree(obj)
+            B = (obj.adjacencyMatrix>0);
+            obj.degree_vector = sum(B,2);
+        end
+        function obj = calculate_degree_weighted(obj)
+            obj.degree_vector_weighted = sum(obj.adjacencyMatrix,2);
+            disp('calculate_degree_weighted(obj): obj.degree_vector_weighted = ');
+            disp(obj.degree_vector_weighted);
         end
         function obj = plot_results(obj, isDilute)
             if isDilute
@@ -402,14 +524,49 @@ classdef EngineClass <  handle
             ylabel('x');
             obj.save_fig(f,name);
         end
-        function obj = calculate_degree(obj)
-            B = (obj.adjacencyMatrix>0);
-            obj.degree_vector = sum(B,2);
-        end
-        function obj = calculate_degree_weighted(obj)
-            obj.degree_vector_weighted = sum(obj.adjacencyMatrix,2);
-            disp('calculate_degree_weighted(obj): obj.degree_vector_weighted = ');
-            disp(obj.degree_vector_weighted);
+        function obj = plot_results2(obj)
+            n=1;
+            angles_ana = cell(1,n);
+            angles_asy = cell(1,n);
+            step = 100;
+            ss = obj.steady_state';
+            ss = ss/norm(ss);
+            for i = 1:n
+                x1 = obj.solution_x_eigvecana{1,i};
+                x2 = obj.solution_x_eigvecasy{1,i};
+                n1 = size(x1,1);
+                n2 = size(x2,1);
+                for j = 1:n1
+                    v1 = x1(j,:);
+                    v1 = v1/norm(v1);
+                    angles_ana{1,i}(j,1) = real(acos(dot(ss,v1)))*180/pi;
+                end
+                for j = 1:n2
+                    v2 = x2(j,:);
+                    v2 = v2/norm(v2);
+                    angles_asy{1,i}(j,1) = real(acos(dot(ss,v2)))*180/pi;
+                end
+            end
+            name = 'fig2a';
+            f = figure('Name',name,'NumberTitle','off');
+            
+            CM = jet(n);
+            hold on;
+            legendStr = {};
+            for i = 1:n
+                plot(obj.solution_t_eigvecana{1,i}(1:step:end,1),angles_ana{1,i}(1:step:end,1),'.','Color',CM(i,:),'MarkerSize',12);
+                legendStr{end+1} = ['x_0 = ss + \epsilon * v_{' num2str(i) ',ana'];
+            end
+            for i = 1:n
+                plot(obj.solution_t_eigvecasy{1,i}(1:step:end,1),angles_asy{1,i}(1:step:end,1),'^','Color',CM(i,:));
+                legendStr{end+1} = ['x_0 = ss + \epsilon * v_{' num2str(i) ',asy'];
+            end
+            figdesc = 'Angle from Steady State';
+            title({[name ' ' obj.scenarioName];figdesc});
+            xlabel('Time');
+            ylabel('\theta_{x,ss}');
+            legend(legendStr);
+            obj.save_fig(f,name);
         end
         function obj = plot_steady_vs_degree(obj)
             name = 'fig3';
@@ -569,12 +726,22 @@ classdef EngineClass <  handle
             legend('Analytic Jacobian','Asymptotic Jacobian');
             obj.save_fig(f,name);
         end
-        function plot_eigenvectors(obj)
-            e1 = obj.eigenvectors_ana;
-            e2 = obj.eigenvectors_asy;
+        function plot_eigenvectors(obj,usePermuted)
+            if usePermuted
+                e2 = obj.eigenvectors_asy_permuted;
+                suf = '-Permuted';
+                dist = obj.eigvec_dist_comparison_mat_ana2asy_permuted;
+                angle = obj.eigvec_angle_comparison_mat_ana2asy_permuted;
+            else
+                e2 = obj.eigenvectors_asy;
+                suf = '';
+                dist = obj.eigvec_dist_comparison_mat_ana2asy;
+                angle = obj.eigvec_angle_comparison_mat_ana2asy;
+            end
+            e1 = obj.eigenvectors_ana;                        
             %%% fig6a
-            name = 'fig6a';
-            figdesc = 'Jacobian Eigenvectors Comparison';
+            name = ['fig6a' suf];
+            figdesc = ['Jacobian Eigenvectors Comparison' suf];
             f = figure('Name',name,'NumberTitle','off');
             vhat = e1 - e2;
             y = vecnorm(vhat);
@@ -585,8 +752,8 @@ classdef EngineClass <  handle
             legend('Analytic Jacobian vs Asymptotic Jacobian');
             obj.save_fig(f,name);
             %%% fig6b
-            name = 'fig6b';
-            figdesc = 'Jacobian Eigenvectors Angle Comparison';
+            name = ['fig6b' suf];
+            figdesc = ['Jacobian Eigenvectors Angle Comparison' suf];
             f = figure('Name',name,'NumberTitle','off');
             d = dot(e1,e2);
             th = acos(d)*180/pi;
@@ -597,49 +764,28 @@ classdef EngineClass <  handle
             legend('Analytic Jacobian vs Asymptotic Jacobian');
             obj.save_fig(f,name);
             %%% fig6c
-            name = 'fig6c';
-            figdesc = 'Jacobian Eigenvectors Distance Comparison Matrix';
+            name = ['fig6c' suf];
+            figdesc = ['Jacobian Eigenvectors Distance Comparison Matrix' suf];
             f = figure('Name',name,'NumberTitle','off');
-            M = zeros(size(e1,2));
-            NN = M;
-            for i = 1:size(e1,2)
-                if mod(i,100)==0
-                    disp(i);
-                end
-                v1 = e1(:,i); % ith analytic eigenvector
-                M(i,:) = vecnorm(e2 - v1);
-                for j = 1:size(e2,2)
-                    v2 = e2(:,j);
-                    NN(i,j) = acos(dot(v1,v2))*180/pi;
-                end
-%                 for j = 1:size(e2,2)
-%                     if mod(j,100) == 0
-%                         disp(j)
-%                     end
-%                     v1 = e1(:,i);
-%                     v2 = e2(:,j);
-%                     M(i,j) = norm(v1-v2);
-%                 end
-            end
-            image(M,'CDatamapping','scaled');
+            image(dist,'CDatamapping','scaled');
             colorbar;
             ylabel('Analytic Eigenvectors');
-            xlabel('Asymptotic Eigenvectors');
+            xlabel(['Asymptotic Eigenvectors' suf]);
             title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\mid v-\hat{v} \mid$'},'interpreter','latex');
             obj.save_fig(f,name);
             %%% fig6d
-            name = 'fig6d';
-            figdesc = 'Jacobian Eigenvectors Angle Comparison Matrix';
+            name = ['fig6d' suf];
+            figdesc = ['Jacobian Eigenvectors Angle Comparison Matrix' suf];
             f = figure('Name',name,'NumberTitle','off');
-            image(NN,'CDatamapping','scaled');
+            image(angle,'CDatamapping','scaled');
             colorbar;
             ylabel('Analytic Eigenvectors');
-            xlabel('Asymptotic Eigenvectors');
+            xlabel(['Asymptotic Eigenvectors' suf]);
             title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\theta_{v,\hat{v}} [deg]$'},'interpreter','latex');
             obj.save_fig(f,name);
         end
-        function obj = plot_eigenvectors2(obj,isFirst10,isKinn)
-            %%% fig7a,fig7b
+        function obj = plot_eigenvectors2(obj,isFirst10,isKinn,isPermuted,isLogLog)
+            %%% fig7a,fig7b, fig7c,fig7d,fig7e,fig7f -permuted
             if isKinn == true
                 fnumab = 'fig7b';
                 fnumcd = 'fig7d';
@@ -662,38 +808,59 @@ classdef EngineClass <  handle
                 n = size(obj.eigenvectors_ana,2);
                 suffix = '';
             end
+            if isPermuted
+                suffix2 = '-permuted';
+                eigvecasy = obj.eigenvectors_asy_permuted;
+            else
+                suffix2 = '';
+                eigvecasy = obj.eigenvectors_asy;
+            end
+            if isLogLog
+                suffix3 = '-loglog';
+                myplot = @loglog;
+                abs4log = @abs;
+                ylab = '\mid v_i \mid';
+            else
+                suffix3 = '';
+                myplot = @plot;
+                abs4log = @(x) (x);
+                ylab = 'v_i';
+            end
             CM = jet(n);
-            name = [fnumab suffix];
+            %% fig7a fig7b
+            name = [fnumab suffix suffix2 suffix3];
             f = figure('Name',name,'NumberTitle','off');
             hold on;
             for i=1:n
-                plot(x,obj.eigenvectors_ana(:,i),'.','MarkerSize',18,'Color',CM(i,:));
+                %myplot(x,abs4log(obj.eigenvectors_ana(:,i)),'.','MarkerSize',18,'Color',CM(i,:));
+                plot(log10(x),log10(abs4log(obj.eigenvectors_ana(:,i))),'.','MarkerSize',18,'Color',CM(i,:));
             end
             for i=1:n
-                plot(x,obj.eigenvectors_asy(:,i),'^','MarkerSize',12,'Color',CM(i,:));
+                %myplot(x,abs4log(eigvecasy(:,i)),'^','MarkerSize',12,'Color',CM(i,:));
+                plot(log10(x),log10(abs4log(eigvecasy(:,i))),'^','MarkerSize',12,'Color',CM(i,:));
             end
             xlabel(xlab);
-            ylabel('v_i');
+            ylabel(ylab);
             legendStr = cell(1, 2*n);
             for i = 1:n
                 str = ['v^{(' num2str(i) ')} analytical'];
                 legendStr{i} = str;
             end
             for i = n+1:2*n
-                str = ['v^{(' num2str(i-n) ')} asymptotic'];
+                str = ['v^{(' num2str(i-n) ')} asymptotic' suffix2];
                 legendStr{i} = str;
             end
             legend(legendStr);
             title({[name ' ' obj.scenarioName];obj.desc;figdescab;'v_i^{(j)} = i^{th} element of j^{th} eigenvector'});
             obj.save_fig(f,name);
-            %%% fig7c fig7d            
-            name = [fnumcd suffix];
+            %% fig7c fig7d            
+            name = [fnumcd suffix suffix2 suffix3];
             f = figure('Name',name,'NumberTitle','off');
             hold on;
-            plot(x,mean(obj.eigenvectors_ana(:,1:n),2),'.','MarkerSize',18);
-            plot(x,mean(obj.eigenvectors_asy(:,1:n),2),'^','MarkerSize',12);
+            myplot(x,abs4log(mean(obj.eigenvectors_ana(:,1:n),2)),'.','MarkerSize',18);
+            myplot(x,abs4log(mean(eigvecasy(:,1:n),2)),'^','MarkerSize',12);
             xlabel(xlab);
-            ylabel('$\bar{v_i}$','Interpreter','Latex');
+            ylabel('$\mid \bar{v_i} \mid$','Interpreter','Latex');
             legend('Analytic Eigenvectors Mean', 'Asymptotic Eigenvectors Mean');
             title({[name ' ' obj.scenarioName];obj.desc;figdesccd;'v_i^{(j)} = i^{th} element of j^{th} eigenvector'});
             obj.save_fig(f,name);
