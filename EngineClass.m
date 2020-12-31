@@ -587,12 +587,14 @@ classdef EngineClass <  handle
             ssInd = useSS + 1;
             figdesc{1,1} = 'State Angle from Steady State';
             figdesc{1,2} = 'Perturbation Angle from Steady State';
+            figdesc{1,3} = 'Perturbation Angle from Eigenvector';
             ylabelStr{1,1} = '\theta_{x,ss}';
             ylabelStr{1,2} = '\theta_{x-ss,ss}';
+            ylabelStr{1,3} = '\theta_{x-ss,v_i}';
             for epsInd = 1:length(obj.eps)
                 epsStr = num2str(obj.eps(epsInd));
-                angles_ana = cell(1,n,2);
-                angles_asy = cell(1,n,2);
+                angles_ana = cell(1,n,3);
+                angles_asy = cell(1,n,3);
                 for i = 1:n
                     disp(['vec ' num2str(i)])
                     x1 = obj.solution_x_eigvecana{ssInd,i,epsInd};
@@ -607,16 +609,20 @@ classdef EngineClass <  handle
                         u1 = v1' - ss; % current deviation from steady state
                         v1 = v1/norm(v1);
                         u1 = u1/norm(u1);
+                        vec = obj.eigenvectors_ana(:,i);
                         angles_ana{1,i,2}(j,1) = real(acos(dot(ssn,u1)))*180/pi;
                         angles_ana{1,i,1}(j,1) = real(acos(dot(ssn,v1)))*180/pi;
+                        angles_ana{1,i,3}(j,1) = rad2deg(real(acos(dot(vec,u1))));
                     end
                     for j = 1:n2
                         v2 = x2(j,:);
                         u2 = v2' - ss;
                         v2 = v2/norm(v2);
                         u2 = u2/norm(u2);
+                        vec = obj.eigenvectors_asy(:,i);
                         angles_asy{1,i,1}(j,1) = real(acos(dot(ssn,v2)))*180/pi;
                         angles_asy{1,i,2}(j,1) = real(acos(dot(ssn,u2)))*180/pi;
+                        angles_asy{1,i,3}(j,1) = rad2deg(real(acos(dot(vec,u2))));
                     end
                 end
                 if ~useSS
@@ -625,12 +631,16 @@ classdef EngineClass <  handle
                     ssstr = '';
                     name{1,2} = ['fig2c eps ' epsStr];
                     fname{1,2} = ['fig2c eps ' strrep(epsStr,'.','p')];
+                    name{1,3} = ['fig2h eps ' epsStr];
+                    fname{1,3} = ['fig2h eps ' strrep(epsStr,'.','p')];
                 else
                     name{1,1} = ['fig2b eps ' epsStr];
                     fname{1,1} = ['fig2b eps ' strrep(epsStr,'.','p')];
                     ssstr = 'ss + ';
                     name{1,2} = ['fig2d eps ' epsStr];
                     fname{1,2} = ['fig2d eps ' strrep(epsStr,'.','p')];
+                    name{1,3} = ['fig2h eps ' epsStr];
+                    fname{1,3} = ['fig2h eps ' strrep(epsStr,'.','p')];
                 end
                 numfigs = size(name,2);
                 for figInd = 1:numfigs
@@ -1033,6 +1043,117 @@ classdef EngineClass <  handle
             legend('Analytic Eigenvectors Mean', 'Asymptotic Eigenvectors Mean');
             title({[name ' ' obj.scenarioName];obj.desc;figdesccd;'v_i^{(j)} = i^{th} element of j^{th} eigenvector'});
             obj.save_fig(f,name);
+        end
+        %% fig8a fig8b random states angles to SS
+        function obj = plot_random_states(obj)
+            myfactor = {1,2};
+            myshift = {0,-1};
+            namesuf = {' 1st quad',' all quads'};
+            for ind1 = 1:2
+                ss = obj.steady_state';
+                ssn = ss/norm(ss);
+                seed = obj.randSeed;
+                rng(seed);
+                n = 300;
+                x0 = rand(6000,n)*myfactor{ind1}+myshift{ind1};
+                nrm = vecnorm(x0);
+                x0n = x0./nrm;
+                pert0 = x0-ss;
+                pert0nrm = vecnorm(pert0);
+                pert0n = pert0./pert0nrm;
+                ssn = zeros(size(x0n)) + ssn;
+                x0n1 = zeros(size(x0n)) + x0n(:,1);
+                x2 = rand(6000,n)*myfactor{ind1}+myshift{ind1};
+                nrm2 = vecnorm(x2);
+                x2n = x2./nrm2;
+                dims = [2:10,20:10:100,200:100:1000,2000:1000:10000];
+                %dimplotind = [28:36];
+                dimplotind = [1,9,24, 32,36];
+                angleset = zeros(n,size(dims,2));
+                ind = 1;
+                for i = dims
+                    x1 = rand(i,n)*myfactor{ind1}+myshift{ind1};
+                    x2 = rand(i,n)*myfactor{ind1}+myshift{ind1};
+                    x1 = x1./vecnorm(x1);
+                    x2 = x2./vecnorm(x2);
+                    angleset(:,ind) = rad2deg(real(acos(dot(x1,x2))))';
+                    ind = ind+1;
+                end
+                anglesetmean = mean(angleset);
+                anglesetstd = std(angleset);
+                x3 = rand(2,n)*myfactor{ind1}+myshift{ind1};
+                nrm3 = vecnorm(x3);
+                x3n = x3./nrm3;
+                angles = rad2deg(real(acos(dot(x0n,ssn))));
+                angles2 = rad2deg(real(acos(dot(x0n1,x0n))));
+                angles3 = rad2deg(real(acos(dot(x0n,x2n))));
+                angles4 = rad2deg(real(acos(dot(pert0n,ssn))));
+                %% fig8a
+                name = {['fig8a' namesuf{ind1}],['fig8f' namesuf{ind1}]};
+                figdesc = {['Angles between random states' namesuf{ind1}],...
+                    ['Distribution of angles between random states' namesuf{ind1}]};
+                f = figure('Name',name{1},'NumberTitle','off');
+                plot(angles,'ob');
+                hold on;
+                plot(angles2,'*r');
+                plot(angles3,'.k','MarkerSize',12);
+                plot(angles4,'^m');
+                legendStr = {};
+                legendStr{1} = '$\theta_{x_{rand},SS}$';
+                legendStr{2} = '$\theta_{x_{rand,1},x_{rand}}$';
+                legendStr{3} = '$\theta_{x_{rand},x_{rand}}$';
+                legendStr{4} = '$\theta_{x_{rand}-SS,SS}$';
+                for ind = dimplotind
+                    dim = dims(ind);
+                    anglesdim = angleset(:,ind);
+                    plot(anglesdim,'.','MarkerSize',12)
+                    legendStr{end+1} = ['$\theta_{x_{rand},x_{rand}}$ dim = ' num2str(dim)];
+                end
+                xlabel('Index');
+                ylabel('$\theta$','Interpreter','Latex');
+                legend(legendStr,'Interpreter','Latex','FontSize',14);
+                title({[name{1} ' ' obj.scenarioName];obj.desc;figdesc{1}});
+                obj.save_fig(f,name{1});
+                %% fig8f
+                f = figure('Name',name{2},'NumberTitle','off');
+                histogram(angles);
+                hold on;
+                histogram(angles2(2:end));
+                histogram(angles3);
+                histogram(angles4);
+%                 legendStr = {};
+                for ind = dimplotind
+                    dim = dims(ind);
+                    anglesdim = angleset(:,ind);
+                    histogram(anglesdim)
+%                     legendStr{end+1} = ['$\theta_{x_{rand},x_{rand}}$ dim = ' num2str(dim)];
+                end
+                xlabel('$\theta$','Interpreter','Latex');
+                %             ylabel('$\theta$','Interpreter','Latex');
+                legend(legendStr,'Interpreter','Latex','FontSize',14);
+                title({[name{2} ' ' obj.scenarioName];obj.desc;figdesc{2}});
+                obj.save_fig(f,name{2});
+                %% fig8b fig8c fig8d fig8e
+                name = {['fig8b' namesuf{ind1}],['fig8c' namesuf{ind1}],...
+                    ['fig8d' namesuf{ind1}],['fig8e' namesuf{ind1}]};
+                figdesc = {['Average angle between random states vs dimension' namesuf{ind1}],...
+                    ['Average angle between random states vs log(dimension)' namesuf{ind1}],...
+                    ['Standard Deviation of angles between random states vs dimension' namesuf{ind1}],...
+                    ['Standard Deviation of angles between random states vs log(dimension)' namesuf{ind1}]};
+                x = {dims, log10(dims)};
+                xlab = {'Dimension','log(Dimension)'};
+                y = {anglesetmean,anglesetstd};
+                ylab = {'$\overline{\theta}$','$\sigma_{\theta}$'};
+                for ind = [1:4]
+                    f = figure('Name',name{ind},'NumberTitle','off');
+                    plot(x{mod(ind-1,2)+1},y{(ind>2) + 1},'ob');
+                    xlabel(xlab{mod(ind-1,2)+1});
+                    ylabel(ylab{(ind>2)+1},'Interpreter','Latex');
+                    %legend(legendStr,'Interpreter','Latex','FontSize',14);
+                    title({[name{ind} ' ' obj.scenarioName];obj.desc;figdesc{ind}});
+                    obj.save_fig(f,name{ind});
+                end
+            end
         end
         function obj = save_fig(obj,f,name)
             try
