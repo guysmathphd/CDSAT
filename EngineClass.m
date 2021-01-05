@@ -58,7 +58,7 @@ classdef EngineClass <  handle
         eigvec_dist_comparison_mat_ana2asy_permuted
         eigvec_angle_comparison_mat_ana2asy_permuted
         permutation_eigvec_ana2asy
-        eps = [.1,.5,1];
+        eps = [1];
         
         
         difEqSolver %function handle
@@ -80,6 +80,7 @@ classdef EngineClass <  handle
         nu = 0
         rho = 0
         eta = 0
+        isEngineSet = false
     end
     methods
         function obj = EngineClass(propertiesMap)
@@ -117,7 +118,7 @@ classdef EngineClass <  handle
             obj.set_kbinned();
             obj.set_Dii_asybinned();
             obj.set_Wij_asybinned();
-            set_kinn();
+            obj.set_kinn();
             obj.save_obj();
         end
         function obj = set_bins(obj)
@@ -376,7 +377,7 @@ classdef EngineClass <  handle
                 obj.set_Dii_anabinned();
                 obj.set_Wij_anabinned();
                 obj.set_eigvec_comparison_mats(true,false);
-                obj.set_permutation_eigvec_ana2asy();
+                obj.set_permutation_eigvec_ana2asy(40);
                 obj.set_eig_asy_permuted();
                 obj.set_eigvec_comparison_mats(false,true);
             end

@@ -16,8 +16,9 @@ for i=1:prod(v)
 end
 i = zeros(1,numkeys);
 str = '[';
-for j = 1:n
+for j = 1:numkeys
     str = [str ' i(' num2str(j) ')'];
+    disp(['j=' num2str(j) ' str=' str]);
 end
 str = [str ']'];
 for j = 1:prod(v)
@@ -25,8 +26,9 @@ for j = 1:prod(v)
     myValues = cell(1,numkeys);
     str2 = 'propertiesMaps{';
     for k = 1:numkeys
-        key = mykeys{k};
-        key_values = propMapsDefs(key);
+        disp(['k=' num2str(k)]);
+        key = mykeys{k}
+        key_values = propMapsDefs(key)
         myValues{k} = key_values{i(k)};
         str2 = [str2 num2str(i(k)) ','];
     end

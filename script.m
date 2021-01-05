@@ -5,6 +5,8 @@ myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','max
 myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta'};
 %%
 myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins'};
+%%
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet'};
 %% 
 % A simple system with two independent nodes whose solution is x = Cexp(-t)
 A = eye(2);
@@ -674,4 +676,42 @@ obj.solve(false,true,true,3,2,false);
 % SIS.plot_eigenvalues();
 % SIS.plot_eigenvectors();
 % SIS.save_obj();
-
+%% test23SIS16 Eigenvalues Check
+isEngineSet = {true};
+f = [.1, 1, 5, 10, 50,100];
+g = f;
+ind = 1;
+name = {'test23SIS16'};
+m0={};
+m2={};
+str1 = 'm0{ind} = @(x) (-';
+str2 = 'm2{ind} = @(x) (';
+for kf=1:length(f)
+    eval([str1 num2str(f(kf)) '*x)']);
+    eval([str2 num2str(g(kf)) '*x)']);
+    ind = ind+1;
+end
+desc = {'SF1'};
+seed = {1};
+rng(seed{1});
+load(fullfile('networks','SF1.mat'));
+x0 = {rand(1,6000)'};
+maxT = {10};
+maxDt = {0.01};
+timeStep = {10};
+m1 = {@(x) (1-x)};
+difEqSolver = {@ode45};
+absTol = {1e-5};
+relTol = {1e-5};
+mu = {1};
+nu = {-1};
+rho = {0};
+eta = {0};
+numbins = {15};
+numeigen = {200};
+resultsPath={};
+resultsPath{1} = fullfile('tests','test23SIS16set1');
+myValues = {name,desc,{A},x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,numbins,numeigen,isEngineSet};
+propMapsDefs = containers.Map(myKeys,myValues);
+propertiesMaps = makePropertiesMaps(propMapsDefs);
+SISset = EngineSet(propertiesMaps);
