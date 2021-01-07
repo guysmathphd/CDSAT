@@ -714,4 +714,18 @@ resultsPath{1} = fullfile('tests','test23SIS16set1');
 myValues = {name,desc,{A},x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,numbins,numeigen,isEngineSet};
 propMapsDefs = containers.Map(myKeys,myValues);
 propertiesMaps = makePropertiesMaps(propMapsDefs);
-SISset = EngineSet(propertiesMaps);
+% SISset = EngineSet(propertiesMaps);
+path = 'tests\test23SIS16set1';
+name = 'test23SIS16set1';
+SISset = EngineSet(path,name);
+SISset.set_engine_paths();
+SISset.setSolve(32);
+SISset.setPlot_results(32,true);
+SISset.setFunction(@plot_eigenvalues,32);
+SISset.set_eigenvalues(1,999);
+%%%%%% Run these:
+SISset.setSolve(1,false,true,1,1,true);
+SISset.setSolve(1,true,true,1,1,true);
+%%%%%%
+SISset.plot_setEigenvalues();
+

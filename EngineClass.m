@@ -59,7 +59,9 @@ classdef EngineClass <  handle
         eigvec_angle_comparison_mat_ana2asy_permuted
         permutation_eigvec_ana2asy
         eps = [1];
-        
+        eps_adjusted;
+        isInitsLegit;
+        epsThreshold = .01;
         
         difEqSolver %function handle
         absTol % positive double
@@ -278,108 +280,147 @@ classdef EngineClass <  handle
             disp('set_dM2: obj.f_dM2 = ');
             disp(obj.f_dM2);
         end
-        function obj = solve(obj,useEigVecAna,useEigVecAsy,useSS,epsIndStart,vecIndStart,isNormalize)
+        function obj = solve(obj,useEigVec,useSS,epsIndStart,vecIndStart,isAdjustEpsilon)
             %Solve the system
             tic;
             %nn=10;
-            nn=5;
+            nn=5; % number of eigenvectors
             ss = obj.steady_state;
             pert = 0;
             ssInd = useSS + 1;
-            for epsInd = epsIndStart:length(obj.eps)
-                eps = obj.eps(epsInd);
-                disp(['eps = ' num2str(eps)]);
-                if useEigVecAsy
-                    pert = eps * obj.eigenvectors_asy_permuted(:,1:nn);
-                    inits = useSS*ss' + pert;
-                    if isNormalize
-                        inits = inits./vecnorm(inits);
-                    end
-                    %                 obj.solution_t_eigvecasy = cell(ssInd,nn);
-                    %                 obj.solution_x_eigvecasy = cell(ssInd,nn);
-                    for i = vecIndStart:nn
-                        obj.solution_t_eigvecasy{ssInd,i,epsInd} = [];
-                        obj.solution_x_eigvecasy{ssInd,i,epsInd} = [];
-                        obj.solution_t_eigvecasy{ssInd,i,epsInd} = 0;
-                        obj.solution_x_eigvecasy{ssInd,i,epsInd} = inits(:,i)';
-                    end
-                elseif useEigVecAna
-                    pert = eps * obj.eigenvectors_ana(:,1:nn);
-                    inits = useSS*ss' + pert;
-                    %                 obj.solution_t_eigvecana = cell(1,nn);
-                    %                 obj.solution_x_eigvecana = cell(1,nn);
-                    if isNormalize
-                        inits = inits./vecnorm(inits);
-                    end
-                    for i = vecIndStart:nn
-                        obj.solution_t_eigvecana{ssInd,i,epsInd} = 0;
-                        obj.solution_x_eigvecana{ssInd,i,epsInd} = inits(:,i)';
-                    end
-                else
-                    if epsInd>1
-                        break
-                    end
-                    nn=1;
-                    pert = obj.initialValues;
-                    inits = pert;
-                end
-                opts = odeset('RelTol',obj.relTol,'AbsTol',obj.absTol);
-                clear odefun;
-                odefun = @(tt,x) (obj.f_M0(x) + (obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x));
-                for ii = vecIndStart:nn
-                    disp(['ii = ' num2str(ii)]);
-                    t = 0; %initial step start time
-                    init = sign(inits(1,ii))*inits(:,ii);
-                    s = sign(inits(:,ii));
-                    sums = sum(s);
-                    disp(['sum(s) = ' num2str(sums)]);
-                    disp(['s(1) = ' num2str(s(1))]);
-                    if abs(sums)~=obj.N
-                        disp('abs(ss)~=obj.N')
-                    end
-                    %init = obj.initialValues; % set initial value for step
-                    setBreak = false; % stop while loop?
-                    while ~setBreak
-                        % check if this step passes maxTime and set stepEndTime
-                        if t + obj.solverTimeStep >= obj.maxTime
-                            stepEndTime = obj.maxTime;
-                            setBreak = true;
-                        else
-                            stepEndTime = t + obj.solverTimeStep;
+            numeps = length(obj.eps);
+            if useEigVec
+                for epsInd = epsIndStart:numeps
+                    eps = obj.eps(epsInd);
+                    obj.isInitsLegit(epsInd) = false;
+                    while ~obj.isInitsLegit(epsInd)
+                        disp(['eps = ' num2str(eps)]);
+                        if eps < obj.epsThreshold
+                            disp('eps too small, breaking');
+                            break
                         end
-                        % run solver step
-                        display(['stepEndTime = ' num2str(stepEndTime)]);
-                        [sol_t,sol_x] = obj.difEqSolver(odefun,[t stepEndTime],init,opts);
-                        t = stepEndTime;
-                        init = sol_x(end,:);
-                        % append results to solution_t and solution_x
-                        if useEigVecAna
-                            obj.solution_t_eigvecana{ssInd,ii,epsInd}(end+1:end+length(sol_t)-1,1) = sol_t(2:end,:);
-                            obj.solution_x_eigvecana{ssInd,ii,epsInd}(end+1:end+size((sol_x),1)-1,:) = sol_x(2:end,:);
-                        elseif useEigVecAsy
-                            obj.solution_t_eigvecasy{ssInd,ii,epsInd}(end+1:end+length(sol_t)-1,1) = sol_t(2:end,:);
-                            obj.solution_x_eigvecasy{ssInd,ii,epsInd}(end+1:end+size((sol_x),1)-1,:) = sol_x(2:end,:);
+                        pert_asy = eps * obj.eigenvectors_asy_permuted(:,1:nn);
+                        inits_asy = useSS*ss' + pert_asy;
+                        pert_ana = eps * obj.eigenvectors_ana(:,1:nn);
+                        inits_ana = useSS*ss' + pert_ana;
+                        if isAdjustEpsilon
+                            if any(inits_ana<0 | inits_ana > 1 | inits_asy < 0 | inits_asy > 1,'all')
+                                disp('Adjusting Epsilon');
+                                eps = eps*.9;
+                                disp(['eps = ' num2str(eps)]);
+                            else
+                                obj.isInitsLegit(epsInd) = true;
+                            end
                         else
-                            obj.solution_t = [obj.solution_t;sol_t(2:end,:)];
-                            obj.solution_x = [obj.solution_x;sol_x(2:end,:)];
+                            obj.isInitsLegit(epsInd) = true;
                         end
                     end
+                    obj.eps_adjusted(epsInd) = eps;
+                    disp(['Final eps= ' num2str(eps)]);
+                    inits{1,epsInd} = inits_ana;
+                    inits{2,epsInd} = inits_asy;
                 end
-                toc;
+                for i = vecIndStart:nn
+                    obj.solution_t_eigvecasy{ssInd,i,epsInd} = 0;
+                    obj.solution_x_eigvecasy{ssInd,i,epsInd} = inits_asy(:,i)';
+                    
+                    obj.solution_t_eigvecana{ssInd,i,epsInd} = 0;
+                    obj.solution_x_eigvecana{ssInd,i,epsInd} = inits_ana(:,i)';
+                end
+            else
+                nn=1;
+                numeps = 1;
+                inits_current = obj.initialValues;
+                obj.solution_t = 0;
+                obj.solution_x = obj.initialValues';
             end
-            if ~useEigVecAna && ~useEigVecAsy
-                obj.set_steady_state();
-                obj.set_M2_i_bigodot();
-                obj.set_steady_state_calculated();
-                obj.set_Dii_ana();
-                obj.set_Wij_ana();
-                obj.set_eig_ana();
-                obj.set_Dii_anabinned();
-                obj.set_Wij_anabinned();
-                obj.set_eigvec_comparison_mats(true,false);
-                obj.set_permutation_eigvec_ana2asy(40);
-                obj.set_eig_asy_permuted();
-                obj.set_eigvec_comparison_mats(false,true);
+            opts = odeset('RelTol',obj.relTol,'AbsTol',obj.absTol);
+            clear odefun;
+            odefun = @(tt,x) (obj.f_M0(x) + (obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x));
+            if ~useEigVec || obj.isInitsLegit(epsInd)
+                for i=1:useEigVec + 1
+                    disp(['i = ' num2str(i)]);
+                    for epsInd = epsIndStart:numeps
+                        
+                        if useEigVec
+                            inits_current = inits{i,epsInd};
+                            disp(['inits = inits{' num2str(i) ',' num2str(epsInd) '}']);
+                        else
+                            disp('inits = obj.initialValues');
+                        end
+                        for ii = vecIndStart:nn
+                            disp(['ii = ' num2str(ii)]);
+                            t = 0; %initial step start time
+                            init = inits_current(:,ii);
+                            s = sign(inits_current(:,ii));
+                            sums = sum(s);
+                            disp(['sum(s) = ' num2str(sums)]);
+                            disp(['s(1) = ' num2str(s(1))]);
+                            if abs(sums)~=obj.N
+                                disp('abs(ss)~=obj.N')
+                            end
+                            %init = obj.initialValues; % set initial value for step
+                            setBreak = false; % stop while loop?
+                            while ~setBreak
+                                % check if this step passes maxTime and set stepEndTime
+                                if t + obj.solverTimeStep >= obj.maxTime
+                                    stepEndTime = obj.maxTime;
+                                    setBreak = true;
+                                else
+                                    stepEndTime = t + obj.solverTimeStep;
+                                end
+                                % run solver step
+                                display(['stepEndTime = ' num2str(stepEndTime)]);
+                                [sol_t,sol_x] = obj.difEqSolver(odefun,[t stepEndTime],init,opts);
+                                t = stepEndTime;
+                                init = sol_x(end,:);
+                                % append results to solution_t and solution_x
+                                if useEigVec && i==1
+                                    obj.solution_t_eigvecana{ssInd,ii,epsInd}(end+1:end+length(sol_t)-1,1) = sol_t(2:end,:);
+                                    obj.solution_x_eigvecana{ssInd,ii,epsInd}(end+1:end+size((sol_x),1)-1,:) = sol_x(2:end,:);
+                                    if max(abs(obj.solution_x_eigvecana{ssInd,ii,epsInd}(end,:)-obj.steady_state))<obj.absTol*100
+                                        setBreak = true;
+                                        disp('setBreak = true');
+                                    end
+                                elseif useEigVec && i==2
+                                    obj.solution_t_eigvecasy{ssInd,ii,epsInd}(end+1:end+length(sol_t)-1,1) = sol_t(2:end,:);
+                                    obj.solution_x_eigvecasy{ssInd,ii,epsInd}(end+1:end+size((sol_x),1)-1,:) = sol_x(2:end,:);
+                                    if max(abs(obj.solution_x_eigvecasy{ssInd,ii,epsInd}(end,:)-obj.steady_state))<obj.absTol*100
+                                        setBreak = true;
+                                        disp('setBreak = true');
+                                    end
+                                else
+                                    obj.solution_t = [obj.solution_t;sol_t(2:end,:)];
+                                    obj.solution_x = [obj.solution_x;sol_x(2:end,:)];
+                                    if size(obj.solution_t,1)>100 && max(abs(obj.solution_x(end,:)-obj.solution_x(end-100,:)))<obj.absTol
+                                        setBreak = true;
+                                        disp('setBreak = true');
+                                    end
+                                end
+                            end
+                        end
+                        
+                    end
+                end
+                
+                toc;
+                
+                if ~useEigVec
+                    obj.set_steady_state();
+                    obj.set_M2_i_bigodot();
+                    obj.set_steady_state_calculated();
+                    obj.set_Dii_ana();
+                    obj.set_Wij_ana();
+                    obj.set_eig_ana();
+                    obj.set_Dii_anabinned();
+                    obj.set_Wij_anabinned();
+                    obj.set_eigvec_comparison_mats(true,false);
+                    obj.set_permutation_eigvec_ana2asy(40);
+                    obj.set_eig_asy_permuted();
+                    obj.set_eigvec_comparison_mats(false,true);
+                end
+            else
+                disp('Did not solve, no valid inits');
             end
             obj.save_obj();
         end
@@ -394,7 +435,7 @@ classdef EngineClass <  handle
             neighbor_sum_M2_x = obj.adjacencyMatrix * M2_x';
             obj.M2_i_bigodot = neighbor_sum_M2_x ./ obj.degree_vector_weighted;
             disp('set_M2_i_bigdot(obj): obj.M2_i_bigdot = ');
-            disp(obj.M2_i_bigodot);
+            %disp(obj.M2_i_bigodot);
         end
         function obj = set_steady_state_calculated(obj)
             syms x;
@@ -550,6 +591,7 @@ classdef EngineClass <  handle
             ylabel('x');
             obj.save_fig(f,name);
             %% fig1b*
+            if ~isempty(obj.solution_t_eigvecana)
             epsset = obj.eps;
             numeps = size(epsset,2);
             epsStr = cell(1,numeps);
@@ -558,25 +600,28 @@ classdef EngineClass <  handle
             ana_asyStr = {'Analytical','Asymptotic'};
             n = 5;
             for epsInd = 1:numeps
-                epsStr = num2str(epsset(epsInd));
-                for i = 1:n
-                    for anaasyInd = 1:2
-                        ind_x = 1:step:size(ana_asy_x{anaasyInd}{2,i,epsInd},2);
-                        ind_t = 1:step:length(ana_asy_t{anaasyInd}{2,i,epsInd});
-                        t = ana_asy_t{anaasyInd}{2,i,epsInd}(ind_t);
-                        x = ana_asy_x{anaasyInd}{2,i,epsInd}(ind_t,ind_x);
-                        str = ana_asyStr{anaasyInd}(1:3);
-                        name = ['fig1b' suffix ' eps' epsStr 'vec_{' num2str(i) ',' str '}'];
-                        fname = ['fig1b eps ' strrep(epsStr,'.','p') ' vec' num2str(i) ' ' str];
-                        f = figure('Name',name,'NumberTitle','off');
-                        plot(t,x,'.-','MarkerSize',12);
-                        legend(obj.header(2:step:end));
-                        title({[name ' ' obj.scenarioName];obj.desc});
-                        xlabel(obj.header{1});
-                        ylabel('x');
-                        obj.save_fig(f,fname);
+                if obj.isInitsLegit(epsInd)
+                    epsStr = num2str(epsset(epsInd));
+                    for i = 1:n
+                        for anaasyInd = 1:2
+                            ind_x = 1:step:size(ana_asy_x{anaasyInd}{2,i,epsInd},2);
+                            ind_t = 1:step:length(ana_asy_t{anaasyInd}{2,i,epsInd});
+                            t = ana_asy_t{anaasyInd}{2,i,epsInd}(ind_t);
+                            x = ana_asy_x{anaasyInd}{2,i,epsInd}(ind_t,ind_x);
+                            str = ana_asyStr{anaasyInd}(1:3);
+                            name = ['fig1b' suffix ' eps' epsStr 'vec_{' num2str(i) ',' str '}'];
+                            fname = ['fig1b eps ' strrep(epsStr,'.','p') ' vec' num2str(i) ' ' str];
+                            f = figure('Name',name,'NumberTitle','off');
+                            plot(t,x,'.-','MarkerSize',12);
+                            legend(obj.header(2:step:end));
+                            title({[name ' ' obj.scenarioName];obj.desc});
+                            xlabel(obj.header{1});
+                            ylabel('x');
+                            obj.save_fig(f,fname);
+                        end
                     end
                 end
+            end
             end
         end
         function obj = plot_results2(obj,useSS)
@@ -593,74 +638,77 @@ classdef EngineClass <  handle
             ylabelStr{1,2} = '\theta_{x-ss,ss}';
             ylabelStr{1,3} = '\theta_{x-ss,v_i}';
             for epsInd = 1:length(obj.eps)
-                epsStr = num2str(obj.eps(epsInd));
-                angles_ana = cell(1,n,3);
-                angles_asy = cell(1,n,3);
-                for i = 1:n
-                    disp(['vec ' num2str(i)])
-                    x1 = obj.solution_x_eigvecana{ssInd,i,epsInd};
-                    x2 = obj.solution_x_eigvecasy{ssInd,i,epsInd};
-                    n1 = size(x1,1);
-                    n2 = size(x2,1);
-                    for j = 1:n1
-                        if mod(j,1000) == 0
-                            disp(['row ' num2str(j)]);
+                if obj.isInitsLegit(epsInd)
+                    epsStr = num2str(obj.eps(epsInd));
+                    angles_ana = cell(1,n,3);
+                    angles_asy = cell(1,n,3);
+                    for i = 1:n
+                        disp(['vec ' num2str(i)])
+                        x1 = obj.solution_x_eigvecana{ssInd,i,epsInd};
+                        x2 = obj.solution_x_eigvecasy{ssInd,i,epsInd};
+                        n1 = size(x1,1);
+                        n2 = size(x2,1);
+                        for j = 1:n1
+                            if mod(j,1000) == 0
+                                disp(['row ' num2str(j)]);
+                            end
+                            v1 = x1(j,:); % current state
+                            u1 = v1' - ss; % current deviation from steady state
+                            v1 = v1/norm(v1);
+                            u1 = u1/norm(u1);
+                            vec = obj.eigenvectors_ana(:,i);
+                            angles_ana{1,i,2}(j,1) = real(acos(dot(ssn,u1)))*180/pi;
+                            angles_ana{1,i,1}(j,1) = real(acos(dot(ssn,v1)))*180/pi;
+                            angles_ana{1,i,3}(j,1) = rad2deg(real(acos(dot(vec,u1))));
                         end
-                        v1 = x1(j,:); % current state
-                        u1 = v1' - ss; % current deviation from steady state
-                        v1 = v1/norm(v1);
-                        u1 = u1/norm(u1);
-                        vec = obj.eigenvectors_ana(:,i);
-                        angles_ana{1,i,2}(j,1) = real(acos(dot(ssn,u1)))*180/pi;
-                        angles_ana{1,i,1}(j,1) = real(acos(dot(ssn,v1)))*180/pi;
-                        angles_ana{1,i,3}(j,1) = rad2deg(real(acos(dot(vec,u1))));
+                        for j = 1:n2
+                            v2 = x2(j,:);
+                            u2 = v2' - ss;
+                            v2 = v2/norm(v2);
+                            u2 = u2/norm(u2);
+                            vec = obj.eigenvectors_asy(:,i);
+                            angles_asy{1,i,1}(j,1) = real(acos(dot(ssn,v2)))*180/pi;
+                            angles_asy{1,i,2}(j,1) = real(acos(dot(ssn,u2)))*180/pi;
+                            angles_asy{1,i,3}(j,1) = rad2deg(real(acos(dot(vec,u2))));
+                        end
                     end
-                    for j = 1:n2
-                        v2 = x2(j,:);
-                        u2 = v2' - ss;
-                        v2 = v2/norm(v2);
-                        u2 = u2/norm(u2);
-                        vec = obj.eigenvectors_asy(:,i);
-                        angles_asy{1,i,1}(j,1) = real(acos(dot(ssn,v2)))*180/pi;
-                        angles_asy{1,i,2}(j,1) = real(acos(dot(ssn,u2)))*180/pi;
-                        angles_asy{1,i,3}(j,1) = rad2deg(real(acos(dot(vec,u2))));
+                    
+                    if ~useSS
+                        name{1,1} = ['fig2a eps ' epsStr];
+                        fname{1,1} = ['fig2a eps ' strrep(epsStr,'.','p')];
+                        ssstr = '';
+                        name{1,2} = ['fig2c eps ' epsStr];
+                        fname{1,2} = ['fig2c eps ' strrep(epsStr,'.','p')];
+                        name{1,3} = ['fig2h eps ' epsStr];
+                        fname{1,3} = ['fig2h eps ' strrep(epsStr,'.','p')];
+                    else
+                        name{1,1} = ['fig2b eps ' epsStr];
+                        fname{1,1} = ['fig2b eps ' strrep(epsStr,'.','p')];
+                        ssstr = 'ss + ';
+                        name{1,2} = ['fig2d eps ' epsStr];
+                        fname{1,2} = ['fig2d eps ' strrep(epsStr,'.','p')];
+                        name{1,3} = ['fig2h eps ' epsStr];
+                        fname{1,3} = ['fig2h eps ' strrep(epsStr,'.','p')];
                     end
-                end
-                if ~useSS
-                    name{1,1} = ['fig2a eps ' epsStr];
-                    fname{1,1} = ['fig2a eps ' strrep(epsStr,'.','p')];
-                    ssstr = '';
-                    name{1,2} = ['fig2c eps ' epsStr];
-                    fname{1,2} = ['fig2c eps ' strrep(epsStr,'.','p')];
-                    name{1,3} = ['fig2h eps ' epsStr];
-                    fname{1,3} = ['fig2h eps ' strrep(epsStr,'.','p')];
-                else
-                    name{1,1} = ['fig2b eps ' epsStr];
-                    fname{1,1} = ['fig2b eps ' strrep(epsStr,'.','p')];
-                    ssstr = 'ss + ';
-                    name{1,2} = ['fig2d eps ' epsStr];
-                    fname{1,2} = ['fig2d eps ' strrep(epsStr,'.','p')];
-                    name{1,3} = ['fig2h eps ' epsStr];
-                    fname{1,3} = ['fig2h eps ' strrep(epsStr,'.','p')];
-                end
-                numfigs = size(name,2);
-                for figInd = 1:numfigs
-                    f = figure('Name',name{1,figInd},'NumberTitle','off');
-                    hold on;
-                    legendStr = {};
-                    for i = 1:n
-                        plot(obj.solution_t_eigvecana{ssInd,i,epsInd}(1:step:end,1),angles_ana{1,i,figInd}(1:step:end,1),'.','Color',CM(i,:),'MarkerSize',12);
-                        legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',ana}$'];
+                    numfigs = size(name,2);
+                    for figInd = 1:numfigs
+                        f = figure('Name',name{1,figInd},'NumberTitle','off');
+                        hold on;
+                        legendStr = {};
+                        for i = 1:n
+                            plot(obj.solution_t_eigvecana{ssInd,i,epsInd}(1:step:end,1),angles_ana{1,i,figInd}(1:step:end,1),'.','Color',CM(i,:),'MarkerSize',12);
+                            legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',ana}$'];
+                        end
+                        for i = 1:n
+                            plot(obj.solution_t_eigvecasy{ssInd,i,epsInd}(1:step:end,1),angles_asy{1,i,figInd}(1:step:end,1),'^','Color',CM(i,:));
+                            legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',asy}$'];
+                        end
+                        title({[name{1,figInd} ' ' obj.scenarioName];figdesc{1,figInd}});
+                        xlabel('Time');
+                        ylabel(ylabelStr{1,figInd});
+                        legend(legendStr,'Interpreter','latex','FontSize',14);
+                        obj.save_fig(f,fname{1,figInd});
                     end
-                    for i = 1:n
-                        plot(obj.solution_t_eigvecasy{ssInd,i,epsInd}(1:step:end,1),angles_asy{1,i,figInd}(1:step:end,1),'^','Color',CM(i,:));
-                        legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',asy}$'];
-                    end
-                    title({[name{1,figInd} ' ' obj.scenarioName];figdesc{1,figInd}});
-                    xlabel('Time');
-                    ylabel(ylabelStr{1,figInd});
-                    legend(legendStr,'Interpreter','latex','FontSize',14);
-                    obj.save_fig(f,fname{1,figInd});
                 end
             end
             %% fig2e fig2f, fig2e-polar, fig2f-polar
@@ -671,6 +719,10 @@ classdef EngineClass <  handle
             angles = zeros(m,2);
             pert = (x' - ss)';
             pertnorm = vecnorm(pert');
+            pertnorm_no0 = pertnorm(pertnorm>0);
+            min_pertnorm = min(pertnorm_no0);
+            pertnorm_normalized = pertnorm_no0/min_pertnorm;
+            logpertnorm = log10(pertnorm_normalized);
             for i=1:m
                 v = x(i,:)';
                 vn = v/norm(v);
@@ -696,9 +748,9 @@ classdef EngineClass <  handle
                 f = figure('Name',name{1,figInd},'NumberTitle','off');
                 %hold on;
                 ax = polaraxes;
-                ax.RAxis.Label.String = 'Pert norm';
+                ax.RAxis.Label.String = 'Log(Pert norm)';
                 hold on;
-                polarplot(deg2rad(angles(:,figInd)),pertnorm,'.b','MarkerSize',12);
+                polarplot(deg2rad(angles(pertnorm>0,figInd)),logpertnorm,'.b','MarkerSize',12);
                 title({[name{1,figInd} ' ' obj.scenarioName];figdesc{1,figInd}});
                 legendStr = 'x_0 = rand';
                 legend(legendStr,'FontSize',14);
