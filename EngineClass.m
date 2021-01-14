@@ -505,6 +505,7 @@ classdef EngineClass <  handle
             NN = M;
             Mp = M;
             NNp = M;
+            disp('set_eigvec_comparison_mats');
             for i = 1:size(e1,2)
                 if mod(i,100)==0
                     disp(i);
@@ -632,16 +633,28 @@ classdef EngineClass <  handle
             ssn = ss/norm(ss);
             ssInd = useSS + 1;
             figdesc{1,1} = 'State Angle from Steady State';
+            figdesc{2,1} = 'Normalized Dot Product of State and Steady State';
+            figdesc{3,1} = 'Absolute Value of Dot Product of State and Steady State';
             figdesc{1,2} = 'Perturbation Angle from Steady State';
+            figdesc{2,2} = 'Normalized Dot Product of Perturbation and Steady State';
+            figdesc{3,2} = 'Absolute Value of Dot Product of Perturbation and Steady State';
             figdesc{1,3} = 'Perturbation Angle from Eigenvector';
-            ylabelStr{1,1} = '\theta_{x,ss}';
-            ylabelStr{1,2} = '\theta_{x-ss,ss}';
-            ylabelStr{1,3} = '\theta_{x-ss,v_i}';
+            figdesc{2,3} = 'Normalized Dot Product of Perturbation and Eigenvector';
+            figdesc{3,3} = 'Absolute Value of Dot Product of Perturbation and Eigenvector';
+            ylabelStr{1,1} = '$\theta_{x,ss}$';
+            ylabelStr{2,1} = '$\cos{\theta_{x,ss}}/\cos{\theta_{x_0,ss}}$';
+            ylabelStr{3,1} = '$\left|\widehat{x}\cdot \widehat{ss}\right|$';
+            ylabelStr{1,2} = '$\theta_{x-ss,ss}$';
+            ylabelStr{2,2} = '$\cos{\theta_{x-ss,ss}}/\cos{\theta_{x_0-ss,ss}}$';
+            ylabelStr{3,2} = '$\left|\widehat{x-ss}\cdot\widehat{ss}\right|$';
+            ylabelStr{1,3} = '$\theta_{x-ss,v_i}$';
+            ylabelStr{2,3} = '$\cos{\theta_{x-ss,v_i}}/\cos{\theta_{x_0-ss,v_i}}$';
+            ylabelStr{3,3} = '$\left|\widehat{x-ss}\cdot v_i\right|$';
             for epsInd = 1:length(obj.eps)
                 if obj.isInitsLegit(epsInd)
-                    epsStr = num2str(obj.eps(epsInd));
-                    angles_ana = cell(1,n,3);
-                    angles_asy = cell(1,n,3);
+                    epsStr = num2str(obj.eps_adjusted(epsInd));
+                    angles_ana = cell(3,n,3);
+                    angles_asy = cell(3,n,3);
                     for i = 1:n
                         disp(['vec ' num2str(i)])
                         x1 = obj.solution_x_eigvecana{ssInd,i,epsInd};
@@ -657,57 +670,107 @@ classdef EngineClass <  handle
                             v1 = v1/norm(v1);
                             u1 = u1/norm(u1);
                             vec = obj.eigenvectors_ana(:,i);
-                            angles_ana{1,i,2}(j,1) = real(acos(dot(ssn,u1)))*180/pi;
-                            angles_ana{1,i,1}(j,1) = real(acos(dot(ssn,v1)))*180/pi;
+                            dot_u1_ssn = dot(ssn,u1);
+                            dot_v1_ssn = dot(ssn,v1);
+                            dot_u1_vec = dot(vec,u1);
+                            if j==1
+                                dot_1 = {dot_v1_ssn,dot_u1_ssn,dot_u1_vec};
+                            end
+                            angles_ana{1,i,1}(j,1) = rad2deg(real(acos(dot(ssn,v1))));
+                            angles_ana{2,i,1}(j,1) = dot_v1_ssn/dot_1{1};
+                            angles_ana{3,i,1}(j,1) = abs(dot_v1_ssn);
+                            angles_ana{1,i,2}(j,1) = rad2deg(real(acos(dot_u1_ssn)));
+                            angles_ana{2,i,2}(j,1) = dot_u1_ssn/dot_1{2};                            
+                            angles_ana{3,i,2}(j,1) = abs(dot_u1_ssn);
                             angles_ana{1,i,3}(j,1) = rad2deg(real(acos(dot(vec,u1))));
+                            angles_ana{2,i,3}(j,1) = dot_u1_vec/dot_1{3};
+                            angles_ana{3,i,3}(j,1) = abs(dot_u1_vec);
                         end
                         for j = 1:n2
                             v2 = x2(j,:);
                             u2 = v2' - ss;
                             v2 = v2/norm(v2);
                             u2 = u2/norm(u2);
-                            vec = obj.eigenvectors_asy(:,i);
-                            angles_asy{1,i,1}(j,1) = real(acos(dot(ssn,v2)))*180/pi;
-                            angles_asy{1,i,2}(j,1) = real(acos(dot(ssn,u2)))*180/pi;
-                            angles_asy{1,i,3}(j,1) = rad2deg(real(acos(dot(vec,u2))));
+                            vec = obj.eigenvectors_asy_permuted(:,i);
+                            dot_u2_ssn = dot(ssn,u2);
+                            dot_v2_ssn = dot(ssn,v2);
+                            dot_u2_vec = dot(vec,u2);
+                            if j==1
+                                dot_1 = {dot_v2_ssn,dot_u2_ssn,dot_u2_vec};
+                            end
+                            angles_asy{1,i,1}(j,1) = rad2deg(real(acos(dot_v2_ssn)));
+                            angles_asy{2,i,1}(j,1) = dot_v2_ssn/dot_1{1};
+                            angles_asy{3,i,1}(j,1) = abs(dot_v2_ssn);
+                            angles_asy{1,i,2}(j,1) = rad2deg(real(acos(dot_u2_ssn)));
+                            angles_asy{2,i,2}(j,1) = dot_u2_ssn/dot_1{2};
+                            angles_asy{3,i,2}(j,1) = abs(dot_u2_ssn);
+                            angles_asy{1,i,3}(j,1) = rad2deg(real(acos(dot_u2_vec)));
+                            angles_asy{2,i,3}(j,1) = dot_u2_vec/dot_1{3};
+                            angles_asy{3,i,3}(j,1) = abs(dot_u2_vec);
                         end
                     end
                     
                     if ~useSS
-                        name{1,1} = ['fig2a eps ' epsStr];
-                        fname{1,1} = ['fig2a eps ' strrep(epsStr,'.','p')];
+                        name{1,1} = ['fig2a-1 eps ' epsStr];
+                        name{2,1} = ['fig2a-2 eps ' epsStr];
+                        name{3,1} = ['fig2a-3 eps ' epsStr];
+                        fname{1,1} = ['fig2a-1 eps ' strrep(epsStr,'.','p')];
+                        fname{2,1} = ['fig2a-2 eps ' strrep(epsStr,'.','p')];
+                        fname{3,1} = ['fig2a-3 eps ' strrep(epsStr,'.','p')];
                         ssstr = '';
-                        name{1,2} = ['fig2c eps ' epsStr];
-                        fname{1,2} = ['fig2c eps ' strrep(epsStr,'.','p')];
-                        name{1,3} = ['fig2h eps ' epsStr];
-                        fname{1,3} = ['fig2h eps ' strrep(epsStr,'.','p')];
+                        name{1,2} = ['fig2c-1 eps ' epsStr];
+                        name{2,2} = ['fig2c-2 eps ' epsStr];
+                        name{3,2} = ['fig2c-3 eps ' epsStr];
+                        fname{1,2} = ['fig2c-1 eps ' strrep(epsStr,'.','p')];
+                        fname{2,2} = ['fig2c-2 eps ' strrep(epsStr,'.','p')];
+                        fname{3,2} = ['fig2c-3 eps ' strrep(epsStr,'.','p')];
+                        name{1,3} = ['fig2h-1 eps ' epsStr];
+                        name{2,3} = ['fig2h-2 eps ' epsStr];
+                        name{3,3} = ['fig2h-3 eps ' epsStr];
+                        fname{1,3} = ['fig2h-1 eps ' strrep(epsStr,'.','p')];
+                        fname{2,3} = ['fig2h-2 eps ' strrep(epsStr,'.','p')];
+                        fname{3,3} = ['fig2h-3 eps ' strrep(epsStr,'.','p')];
                     else
-                        name{1,1} = ['fig2b eps ' epsStr];
-                        fname{1,1} = ['fig2b eps ' strrep(epsStr,'.','p')];
+                        name{1,1} = ['fig2b-1 eps ' epsStr];
+                        name{2,1} = ['fig2b-2 eps ' epsStr];
+                        name{3,1} = ['fig2b-3 eps ' epsStr];
+                        fname{1,1} = ['fig2b-1 eps ' strrep(epsStr,'.','p')];
+                        fname{2,1} = ['fig2b-2 eps ' strrep(epsStr,'.','p')];
+                        fname{3,1} = ['fig2b-3 eps ' strrep(epsStr,'.','p')];
                         ssstr = 'ss + ';
-                        name{1,2} = ['fig2d eps ' epsStr];
-                        fname{1,2} = ['fig2d eps ' strrep(epsStr,'.','p')];
-                        name{1,3} = ['fig2h eps ' epsStr];
-                        fname{1,3} = ['fig2h eps ' strrep(epsStr,'.','p')];
+                        name{1,2} = ['fig2d-1 eps ' epsStr];
+                        name{2,2} = ['fig2d-2 eps ' epsStr];
+                        name{3,2} = ['fig2d-3 eps ' epsStr];
+                        fname{1,2} = ['fig2d-1 eps ' strrep(epsStr,'.','p')];
+                        fname{2,2} = ['fig2d-2 eps ' strrep(epsStr,'.','p')];
+                        fname{3,2} = ['fig2d-3 eps ' strrep(epsStr,'.','p')];
+                        name{1,3} = ['fig2i-1 eps ' epsStr];
+                        name{2,3} = ['fig2i-2 eps ' epsStr];
+                        name{3,3} = ['fig2i-3 eps ' epsStr];
+                        fname{1,3} = ['fig2i-1 eps ' strrep(epsStr,'.','p')];
+                        fname{2,3} = ['fig2i-2 eps ' strrep(epsStr,'.','p')];
+                        fname{3,3} = ['fig2i-3 eps ' strrep(epsStr,'.','p')];
                     end
                     numfigs = size(name,2);
-                    for figInd = 1:numfigs
-                        f = figure('Name',name{1,figInd},'NumberTitle','off');
-                        hold on;
-                        legendStr = {};
-                        for i = 1:n
-                            plot(obj.solution_t_eigvecana{ssInd,i,epsInd}(1:step:end,1),angles_ana{1,i,figInd}(1:step:end,1),'.','Color',CM(i,:),'MarkerSize',12);
-                            legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',ana}$'];
+                    for figInd1 = 1:3
+                        for figInd = 1:numfigs
+                            f = figure('Name',name{figInd1,figInd},'NumberTitle','off');
+                            hold on;
+                            legendStr = {};
+                            for i = 1:n
+                                plot(obj.solution_t_eigvecana{ssInd,i,epsInd}(1:step:end,1),angles_ana{figInd1,i,figInd}(1:step:end,1),'.','Color',CM(i,:),'MarkerSize',12);
+                                legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',ana}$'];
+                            end
+                            for i = 1:n
+                                plot(obj.solution_t_eigvecasy{ssInd,i,epsInd}(1:step:end,1),angles_asy{figInd1,i,figInd}(1:step:end,1),'^','Color',CM(i,:));
+                                legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',asy}$'];
+                            end
+                            title({[name{figInd1,figInd} ' ' obj.scenarioName];figdesc{figInd1,figInd}});
+                            xlabel('Time');
+                            ylabel(ylabelStr{figInd1,figInd},'Interpreter','latex','FontSize',14);
+                            legend(legendStr,'Interpreter','latex','FontSize',14);
+                            obj.save_fig(f,fname{figInd1,figInd});
                         end
-                        for i = 1:n
-                            plot(obj.solution_t_eigvecasy{ssInd,i,epsInd}(1:step:end,1),angles_asy{1,i,figInd}(1:step:end,1),'^','Color',CM(i,:));
-                            legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',asy}$'];
-                        end
-                        title({[name{1,figInd} ' ' obj.scenarioName];figdesc{1,figInd}});
-                        xlabel('Time');
-                        ylabel(ylabelStr{1,figInd});
-                        legend(legendStr,'Interpreter','latex','FontSize',14);
-                        obj.save_fig(f,fname{1,figInd});
                     end
                 end
             end
@@ -716,7 +779,10 @@ classdef EngineClass <  handle
             x = obj.solution_x;
             xnorm = vecnorm(x');
             m = size(t,1);
-            angles = zeros(m,2);
+            angles = cell(3,1);
+            angles{1,1} = zeros(m,2);
+            angles{2,1} = zeros(m,2);
+            angles{3,1} = zeros(m,2);
             pert = (x' - ss)';
             pertnorm = vecnorm(pert');
             pertnorm_no0 = pertnorm(pertnorm>0);
@@ -728,21 +794,32 @@ classdef EngineClass <  handle
                 vn = v/norm(v);
                 u = pert(i,:);
                 un = u/norm(u);
-                angles(i,1) = rad2deg(real(acos(dot(ssn,vn))));
-                angles(i,2) = rad2deg(real(acos(dot(ssn,un))));
+                dot_vn_ssn = dot(ssn,vn);
+                dot_un_ssn = dot(ssn,un);
+                if i==1
+                    dot_1 = {dot_vn_ssn,dot_un_ssn};
+                end
+                angles{1,1}(i,1) = rad2deg(real(acos(dot_vn_ssn)));
+                angles{1,1}(i,2) = rad2deg(real(acos(dot_un_ssn)));
+                angles{2,1}(i,1) = dot_vn_ssn/dot_1{1};
+                angles{2,1}(i,2) = dot_un_ssn/dot_1{2};
+                angles{3,1}(i,1) = abs(dot_vn_ssn);
+                angles{3,1}(i,2) = abs(dot_un_ssn);
             end
-            name = {'fig2e','fig2f'};
-            for figInd = 1:2
-                f = figure('Name',name{1,figInd},'NumberTitle','off');
-                hold on;
-                plot(t,angles(:,figInd),'.b','MarkerSize',12);
-                title({[name{1,figInd} ' ' obj.scenarioName];figdesc{1,figInd}});
-                xlabel('Time');
-                ylabel(ylabelStr{1,figInd});
-                legendStr = 'x_0 = rand';
-                legend(legendStr,'FontSize',14);
-                obj.save_fig(f,name{1,figInd});
-            end          
+            name = {'fig2e-1','fig2f-1';'fig2e-2','fig2f-2';'fig2e-3','fig2f-3'};
+            for figInd1 = 1:3
+                for figInd = 1:2
+                    f = figure('Name',name{figInd1,figInd},'NumberTitle','off');
+                    hold on;
+                    plot(t,angles{figInd1,1}(:,figInd),'.b','MarkerSize',12);
+                    title({[name{figInd1,figInd} ' ' obj.scenarioName];figdesc{figInd1,figInd}});
+                    xlabel('Time');
+                    ylabel(ylabelStr{figInd1,figInd},'Interpreter','latex','FontSize',14);
+                    legendStr = 'x_0 = rand';
+                    legend(legendStr,'FontSize',14);
+                    obj.save_fig(f,name{figInd1,figInd});
+                end
+            end
             name = {'fig2e-polar','fig2f-polar'};
             for figInd = 1:2
                 f = figure('Name',name{1,figInd},'NumberTitle','off');
@@ -750,36 +827,65 @@ classdef EngineClass <  handle
                 ax = polaraxes;
                 ax.RAxis.Label.String = 'Log(Pert norm)';
                 hold on;
-                polarplot(deg2rad(angles(pertnorm>0,figInd)),logpertnorm,'.b','MarkerSize',12);
+                polarplot(deg2rad(angles{1,1}(pertnorm>0,figInd)),logpertnorm,'.b','MarkerSize',12);
                 title({[name{1,figInd} ' ' obj.scenarioName];figdesc{1,figInd}});
                 legendStr = 'x_0 = rand';
                 legend(legendStr,'FontSize',14);
                 obj.save_fig(f,name{1,figInd});
             end          
             %% fig2g
-            angles = zeros(m,n);
+            angles = cell(3,2);
+            angles{1,1} = zeros(m,n); % angles with analytical eigenvectors
+            angles{2,1} = zeros(m,n); % normalized dot product with analytical eigenvectors
+            angles{3,1} = zeros(m,n); % abs(dot(pert,eig_ana))
+            angles{1,2} = zeros(m,n); % angles with asymptotic eigenvectors
+            angles{2,2} = zeros(m,n); % normalized dot product with asymptotic eigenvectors
+            angles{3,2} = zeros(m,n); % abs(dot(pert,eig_asy))
             for v = 1:n
-                vec = obj.eigenvectors_ana(:,v);
+                vec_ana = obj.eigenvectors_ana(:,v);
+                vec_asy = obj.eigenvectors_asy_permuted(:,v);
                 for i = 1:m
                     u = pert(i,:);
                     un = u/norm(u);
-                    angles(i,v) = real(acos(dot(un,vec)))*180/pi;
+                    dot_u_vec_ana = dot(un,vec_ana);
+                    dot_u_vec_asy = dot(un,vec_asy);
+                    if i==1
+                        dot_1 = {dot_u_vec_ana, dot_u_vec_asy};
+                    end
+                    angles{1,1}(i,v) = rad2deg(real(acos(dot_u_vec_ana)));
+                    angles{2,1}(i,v) = dot_u_vec_ana/dot_1{1};
+                    angles{3,1}(i,v) = abs(dot_u_vec_ana);
+                    angles{1,2}(i,v) = rad2deg(real(acos(dot_u_vec_asy)));
+                    angles{2,2}(i,v) = dot_u_vec_asy/dot_1{2};
+                    angles{3,2}(i,v) = abs(dot_u_vec_asy);
                 end
             end
-            name = 'fig2g';
-            f = figure('Name',name,'NumberTitle','off');
-            hold on;
-            legendStr = cell(1,n);
-            for v=1:n
-                plot(t,angles(:,v),'.','Color',CM(v,:),'MarkerSize',12);
-                legendStr{1,v} = ['Eigvec_' num2str(v)];
+            name = {'fig2g-1';'fig2g-2';'fig2g-3'};
+            figdesc = {'Random perturbation angle from eigenvector';...
+                'Normalized dot product of random perturbation and eigenvector';...
+                'Absolute value of dot product of random perturbation and eigenvector'};
+            ylabelStr = {'$\theta_{x-ss,Eigvec}$';...
+                '$\cos{\theta_{x-ss,eigvec}}/\cos{\theta_{x_0-ss,eigvec}}$';...
+                '$\left|\widehat{x-ss} \cdot eigvec \right|$'};
+            for figInd = 1:3
+                f = figure('Name',name{figInd,1},'NumberTitle','off');
+                hold on;
+                legendStr = cell(1,2*n);
+                for v=1:n
+                    plot(t,angles{figInd,1}(:,v),'.','Color',CM(v,:),'MarkerSize',12);
+                    legendStr{1,v} = ['Eigvec_{ana,' num2str(v) '}'];
+                end
+                for v=1:n
+                    plot(t,angles{figInd,2}(:,v),'^','Color',CM(v,:),'MarkerSize',12);
+                    legendStr{1,n+v} = ['Eigvec_{asy,' num2str(v) '}'];
+                end
+                
+                title({[name{figInd,1} ' ' obj.scenarioName];figdesc{figInd,1}});
+                xlabel('Time');
+                ylabel(ylabelStr{figInd,1},'Interpreter','latex','FontSize',14);
+                legend(legendStr,'FontSize',14);
+                obj.save_fig(f,name{figInd,1});
             end
-            figdesc = 'Random perturbation angle from eigenvector';
-            title({[name ' ' obj.scenarioName];figdesc});
-            xlabel('Time');
-            ylabel('\theta_{x-ss,Eigvec}');
-            legend(legendStr,'FontSize',14);
-            obj.save_fig(f,name);
         end
         function obj = plot_steady_vs_degree(obj)
             name = 'fig3';
