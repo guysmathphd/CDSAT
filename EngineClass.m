@@ -26,7 +26,8 @@ classdef EngineClass <  handle
         Wij_num
         M2_i_bigodot
         M2_k_bigodot
-        perturbation
+        perturbations
+        num_perturbations = 1;
         half_life
         eigenvalues_ana
         eigenvectors_ana
@@ -68,10 +69,14 @@ classdef EngineClass <  handle
         relTol % positive double
         solution_t = 0;
         solution_x ;
+        solution_t_eigvec;
+        solution_x_eigvec;
         solution_t_eigvecana;
         solution_t_eigvecasy;
         solution_x_eigvecana;
         solution_x_eigvecasy;
+        solution_t_perturbations;
+        solution_x_perturbations;
         resultsPath
         header
         degree_vector
@@ -280,149 +285,169 @@ classdef EngineClass <  handle
             disp('set_dM2: obj.f_dM2 = ');
             disp(obj.f_dM2);
         end
-        function obj = solve(obj,useEigVec,useSS,epsIndStart,vecIndStart,isAdjustEpsilon)
+        function obj = set_perturbations(obj,isOnlyPositive)
+            ss = obj.steady_state;
+            k = obj.num_perturbations;
+            n = size(ss,2);
+            seed = obj.randSeed;
+            rng(seed);
+            obj.perturbations = zeros(n,k);
+            isSSzero = norm(ss)<obj.absTol;
+            ss = ones(size(ss)).*max(isSSzero,ss);
+            for j = 1:k
+                percent = rand(1,n)/10;
+                sign = rand(1,n);
+                sign = (sign > (~isOnlyPositive/2))*2 - 1;
+                obj.perturbations(:,j) = ss.*percent.*sign;                
+            end
+        end
+        function obj = solve(obj,pertType,epsIndStart,pertIndStart,isAdjustEpsilon)
             %Solve the system
             tic;
             %nn=10;
             nn=5; % number of eigenvectors
             ss = obj.steady_state;
-            pert = 0;
-            ssInd = useSS + 1;
-            numeps = length(obj.eps);
-            if useEigVec
-                for epsInd = epsIndStart:numeps
-                    eps = obj.eps(epsInd);
-                    obj.isInitsLegit(epsInd) = false;
-                    while ~obj.isInitsLegit(epsInd)
-                        disp(['eps = ' num2str(eps)]);
-                        if eps < obj.epsThreshold
+            perts = 0;
+            %ssInd = useSS + 1;
+            eps_vals = obj.eps;
+            switch pertType
+                case 1 % initial state is obj.inititalValues
+                    ss = 0;
+                    eps_vals = 1;
+                    perts = obj.initialValues;
+                    sol_t_var_str = 'obj.solution_t';
+                    sol_x_var_str = 'obj.solution_x';
+                    stop_cond_str = 'size(obj.solution_t{1,pertInd,epsInd},1)>100 && max(abs(obj.solution_x{1,pertInd,epsInd}(end,:)-obj.solution_x{1,pertInd,epsInd}(end-100,:)))<obj.absTol';
+                case 2 % perturbations are eigenvectors
+                    perts = [obj.eigenvectors_ana(:,1:nn), obj.eigenvectors_asy_permuted(:,1:nn)];
+                    sol_t_var_str = 'obj.solution_t_eigvec';
+                    sol_x_var_str = 'obj.solution_x_eigvec';
+                    stop_cond_str = 'max(abs(obj.solution_x_eigvec{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
+                case 3 % perturbations are random and small relative to steady state
+                    perts = obj.perturbations;
+                    sol_t_var_str = 'obj.solution_t_perturbations';
+                    sol_x_var_str = 'obj.solution_x_perturbations';
+                    stop_cond_str = 'max(abs(obj.solution_x_perturbations{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
+                otherwise
+            end
+            numperts = size(perts,2);
+            numeps = length(eps_vals);
+            for epsInd = epsIndStart:numeps
+                for pertInd = pertIndStart:numperts
+                    eps_val = eps_vals(epsInd);
+                    obj.isInitsLegit(epsInd,pertInd) = false;
+                    while ~obj.isInitsLegit(epsInd,pertInd)
+                        disp(['eps = ' num2str(eps_val)]);
+                        if eps_val < obj.epsThreshold
                             disp('eps too small, breaking');
                             break
                         end
-                        pert_asy = eps * obj.eigenvectors_asy_permuted(:,1:nn);
-                        inits_asy = useSS*ss' + pert_asy;
-                        pert_ana = eps * obj.eigenvectors_ana(:,1:nn);
-                        inits_ana = useSS*ss' + pert_ana;
+                        pert = eps_val * perts(:,pertInd);
+                        init = ss' + pert;
                         if isAdjustEpsilon
-                            if any(inits_ana<0 | inits_ana > 1 | inits_asy < 0 | inits_asy > 1,'all')
+                            if any(init<0 | init > 1,'all')
                                 disp('Adjusting Epsilon');
-                                eps = eps*.9;
-                                disp(['eps = ' num2str(eps)]);
+                                eps_val = eps_val*.9;
+                                disp(['eps = ' num2str(eps_val)]);
                             else
-                                obj.isInitsLegit(epsInd) = true;
+                                obj.isInitsLegit(epsInd,pertInd) = true;
                             end
                         else
-                            obj.isInitsLegit(epsInd) = true;
+                            obj.isInitsLegit(epsInd,pertInd) = true;
                         end
                     end
-                    obj.eps_adjusted(epsInd) = eps;
-                    disp(['Final eps= ' num2str(eps)]);
-                    inits{1,epsInd} = inits_ana;
-                    inits{2,epsInd} = inits_asy;
+                    obj.eps_adjusted(epsInd,pertInd) = eps_val;
+                    disp(['Final eps= ' num2str(eps_val)]);
+                    inits{1,epsInd}(:,pertInd) = init;
+                    init = init';
+                    eval([sol_t_var_str ' = {};']);
+                    eval([sol_x_var_str ' = {};']);
+                    eval([sol_t_var_str '{1,pertInd,epsInd} = 0;']);
+                    eval([sol_x_var_str '{1,pertInd,epsInd} = init;']);
                 end
-                for i = vecIndStart:nn
-                    obj.solution_t_eigvecasy{ssInd,i,epsInd} = 0;
-                    obj.solution_x_eigvecasy{ssInd,i,epsInd} = inits_asy(:,i)';
-                    
-                    obj.solution_t_eigvecana{ssInd,i,epsInd} = 0;
-                    obj.solution_x_eigvecana{ssInd,i,epsInd} = inits_ana(:,i)';
-                end
-            else
-                nn=1;
-                numeps = 1;
-                inits_current = obj.initialValues;
-                obj.solution_t = 0;
-                obj.solution_x = obj.initialValues';
             end
             opts = odeset('RelTol',obj.relTol,'AbsTol',obj.absTol);
             clear odefun;
             odefun = @(tt,x) (obj.f_M0(x) + (obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x));
-            if ~useEigVec || obj.isInitsLegit(epsInd)
-                for i=1:useEigVec + 1
-                    disp(['i = ' num2str(i)]);
-                    for epsInd = epsIndStart:numeps
-                        
-                        if useEigVec
-                            inits_current = inits{i,epsInd};
-                            disp(['inits = inits{' num2str(i) ',' num2str(epsInd) '}']);
-                        else
-                            disp('inits = obj.initialValues');
-                        end
-                        for ii = vecIndStart:nn
-                            disp(['ii = ' num2str(ii)]);
-                            t = 0; %initial step start time
-                            init = inits_current(:,ii);
-                            s = sign(inits_current(:,ii));
-                            sums = sum(s);
-                            disp(['sum(s) = ' num2str(sums)]);
-                            disp(['s(1) = ' num2str(s(1))]);
-                            if abs(sums)~=obj.N
-                                disp('abs(ss)~=obj.N')
+            for epsInd = epsIndStart:numeps
+                disp(['epsInd = ' num2str(epsInd)]);
+                disp(['eps_var = ' num2str(obj.eps_adjusted(epsInd))]);
+                for pertInd = pertIndStart:numperts
+                    if obj.isInitsLegit(epsInd,pertInd)
+                        disp(['pertInd = ' num2str(pertInd)]);                        
+                        init = inits{1,epsInd}(:,pertInd);
+                        t = 0;
+                        %%%%%%%%%
+                        setBreak = false; % stop while loop?
+                        while ~setBreak
+                            % check if this step passes maxTime and set stepEndTime
+                            if t + obj.solverTimeStep >= obj.maxTime
+                                stepEndTime = obj.maxTime;
+                                setBreak = true;
+                            else
+                                stepEndTime = t + obj.solverTimeStep;
                             end
-                            %init = obj.initialValues; % set initial value for step
-                            setBreak = false; % stop while loop?
-                            while ~setBreak
-                                % check if this step passes maxTime and set stepEndTime
-                                if t + obj.solverTimeStep >= obj.maxTime
-                                    stepEndTime = obj.maxTime;
-                                    setBreak = true;
-                                else
-                                    stepEndTime = t + obj.solverTimeStep;
-                                end
-                                % run solver step
-                                display(['stepEndTime = ' num2str(stepEndTime)]);
-                                [sol_t,sol_x] = obj.difEqSolver(odefun,[t stepEndTime],init,opts);
-                                t = stepEndTime;
-                                init = sol_x(end,:);
-                                % append results to solution_t and solution_x
-                                if useEigVec && i==1
-                                    obj.solution_t_eigvecana{ssInd,ii,epsInd}(end+1:end+length(sol_t)-1,1) = sol_t(2:end,:);
-                                    obj.solution_x_eigvecana{ssInd,ii,epsInd}(end+1:end+size((sol_x),1)-1,:) = sol_x(2:end,:);
-                                    if max(abs(obj.solution_x_eigvecana{ssInd,ii,epsInd}(end,:)-obj.steady_state))<obj.absTol*100
-                                        setBreak = true;
-                                        disp('setBreak = true');
-                                    end
-                                elseif useEigVec && i==2
-                                    obj.solution_t_eigvecasy{ssInd,ii,epsInd}(end+1:end+length(sol_t)-1,1) = sol_t(2:end,:);
-                                    obj.solution_x_eigvecasy{ssInd,ii,epsInd}(end+1:end+size((sol_x),1)-1,:) = sol_x(2:end,:);
-                                    if max(abs(obj.solution_x_eigvecasy{ssInd,ii,epsInd}(end,:)-obj.steady_state))<obj.absTol*100
-                                        setBreak = true;
-                                        disp('setBreak = true');
-                                    end
-                                else
-                                    obj.solution_t = [obj.solution_t;sol_t(2:end,:)];
-                                    obj.solution_x = [obj.solution_x;sol_x(2:end,:)];
-                                    if size(obj.solution_t,1)>100 && max(abs(obj.solution_x(end,:)-obj.solution_x(end-100,:)))<obj.absTol
-                                        setBreak = true;
-                                        disp('setBreak = true');
-                                    end
-                                end
+                            % run solver step
+                            display(['stepEndTime = ' num2str(stepEndTime)]);
+                            [sol_t,sol_x] = obj.difEqSolver(odefun,[t stepEndTime],init,opts);
+                            t = stepEndTime;
+                            init = sol_x(end,:);
+                            % append results to solution_t and solution_x
+                            eval([sol_t_var_str '{1,pertInd,epsInd}(end+1:end+length(sol_t)-1,1)=sol_t(2:end,:);']);
+                            eval([sol_x_var_str '{1,pertInd,epsInd}(end+1:end+size(sol_x,1)-1,:)=sol_x(2:end,:);']);
+                            eval(['setBreak = ' stop_cond_str ';']);
+                            if setBreak
+                                disp('setBreak = true');
                             end
                         end
-                        
+                    else
+                        disp(['epsInd = ' num2str(epsInd) ', pertInd = ' num2str(pertInd)]);
+                        disp(['Did not solve, no valid inits' ]);
                     end
                 end
-                
-                toc;
-                
-                if ~useEigVec
-                    obj.set_steady_state();
-                    obj.set_M2_i_bigodot();
-                    obj.set_steady_state_calculated();
-                    obj.set_Dii_ana();
-                    obj.set_Wij_ana();
-                    obj.set_eig_ana();
-                    obj.set_Dii_anabinned();
-                    obj.set_Wij_anabinned();
-                    obj.set_eigvec_comparison_mats(true,false);
-                    obj.set_permutation_eigvec_ana2asy(40);
-                    obj.set_eig_asy_permuted();
-                    obj.set_eigvec_comparison_mats(false,true);
+            end
+            toc;            
+            if pertType == 1
+                obj.solution_t = obj.solution_t{1};
+                obj.solution_x = obj.solution_x{1};
+                obj.set_steady_state();
+                obj.set_M2_i_bigodot();
+                obj.set_steady_state_calculated();
+                obj.set_Dii_ana();
+                obj.set_Wij_ana();
+                obj.set_eig_ana();
+                obj.set_Dii_anabinned();
+                obj.set_Wij_anabinned();
+                obj.set_eigvec_comparison_mats(true,false);
+                obj.set_permutation_eigvec_ana2asy(40);
+                obj.set_eig_asy_permuted();
+                obj.set_eigvec_comparison_mats(false,true);
+                if norm(obj.steady_state) < obj.absTol
+                    isOnlyPositive = true;
+                else
+                    isOnlyPositive = false;
                 end
-            else
-                disp('Did not solve, no valid inits');
+                obj.set_perturbations(isOnlyPositive);
+            elseif pertType==2
+                obj.split_solution_eigvec();
             end
             obj.save_obj();
+        end
+        function obj = split_solution_eigvec(obj)
+            [numeps,numvecs] = size(obj.solution_x_eigvec);
+            for e = 1:numeps
+                for v = 1:numvecs
+                    if v<=numvecs/2
+                        obj.solution_t_eigvecana{1,v,e} = obj.solution_t_eigvec{1,v,e};
+                        obj.solution_x_eigvecana{1,v,e} = obj.solution_x_eigvec{1,v,e};
+                    else
+                        obj.solution_t_eigvecasy{1,v-numvecs/2,e} = obj.solution_t_eigvec{1,v,e};
+                        obj.solution_x_eigvecasy{1,v-numvecs/2,e} = obj.solution_x_eigvec{1,v,e};
+                    end
+                end
+            end
+            obj.solution_t_eigvec = {};
+            obj.solution_x_eigvec = {};
         end
         function obj = set_steady_state(obj)
             obj.steady_state = obj.solution_x(end,:);
