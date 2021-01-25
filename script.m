@@ -832,3 +832,12 @@ BIO.plot_eigenvectors2(false,false,true,true);
 BIO.plot_eigenvectors2(true,false,true,true);
 BIO.plot_eigenvectors2(true,true,true,true);
 BIO.plot_random_states();
+%%
+sis.absTol = 1e-14;
+sis.relTol = 1e-14;
+sis.perturbation_factor = .01;
+sis.solve(1,1,1,true);
+sis.perturbation_factor = .001;
+sis.set_perturbations(true);
+sis.solve(3,1,1,true);
+sis.plot_results2(true);
