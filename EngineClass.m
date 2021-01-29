@@ -33,10 +33,14 @@ classdef EngineClass <  handle
         half_life
         eigenvalues_ana
         eigenvectors_ana
+        eigenvectors_ana_binned_k
+        eigenvectors_ana_binned_kinn
         eigenvalues_asy
         eigenvalues_asy_permuted
         eigenvectors_asy
         eigenvectors_asy_permuted
+        eigenvectors_asy_permuted_binned_k
+        eigenvectors_asy_permuted_binned_kinn
         eigenvalues_num
         eigenvectors_num
         node_relax_time
@@ -46,9 +50,11 @@ classdef EngineClass <  handle
         N
         k_nn
         ki_nn
+        ki_nnbinned
         numbins
         bins
         binsij
+        binskinn
         kbinned
         kijbinned
         Dii_anabinned
@@ -125,122 +131,65 @@ classdef EngineClass <  handle
             obj.set_Dii_asy();
             obj.set_Wij_asy();
             obj.set_eig_asy();
-            obj.set_bins();
-            obj.set_kbinned();
-            obj.set_Dii_asybinned();
-            obj.set_Wij_asybinned();
+            tol = 1e-13;
+            obj.bins = obj.set_bins_generic(obj.numbins,obj.degree_vector_weighted,tol,true(obj.N,1));
+            obj.kbinned = obj.set_binned_vals(obj.degree_vector_weighted,obj.bins);
+%             obj.set_bins();
+%             obj.set_kbinned();
+            obj.Dii_asybinned = obj.set_binned_vals(obj.Dii_asy,obj.bins);
+%             obj.set_Dii_asybinned();
+            x = obj.degree_vector_weighted;x2 = (x.^obj.nu) * (x.^obj.rho)';x3 = x2(:);
+            obj.binsij = obj.set_bins_generic(obj.numbins,x3,tol,obj.adjacencyMatrix>0);
+            obj.kijbinned = obj.set_binned_vals(x3(obj.adjacencyMatrix>0),obj.binsij);
+            obj.Wij_asybinned = obj.set_binned_vals(obj.Wij_asy(obj.adjacencyMatrix>0),obj.binsij);
+%             obj.set_Wij_asybinned();
             obj.set_kinn();
+            obj.binskinn = obj.set_bins_generic(obj.numbins,obj.ki_nn,tol,true(obj.N,1));
+            obj.ki_nnbinned = obj.set_binned_vals(obj.ki_nn,obj.binskinn);
             obj.save_obj();
         end
-        function obj = set_bins(obj)
-            obj.bins = cell(1,obj.numbins);
-            obj.binsij = cell(1,obj.numbins);
-            obj.kijbinned = zeros(obj.numbins,1);
-            kmax = max(obj.degree_vector_weighted);
-            kmin = min(obj.degree_vector_weighted);
-            kmaxmin = kmax/kmin;
-            c = kmaxmin ^ (1/obj.numbins);
-            n0 = log(kmin)/log(c);
-            nn = log(kmax)/log(c);
-            ns = n0:n0+obj.numbins;
-            %c = kmax^(1/obj.numbins);
-            x = obj.degree_vector_weighted;
-            x2 = (x.^obj.nu) * (x.^obj.rho)';
-            x2max = max(max(x2));
-            x2min = min(min(x2));
-            x2maxmin = x2max/x2min;
-            c1 = x2maxmin ^ (1/obj.numbins);
-            m0 = log(x2min)/log(c);
-            mm = log(x2max)/log(c);
-            ms = m0:m0+obj.numbins;
-            %c1 = x2max^(1/obj.numbins);
-            l = 0;
-            ww = [];
-            for k = 2:obj.numbins+1
-                if k == 2
-                    ind = find(obj.degree_vector_weighted>=c^ns(k-1) & obj.degree_vector_weighted<=c^ns(k)+1e-13);
+        function ind_bins_var = set_bins_generic(~,numbins,values_vec,tol,cond_vec)
+            ind_bins_var = cell(numbins,1);
+            values_vec = values_vec(cond_vec);
+            max_val = max(values_vec);
+            min_val = min(values_vec);
+            maxmin_val = max_val/min_val;
+            c = maxmin_val ^ (1/numbins);
+            n0 = log(min_val)/log(c);
+            nn = log(max_val)/log(c);
+            ns = n0:n0+numbins;
+            s=0;
+            for k = 2:numbins+1
+                if k==2
+                    ind = find(values_vec>=c^ns(k-1)-tol & values_vec<=c^ns(k));
                 else
-                    ind = find(obj.degree_vector_weighted>c^ns(k-1) & obj.degree_vector_weighted<=c^ns(k)+1e-13);
+                    ind = find(values_vec>c^ns(k-1) & values_vec<=c^ns(k)+tol);
                 end
-                obj.bins{k-1} = ind;
-                l = l + 1;
-                disp(l);
-                w = [];
-                for i = 1:obj.N
-                    %ki = obj.degree_vector_weighted(i);
-                    for j = 1:obj.N
-                        %kj = obj.degree_vector_weighted(j);
-                        kk = x2(i,j);
-                        %kk = ki^obj.nu * kj^obj.rho;
-                        if obj.adjacencyMatrix(i,j) > 0 && (kk > c1^ms(k-1) || (k==2 && kk>c1^ms(k-1)-1e-13)) && kk <=c1^ms(k) + 1e-13
-                            obj.binsij{k-1}(end+1,:) = [i j];
-                            w(end+1) = kk;
-                        end
+                ind_bins_var{k-1,1} = ind;
+                s = s + size(ind,1);
+            end
+            %Check bins
+            num_vals = size(values_vec,1);
+            if s == num_vals
+                disp('Bins check passed')
+            else
+                disp('Bins check failed')
+                disp(['s=' num2str(s)])
+                disp(['num_vals = ' num2str(num_vals)])
+            end
+        end
+        function vals_binned = set_binned_vals(~,values_vec,bins)
+            vals_binned = zeros(size(bins,1),size(values_vec,2));
+            for j = 1:size(values_vec,2)
+                values_vec_j = values_vec(:,j);
+                for i=1:size(vals_binned,1)
+                    ind = bins{i,1};
+                    if ~isempty(ind)
+                        vals_binned(i,j) = mean(values_vec_j(ind));
                     end
                 end
-                if ~isempty(w)
-                    obj.kijbinned(k-1,1) = mean(w);
-                end
-                ww = [ww, w];
             end
-        end
-        function obj = set_kbinned(obj)
-            obj.kbinned = zeros(obj.numbins,1);
-            for i=1:obj.numbins
-                ind = obj.bins{i};
-                if ~isempty(ind)
-                    obj.kbinned(i,1) = mean(obj.degree_vector_weighted(ind));
-                end
-            end
-        end
-        function obj = set_Dii_anabinned(obj)
-            obj.Dii_anabinned = zeros(obj.numbins,1);
-            for i=1:obj.numbins
-                ind = obj.bins{i};
-                if ~isempty(ind)
-                    obj.Dii_anabinned(i,1) = mean(obj.Dii_ana(ind));
-                end
-            end
-        end
-        function obj = set_Dii_asybinned(obj)
-            obj.Dii_asybinned = zeros(obj.numbins,1);
-            for i = 1:obj.numbins
-                ind = obj.bins{i};
-                if ~isempty(ind)
-                    obj.Dii_asybinned(i,1) = mean(obj.Dii_asy(ind));
-                end
-            end
-        end
-        function obj = set_Wij_anabinned(obj)
-            obj.Wij_anabinned = zeros(obj.numbins,1);
-            for i = 1:obj.numbins
-                ind = obj.binsij{i};
-                if ~isempty(ind)
-                    w = [];
-                    for k = 1:size(ind,1)
-                        r = ind(k,1);
-                        c = ind(k,2);
-                        w(end+1) = obj.Wij_ana(r,c);
-                    end
-                    obj.Wij_anabinned(i,1) = mean(w);
-                end
-            end
-        end
-        function obj = set_Wij_asybinned(obj)
-            obj.Wij_asybinned = zeros(obj.numbins,1);
-            for i = 1:obj.numbins
-                ind = obj.binsij{i};
-                if ~isempty(ind)
-                    w = [];
-                    for k = 1:size(ind,1)
-                        r = ind(k,1);
-                        c = ind(k,2);
-                        w(end+1) = obj.Wij_asy(r,c);
-                    end
-                    obj.Wij_asybinned(i,1) = mean(w);
-                end
-            end
-        end
+        end 
         function obj = set_R(obj)
             obj.f_R = @(x) (-1*(obj.f_M1(x)./obj.f_M0(x)));
             disp('set_R(obj): obj.f_R = ');
@@ -435,11 +384,17 @@ classdef EngineClass <  handle
                 obj.set_Dii_ana();
                 obj.set_Wij_ana();
                 obj.set_eig_ana();
-                obj.set_Dii_anabinned();
-                obj.set_Wij_anabinned();
+                obj.Dii_anabinned = obj.set_binned_vals(obj.Dii_ana,obj.bins);
+                obj.Wij_anabinned = obj.set_binned_vals(obj.Wij_ana(obj.adjacencyMatrix>0),obj.binsij);
+%               obj.set_Dii_anabinned();
+%               obj.set_Wij_anabinned();                
                 obj.set_eigvec_comparison_mats(true,false);
                 obj.set_permutation_eigvec_ana2asy(40);
                 obj.set_eig_asy_permuted();
+                obj.eigenvectors_ana_binned_k = obj.set_binned_vals(obj.eigenvectors_ana,obj.bins);
+                obj.eigenvectors_ana_binned_kinn = obj.set_binned_vals(obj.eigenvectors_ana,obj.binskinn);
+                obj.eigenvectors_asy_permuted_binned_k = obj.set_binned_vals(obj.eigenvectors_asy_permuted,obj.bins);
+                obj.eigenvectors_asy_permuted_binned_kinn = obj.set_binned_vals(obj.eigenvectors_asy_permuted,obj.binskinn);
                 obj.set_eigvec_comparison_mats(false,true);
                 obj.pert_eigvec_ana_1 = obj.set_pert_eigvec_1(obj.eigenvectors_ana);
                 obj.pert_eigvec_asy_1 = obj.set_pert_eigvec_1(obj.eigenvectors_asy_permuted);
@@ -1070,10 +1025,10 @@ classdef EngineClass <  handle
             obj.save_fig(f,name);
             name = 'fig3a';
             f = figure('Name',name,'NumberTitle','off');
-            plot(log(obj.degree_vector),log(obj.steady_state),'.','MarkerSize',12);
+            loglog(obj.degree_vector,obj.steady_state,'.','MarkerSize',12);
             title({[name ' ' obj.scenarioName];obj.desc});
-            xlabel('log(k) - node degree');
-            ylabel('log(Steady State)');
+            xlabel('node degree');
+            ylabel('Steady State');
             obj.save_fig(f,name);
             name = 'fig3b';
             f = figure('Name',name,'NumberTitle','off');
@@ -1105,8 +1060,8 @@ classdef EngineClass <  handle
             loglog(obj.degree_vector_weighted, 1./obj.degree_vector_weighted,'sk','MarkerSize',12);
             loglog(obj.degree_vector_weighted, 1./obj.degree_vector_weighted - 1./obj.degree_vector_weighted.^2,'om','MarkerSize',12);
             legend('Numerical Integration', 'Second order approximation k^{-1}','-1*Third order approximation k^{-2} - k^{-1}');
-            xlabel('log(k) - weighted node degree');
-            ylabel('log(1 - Steady State)');
+            xlabel('k - weighted node degree');
+            ylabel('1 - Steady State');
             title({[name ' ' obj.scenarioName];obj.desc});
             obj.save_fig(f,name);
             %Relevant for REG
@@ -1295,12 +1250,17 @@ classdef EngineClass <  handle
             legend('Analytic Jacobian','Asymptotic Jacobian');
             obj.save_fig(f,name);
         end
-        function obj = plot_eigenvectors2(obj,isFirst10,isKinn,isPermuted,isLogLog)
-            %%% fig7a,fig7b, fig7c,fig7d,fig7e,fig7f -permuted
-            if isKinn == true
+        function obj = plot_eigenvectors2(obj,isFirst,isKinn,isPermuted,isLogLog,isBinned)
+            %%% fig7a,fig7b, fig7c,fig7d, -permuted -loglog -binned
+            eigvecana = obj.eigenvectors_ana;
+            if isKinn
                 fnumab = 'fig7b';
                 fnumcd = 'fig7d';
                 x = obj.ki_nn;
+                if isBinned
+                    x = obj.ki_nnbinned;
+                    eigvecana = obj.eigenvectors_ana_binned_k;
+                end
                 figdescab = 'Eigenvector Elements vs Node Average Nearest Neighbor Degree';
                 figdesccd = 'Eigenvector Elements Mean vs Node Average Nearest Neighbor Degree';
                 xlab = 'k_{nn,i} - weighted';
@@ -1308,13 +1268,17 @@ classdef EngineClass <  handle
                 fnumab = 'fig7a';
                 fnumcd = 'fig7c';
                 x = obj.degree_vector_weighted;
+                if isBinned
+                    x=obj.kbinned;
+                    eigvecana = obj.eigenvectors_ana_binned_kinn;
+                end
                 figdescab = 'Eigenvector Elements vs Node Degree';
                 figdesccd = 'Eigenvector Elements Mean vs Node Degree';
                 xlab = 'k_i - weighted';
             end
-            if isFirst10 == true
-                suffix = '-first10';
-                n = 10;
+            if isFirst
+                suffix = ['-first ' num2str(obj.numeigenplots)];
+                n = obj.numeigenplots;
             else
                 n = size(obj.eigenvectors_ana,2);
                 suffix = '';
@@ -1322,6 +1286,11 @@ classdef EngineClass <  handle
             if isPermuted
                 suffix2 = '-permuted';
                 eigvecasy = obj.eigenvectors_asy_permuted;
+                if isBinned && ~isKinn
+                    eigvecasy = obj.eigenvectors_asy_permuted_binned_k;
+                elseif isBinned && isKinn
+                    eigvecasy = obj.eigenvectors_asy_permuted_binned_kinn;
+                end
             else
                 suffix2 = '';
                 eigvecasy = obj.eigenvectors_asy;
@@ -1337,18 +1306,24 @@ classdef EngineClass <  handle
                 abs4log = @(x) (x);
                 ylab = 'v_i';
             end
+            if isBinned
+                suffix4 = '-binned';
+            else
+                suffix4 = '';
+            end                
             CM = jet(n);
             %% fig7a fig7b
-            name = [fnumab suffix suffix2 suffix3];
+            name = [fnumab suffix suffix2 suffix3 suffix4];
             f = figure('Name',name,'NumberTitle','off');
-            hold on;
             for i=1:n
-                %myplot(x,abs4log(obj.eigenvectors_ana(:,i)),'.','MarkerSize',18,'Color',CM(i,:));
-                plot(log10(x),log10(abs4log(obj.eigenvectors_ana(:,i))),'.','MarkerSize',18,'Color',CM(i,:));
+                myplot(x,abs4log(eigvecana(:,i)),'.','MarkerSize',18,'Color',CM(i,:));
+                %plot(log10(x),log10(abs4log(obj.eigenvectors_ana(:,i))),'.','MarkerSize',18,'Color',CM(i,:));
+                hold on;
             end
             for i=1:n
-                %myplot(x,abs4log(eigvecasy(:,i)),'^','MarkerSize',12,'Color',CM(i,:));
-                plot(log10(x),log10(abs4log(eigvecasy(:,i))),'^','MarkerSize',12,'Color',CM(i,:));
+                myplot(x,abs4log(eigvecasy(:,i)),'^','MarkerSize',12,'Color',CM(i,:));
+                %plot(log10(x),log10(abs4log(eigvecasy(:,i))),'^','MarkerSize',12,'Color',CM(i,:));
+                hold on;
             end
             xlabel(xlab);
             ylabel(ylab);
@@ -1365,10 +1340,10 @@ classdef EngineClass <  handle
             title({[name ' ' obj.scenarioName];obj.desc;figdescab;'v_i^{(j)} = i^{th} element of j^{th} eigenvector'});
             obj.save_fig(f,name);
             %% fig7c fig7d
-            name = [fnumcd suffix suffix2 suffix3];
+            name = [fnumcd suffix suffix2 suffix3 suffix4];
             f = figure('Name',name,'NumberTitle','off');
             hold on;
-            myplot(x,abs4log(mean(obj.eigenvectors_ana(:,1:n),2)),'.','MarkerSize',18);
+            myplot(x,abs4log(mean(eigvecana(:,1:n),2)),'.','MarkerSize',18);
             myplot(x,abs4log(mean(eigvecasy(:,1:n),2)),'^','MarkerSize',12);
             xlabel(xlab);
             ylabel('$\mid \bar{v_i} \mid$','Interpreter','Latex');
@@ -1489,15 +1464,33 @@ classdef EngineClass <  handle
         end
         %% fig9*
         function plot_network1(obj)
+            sizes = [.01 .1 .5 .75 1 ...
+                      1.25 1.5  1.75  2 2.25 ...
+                      2.5  2.75  3  5 10];
+            colors = jet(obj.numbins);
+            layouts = {'force','force3','subspace','subspace3'};
+            linestyle = {'none','-'};
+            linewidthsstr = {'none','0.1'};
             a = obj.adjacencyMatrix;
             a_uw = (a>0); %uw = unweighted
             g_uw = graph(a_uw);
             p = {};
-            
-            p{1} = plot(g);
-            for i = 1:obj.numbins
-                inds = obj.bins;
-                
+            ind = 1;
+            for i1 = 1:length(layouts)
+                for i2 = 1:length(linestyle)
+                    name = ['fig9-' num2str(i1) '-' num2str(i2)];
+                    figdesc = ['Network Visualization ' layouts{i1} ' layout, Edge widths: ' ...
+                        linewidthsstr{i2}];
+                    f = figure('Name',name,'NumberTitle','off');
+                    p{ind} = plot(g_uw,'LineWidth',.1,'LineStyle',linestyle{i2},'Marker','o','layout',layouts{i1});
+                    for i = 1:obj.numbins
+                        inds = obj.bins{i};
+                        highlight(p{ind},inds,'MarkerSize',sizes(i),'NodeColor',colors(i,:));
+                    end
+                    title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+                    obj.save_fig(f,name);
+                    ind = ind+1;
+                end
             end
         end
         function obj = save_fig(obj,f,name)
