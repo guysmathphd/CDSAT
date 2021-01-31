@@ -33,12 +33,14 @@ classdef EngineClass <  handle
         half_life
         eigenvalues_ana
         eigenvectors_ana
+        eigenvectors_ana_binned_self
         eigenvectors_ana_binned_k
         eigenvectors_ana_binned_kinn
         eigenvalues_asy
         eigenvalues_asy_permuted
         eigenvectors_asy
         eigenvectors_asy_permuted
+        eigenvectors_asy_permuted_binned_self
         eigenvectors_asy_permuted_binned_k
         eigenvectors_asy_permuted_binned_kinn
         eigenvalues_num
@@ -55,6 +57,8 @@ classdef EngineClass <  handle
         bins
         binsij
         binskinn
+        binseigvecana
+        binseigvecasy_permuted
         kbinned
         kijbinned
         Dii_anabinned
@@ -140,7 +144,7 @@ classdef EngineClass <  handle
 %             obj.set_Dii_asybinned();
             x = obj.degree_vector_weighted;x2 = (x.^obj.nu) * (x.^obj.rho)';x3 = x2(:);
             obj.binsij = obj.set_bins_generic(obj.numbins,x3,tol,obj.adjacencyMatrix>0);
-            obj.kijbinned = obj.set_binned_vals(x3(obj.adjacencyMatrix>0),obj.binsij);
+            obj.kijbinned = obj.set_binned_vals(x2(obj.adjacencyMatrix>0),obj.binsij);
             obj.Wij_asybinned = obj.set_binned_vals(obj.Wij_asy(obj.adjacencyMatrix>0),obj.binsij);
 %             obj.set_Wij_asybinned();
             obj.set_kinn();
@@ -150,6 +154,7 @@ classdef EngineClass <  handle
         end
         function ind_bins_var = set_bins_generic(~,numbins,values_vec,tol,cond_vec)
             ind_bins_var = cell(numbins,1);
+%             ind_bins_var = {};
             values_vec = values_vec(cond_vec);
             max_val = max(values_vec);
             min_val = min(values_vec);
@@ -165,8 +170,10 @@ classdef EngineClass <  handle
                 else
                     ind = find(values_vec>c^ns(k-1) & values_vec<=c^ns(k)+tol);
                 end
-                ind_bins_var{k-1,1} = ind;
-                s = s + size(ind,1);
+%                 if ~isempty(ind)
+                    ind_bins_var{k-1,1} = ind;
+                    s = s + size(ind,1);
+%                 end
             end
             %Check bins
             num_vals = size(values_vec,1);
@@ -391,6 +398,13 @@ classdef EngineClass <  handle
                 obj.set_eigvec_comparison_mats(true,false);
                 obj.set_permutation_eigvec_ana2asy(40);
                 obj.set_eig_asy_permuted();
+                
+                for i = 1:obj.numeigenplots
+                    obj.binseigvecana{i,1} = obj.set_bins_generic(obj.numbins,abs(obj.eigenvectors_ana(:,i)),1e-13,true(obj.N,1));
+                    obj.binseigvecasy_permuted{i,1} = obj.set_bins_generic(obj.numbins,abs(obj.eigenvectors_asy_permuted(:,i)),1e-13,true(obj.N,1));
+                    obj.eigenvectors_ana_binned_self{i,1} = obj.set_binned_vals(abs(obj.eigenvectors_ana(:,i)),obj.binseigvecana{i,1});
+                    obj.eigenvectors_asy_permuted_binned_self{i,1} = obj.set_binned_vals(abs(obj.eigenvectors_asy_permuted(:,i)),obj.binseigvecasy_permuted{i,1});
+                end
                 obj.eigenvectors_ana_binned_k = obj.set_binned_vals(obj.eigenvectors_ana,obj.bins);
                 obj.eigenvectors_ana_binned_kinn = obj.set_binned_vals(obj.eigenvectors_ana,obj.binskinn);
                 obj.eigenvectors_asy_permuted_binned_k = obj.set_binned_vals(obj.eigenvectors_asy_permuted,obj.bins);
@@ -1016,13 +1030,19 @@ classdef EngineClass <  handle
             end
         end
         function obj = plot_steady_vs_degree(obj)
-            name = 'fig3';
-            f = figure('Name',name,'NumberTitle','off');
-            plot(obj.degree_vector,obj.steady_state,'.','MarkerSize',12);
-            title({[name ' ' obj.scenarioName];obj.desc});
-            xlabel('k - node degree');
-            ylabel('Steady State');
-            obj.save_fig(f,name);
+            %% fig3-*
+            names = '123';
+            xvals = {obj.degree_vector,obj.degree_vector_weighted,obj.ki_nn};
+            xlabs = {'k','k-weighted','k_{i,nn}'};
+            for i1 = 1:length(names)
+                name = ['fig3-' names(i1)];
+                f = figure('Name',name,'NumberTitle','off');
+                plot(xvals{i1},obj.steady_state,'.','MarkerSize',12);
+                title({[name ' ' obj.scenarioName];obj.desc});
+                xlabel(xlabs{i1});
+                ylabel('Steady State');
+                obj.save_fig(f,name);
+            end
             name = 'fig3a';
             f = figure('Name',name,'NumberTitle','off');
             loglog(obj.degree_vector,obj.steady_state,'.','MarkerSize',12);
@@ -1467,30 +1487,134 @@ classdef EngineClass <  handle
             sizes = [.01 .1 .5 .75 1 ...
                       1.25 1.5  1.75  2 2.25 ...
                       2.5  2.75  3  5 10];
-            colors = jet(obj.numbins);
-            layouts = {'force','force3','subspace','subspace3'};
-            linestyle = {'none','-'};
+            %colors = jet(obj.numbins);
+%             layouts = {'force','force3','subspace','subspace3'};
+%             linestyle = {'none','-'};
+            layouts = {'force','subspace'};
+            linestyle = {'-'};
             linewidthsstr = {'none','0.1'};
+            coloringstr = {'Degree','Steady State','abs(Eigvec_{ana,', 'abs(Eigvec_{asy,'};
+            sizestr = {'Degree'};
+            tickinds = [1 10 11 12 13 14 15];
+            ssbins = obj.set_bins_generic(obj.numbins,1-obj.steady_state',1e-13,true(obj.N,1));
+            ssbinned = obj.set_binned_vals(1-obj.steady_state',ssbins);
+%             sstickvals = ssbinned(tickinds);sstickvals = sstickvals(end:-1:1);
+%             sstickstr = string(ssbinned(tickinds));sstickstr = sstickstr(end:-1:1);
+%             ssbins = ssbins(end:-1:1);
+%             ssbinned = 1-ssbinned(end:-1:1);
+            colors_list{1} = {jet(size(obj.bins,1))};
+            colorstemp = jet(size(ssbins,1));
+            colors_list{2} = {colorstemp(end:-1:1,:)};
+            caxislim_2 = [-log10(ssbinned(end)) -log10(ssbinned(1))];
+            
+            for i=1:size(obj.binseigvecana,1)
+                binseigvecana{i} = obj.binseigvecana{i,1}(obj.eigenvectors_ana_binned_self{i}~=0);
+                valseigvecana{i} = obj.eigenvectors_ana_binned_self{i}(obj.eigenvectors_ana_binned_self{i}~=0);
+                binseigvecasy{i} = obj.binseigvecasy_permuted{i,1}(obj.eigenvectors_asy_permuted_binned_self{i}~=0);
+                valseigvecasy{i} = obj.eigenvectors_asy_permuted_binned_self{i}(obj.eigenvectors_asy_permuted_binned_self{i}~=0);
+                valseigvec{i} = sort([valseigvecana{i};valseigvecasy{i}],'ascend');
+                colors34{i} = jet(size(valseigvec{i},1));                
+                caxis_lim34{i} = [log10(valseigvec{i}(1)) log10(valseigvec{i}(end))];
+            end
+            colors_list{3} = colors34;colors_list{4} = colors34;
+            caxis_lim_list = {{[obj.kbinned(1),obj.kbinned(end)]},{caxislim_2},caxis_lim34,caxis_lim34};
+            sym x; tickstrfun_list = {@(x) (x), @(x) (1-10.^(-x)), @(x) (10.^x), @(x) (10.^x)};
+            coloringbins = {{obj.bins},{ssbins},binseigvecana,binseigvecasy};
+            valscolorbar_list = {{obj.kbinned},{ssbinned},valseigvec,valseigvec};
+            binnedcolorings = {{obj.kbinned},{ssbinned},valseigvecana,...
+                valseigvecasy};
+            %tickstr = compose("%.2e",tickvals);
             a = obj.adjacencyMatrix;
             a_uw = (a>0); %uw = unweighted
             g_uw = graph(a_uw);
-            p = {};
+            p = {};            
             ind = 1;
             for i1 = 1:length(layouts)
                 for i2 = 1:length(linestyle)
-                    name = ['fig9-' num2str(i1) '-' num2str(i2)];
-                    figdesc = ['Network Visualization ' layouts{i1} ' layout, Edge widths: ' ...
-                        linewidthsstr{i2}];
-                    f = figure('Name',name,'NumberTitle','off');
-                    p{ind} = plot(g_uw,'LineWidth',.1,'LineStyle',linestyle{i2},'Marker','o','layout',layouts{i1});
-                    for i = 1:obj.numbins
-                        inds = obj.bins{i};
-                        highlight(p{ind},inds,'MarkerSize',sizes(i),'NodeColor',colors(i,:));
+                    for i3 = 1:length(coloringbins)
+                        tickstrfun = tickstrfun_list{i3};
+                        for i4 = 1:length(coloringbins{i3})
+                            colorbins = coloringbins{i3}{i4};
+                            vals = binnedcolorings{i3}{i4};
+                            colors = colors_list{i3}{i4};
+                            valscolorbar = valscolorbar_list{i3}{i4};
+                            name = ['fig9-' num2str(i1) '-' num2str(i2) '-' num2str(i3) '-' num2str(i4)];
+                            if length(coloringbins{i3})>1
+                                str1 = [num2str(i4) '})'];
+                            else
+                                str1 = '';
+                            end
+                            figdesc = ['Network Visualization ' layouts{i1} ' layout, Size: ' ...
+                                sizestr{1} ', Coloring: ' ...
+                                coloringstr{i3} str1];
+                            f = figure('Name',name,'NumberTitle','off');
+                            colormap jet;
+                            p{ind} = plot(g_uw,'LineWidth',.1,'LineStyle',linestyle{i2},'Marker','o','layout',layouts{i1});
+                            for i = 1:size(obj.bins,1)
+                                inds1 = obj.bins{i};
+                                highlight(p{ind},inds1,'MarkerSize',sizes(i))
+                            end
+                            for i = 1:size(colorbins,1)
+                                inds2 = colorbins{i};
+                                highlight(p{ind},inds2,'NodeColor',colors(vals(i)==valscolorbar,:));
+                            end
+                            caxis_lim =caxis_lim_list{i3}{i4};
+                            tickvals = caxis_lim(1):(caxis_lim(2)-caxis_lim(1))/10:caxis_lim(2);
+                            caxis(caxis_lim);
+                            ticks = tickvals;
+                            %ticks = [binnedcolorings{i3}(1)', binnedcolorings{i3}(end-1:end)'];
+                            ticksstr = compose("%.2e",tickstrfun(ticks));
+                            colorbar('Ticks',ticks,'TickLabels',ticksstr);
+                            title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+                            obj.save_fig(f,name);
+                            ind = ind+1;
+                        end
                     end
-                    title({[name ' ' obj.scenarioName];obj.desc;figdesc});
-                    obj.save_fig(f,name);
-                    ind = ind+1;
                 end
+            end
+        end
+        function obj = plot_degree(obj)
+            %% fig10a
+            names = 'ab';
+            figdescs = {'Node Degrees','Node Average Nearest Neighbor Degrees'};
+            values_list = {obj.degree_vector_weighted,obj.ki_nn};
+            legendStrs = {'k_i','k_{i,nn}'};
+            bins_list = {obj.bins,obj.binskinn};
+            binned_list = {obj.kbinned,obj.ki_nnbinned};
+            ylabstr = {'k_i','k_{i,nn}'};
+            myplots = {@loglog,@semilogx};
+            numfigs = length(names);
+            for figind1 = 1:numfigs
+                name = ['fig10' names(figind1)];
+                figdesc = figdescs{figind1};
+                f = figure('Name',name,'NumberTitle','off');
+                myplot = myplots{figind1};
+                values = values_list{figind1};
+                myplot(values,'.');
+                legendStr1 = legendStrs{figind1};
+                legendStr{1} = legendStr1;
+                hold on;
+                values_sorted = sort(values,'descend');
+                myplot(values_sorted,'.r');
+                legendStr{2} = [legendStr1 ' - Sorted'];
+                binsizes = [0];
+                cumbinsizes = [0];
+                bins1 = bins_list{figind1};
+                for i = obj.numbins:-1:1
+                    binsizes(end+1) =  size(bins1{i},1);
+                    cumbinsizes(end+1) = cumbinsizes(end) + size(bins1{i},1);
+                end
+                midbins = (cumbinsizes(1:end-1) + cumbinsizes(2:end))/2;
+                %             halfsizes = (binsizes(1:end-1) + binsizes(2:end))/2;
+                %             midbins = binsizes(1:end-1) + halfsizes;
+                binned = binned_list{figind1}(end:-1:1);
+                myplot(midbins,binned,'or','MarkerSize',14);
+                legendStr{3} = [legendStr1 ' - Binned'];
+                title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+                legend(legendStr);
+                xlabel('i');
+                ylabel(ylabstr{figind1});
+                obj.save_fig(f,name);
             end
         end
         function obj = save_fig(obj,f,name)
