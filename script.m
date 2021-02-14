@@ -7,6 +7,8 @@ myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','max
 myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins'};
 %%
 myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet'};
+%%
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2'};
 %% 
 % A simple system with two independent nodes whose solution is x = Cexp(-t)
 A = eye(2);

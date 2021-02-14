@@ -67,16 +67,26 @@ classdef EngineClass <  handle
         Wij_asybinned
         numeigen=10;
         numeigenplots = 5;
+        numeigenplots2 = 100;
         eigvec_dist_comparison_mat_ana2asy
         eigvec_angle_comparison_mat_ana2asy
         eigvec_dist_comparison_mat_ana2asy_permuted
         eigvec_angle_comparison_mat_ana2asy_permuted
+        eigvec_dot_comparison_mat_ana2asy
+        eigvec_dot_comparison_mat_ana2asy_permuted
+        eigvec_dot_comparison_mat_ana2ana
+        eigvec_dot_comparison_mat_asy_permuted2asy_permuted
         permutation_eigvec_ana2asy
         eps = [1];
         eps_adjusted;
         isInitsLegit;
         epsThreshold = .01;
         perturbation_factor = .1;
+        pert_map_struct
+        init_condition
+        stop_condition_2
+        opts
+        epsFactor = 0.9;
         
         difEqSolver %function handle
         absTol % positive double
@@ -273,6 +283,131 @@ classdef EngineClass <  handle
             B = ones(n,1)/sqrt(n);
             X = linsolve(V,B);
         end
+        function struct = set_pert_map(obj,a,b,v1,v2,v1str,v2str)
+            struct.perts = [];
+            struct.factors1 = a;
+            struct.factors2 = b;
+            if ~isempty(a)
+                struct.perts = [struct.perts,v1+a.*v2];
+            end
+            if ~isempty(b)
+                struct.perts = [struct.perts,v2+b.*v1];
+            end
+            [new_eps, inits, is_inits_legit] = check_epsilons(obj,obj.eps,perts,obj.steady_state',obj.epsThreshold,...
+                obj.epsFactor,obj.init_condition);
+            [solutions_t, solutions_x] = obj.multi_solve(obj.opts,obj.difEqSolver,inits,is_inits_legit,...
+                obj.solverTimeStep,obj.maxTime,obj.stop_condition_2);
+            struct.inits = inits;struct.new_epsilons = new_eps;
+            struct.is_inits_legit = is_inits_legit;struct.solutions_t = solutions_t;
+            struct.solutions_x = solutions_x;struct.v1str = v1str;struct.v2str = v2str;
+        end
+        function obj = set_opts(obj)
+            obj.opts = odeset('RelTol',obj.relTol,'AbsTol',obj.absTol);
+        end
+
+        function obj = set_pert_map_struct(obj)
+            a = [0 .2 .4 .6 .8 1];
+            v1 = obj.eigenvectors_ana(:,1);
+            v2 = obj.eigenvectors_ana(:,2);
+            obj.pert_map_struct.perts = [v1+a.*v2,v2+a(1:end).*v1];
+            perts = obj.pert_map_struct.perts;
+            %%%%%% Adjust Epsilons
+            epsVals = obj.eps;
+            ss = obj.steady_state;
+            [obj.pert_map_struct.new_epsilons, obj.pert_map_struct.inits, obj.pert_map_struct.is_inits_legit] = check_epsilons(obj,epsVals,perts,ss',obj.epsThreshold,...
+                obj.epsFactor,obj.init_condition);
+            %%%%%%%%%%%%%%
+            stop_cond = @(t,x) (size(t,1)>100 && max(abs(x(end,:) - x(end-100,:)))<obj.absTol);
+            inits = obj.pert_map_struct.inits;is_inits_legit=obj.pert_map_struct.is_inits_legit;
+            [obj.pert_map_struct.solutions_t, obj.pert_map_struct.solutions_x] = obj.multi_solve(obj.opts,obj.difEqSolver,inits,is_inits_legit,...
+                obj.solverTimeStep,obj.maxTime,stop_cond);
+        end
+        function [new_epsilons, inits_out, is_inits_legit] = check_epsilons(obj,eps_vals,perts,ss,epsThreshold,...
+                epsFactor,init_condition)
+            n1 = size(eps_vals,2);
+            n2 = size(perts,2);
+            new_epsilons = zeros(n1,n2);
+            inits_out = cell(n1,1);
+            is_inits_legit = zeros(n1,n2);
+            for eps_ind = 1:n1
+                eps_val = eps_vals(1,eps_ind);
+                for pert_ind = 1:n2
+                    pert = perts(:,pert_ind);
+                    [new_epsilon, init_out, is_init_legit] = obj.check_epsilon(eps_val, pert, ss, epsThreshold,...
+                        epsFactor, init_condition);
+                    new_epsilons(eps_ind,pert_ind) = new_epsilon;
+                    inits_out{eps_ind}(:,pert_ind) = init_out;
+                    is_inits_legit(eps_ind,pert_ind) = is_init_legit;
+                end
+            end
+        end
+        function [new_epsilon, init_out, is_init_legit] = check_epsilon(~,eps_val, pert, ss, epsThreshold,...
+                epsFactor, init_condition)
+            is_init_legit = false;            
+            while ~is_init_legit
+                disp(['eps = ' num2str(eps_val)]);
+                if eps_val < epsThreshold
+                    disp('eps too small, breaking');
+                    break
+                end
+                eps_pert = eps_val * pert;
+                init = ss + eps_pert;
+                if ~init_condition(init)
+                    disp('Adjusting Epsilon');
+                    eps_val = eps_val*epsFactor;
+                    disp(['eps = ' num2str(eps_val)]);
+                else
+                    is_init_legit = true;
+                end
+            end
+            new_epsilon = eps_val;
+            disp(['Final eps= ' num2str(eps_val)]);
+            init_out = init;
+        end
+%         function x_out = model_odefun(obj,x)
+%             x_out = obj.f_M0(x)+(obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x);
+%         end
+
+        function [sol_t, sol_x] = single_solve(obj,opts,difEqSolver,init,timeStep,maxTime,stop_cond)
+            t = 0;sol_t = [0];sol_x = [init'];
+            setBreak = false; % stop while loop?
+            while ~setBreak
+                % check if this step passes maxTime and set stepEndTime
+                if t + timeStep >= maxTime
+                    stepEndTime = maxTime;setBreak = true;
+                else
+                    stepEndTime = t + timeStep;
+                end
+                % run solver step
+                display(['stepEndTime = ' num2str(stepEndTime)]);
+                odefun = @(tt,x) obj.f_M0(x)+(obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x);
+                [step_sol_t,step_sol_x] = difEqSolver(odefun,[t stepEndTime],init,opts);
+                t = stepEndTime; init = step_sol_x(end,:);
+                % append results to solution_t and solution_x
+                sol_t(end+1:end+length(step_sol_t)-1,1)=step_sol_t(2:end,:);
+                sol_x(end+1:end+size(step_sol_x,1)-1,:)=step_sol_x(2:end,:);
+                setBreak = stop_cond(sol_t,sol_x,obj.steady_state,obj.absTol);
+                if setBreak
+                    disp('setBreak = true');
+                end
+            end
+        end
+        function [solutions_t, solutions_x] = multi_solve(obj,opts,difEqSolver,inits,is_Inits_Legit,...
+                timeStep,maxTime,stop_cond)
+            s1 = size(inits);s2 = size(inits{1});
+            solutions_t = cell(s1);solutions_x = cell(s1);
+            for epsInd = 1:s1(1)
+                inits_current = inits{epsInd};n1 = size(inits_current,2);
+                for initInd = 1:n1
+                    if is_Inits_Legit(epsInd,initInd)
+                        init = inits_current(:,initInd);
+                        [sol_t, sol_x] = obj.single_solve(opts,difEqSolver,init,timeStep,maxTime,stop_cond);
+                        solutions_t{epsInd,initInd} = sol_t;
+                        solutions_x{epsInd,initInd} = sol_x;
+                    end
+                end
+            end
+        end
         function obj = solve(obj,pertType,epsIndStart,pertIndStart,isAdjustEpsilon)
             %Solve the system
             tic;
@@ -306,41 +441,24 @@ classdef EngineClass <  handle
             end
             numperts = size(perts,2);
             numeps = length(eps_vals);
-            eval([sol_t_var_str ' = {};']);
-            eval([sol_x_var_str ' = {};']);
-            for epsInd = epsIndStart:numeps
-                for pertInd = pertIndStart:numperts
-                    eps_val = eps_vals(epsInd);
-                    obj.isInitsLegit(epsInd,pertInd) = false;
-                    while ~obj.isInitsLegit(epsInd,pertInd)
-                        disp(['eps = ' num2str(eps_val)]);
-                        if eps_val < obj.epsThreshold
-                            disp('eps too small, breaking');
-                            break
-                        end
-                        pert = eps_val * perts(:,pertInd);
-                        init = ss' + pert;
-                        if isAdjustEpsilon
-                            if any(init<0 | init > 1,'all')
-                                disp('Adjusting Epsilon');
-                                eps_val = eps_val*.9;
-                                disp(['eps = ' num2str(eps_val)]);
-                            else
-                                obj.isInitsLegit(epsInd,pertInd) = true;
-                            end
-                        else
-                            obj.isInitsLegit(epsInd,pertInd) = true;
-                        end
-                    end
-                    obj.eps_adjusted(epsInd,pertInd) = eps_val;
-                    disp(['Final eps= ' num2str(eps_val)]);
-                    inits{1,epsInd}(:,pertInd) = init;
-                    init = init';
-                    
-                    eval([sol_t_var_str '{1,pertInd,epsInd} = 0;']);
-                    eval([sol_x_var_str '{1,pertInd,epsInd} = init;']);
-                end
-            end
+%             eval([sol_t_var_str ' = {};']);
+%             eval([sol_x_var_str ' = {};']);
+
+            %%%%%% Adjust Epsilons
+            init_condition = @(init) ~(any(init < 0 | init > 1,'all'));
+            epsFactor = .9;
+            [new_epsilons, inits_out, is_inits_legit] = check_epsilons(obj,eps_vals,perts,ss',obj.epsThreshold,...
+                epsFactor,init_condition);
+            obj.eps_adjusted = new_epsilons;
+            inits = inits_out;
+            obj.isInitsLegit = is_inits_legit;
+            %%%%%%%%%%%%%%
+            
+            %%%%%% Move to inside solver
+            eval([sol_t_var_str '{1,pertInd,epsInd} = 0;']);
+            eval([sol_x_var_str '{1,pertInd,epsInd} = init;']);
+            %%%%%
+            
             opts = odeset('RelTol',obj.relTol,'AbsTol',obj.absTol);
             clear odefun;
             odefun = @(tt,x) (obj.f_M0(x) + (obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x));
@@ -511,6 +629,7 @@ classdef EngineClass <  handle
             [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
             obj.eigenvalues_ana = diag(d);
             obj.eigenvectors_ana = v;
+            disp('Done');
         end
         function obj = set_eig_asy(obj)
             J = obj.Wij_asy;
@@ -520,55 +639,70 @@ classdef EngineClass <  handle
             [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
             obj.eigenvalues_asy = diag(d);
             obj.eigenvectors_asy = v;
+            disp('Done');
+        end
+        function [M1 M2 M3] = compute_comparison_matrix(~,vectors_1,vectors_2)
+            n1 = size(vectors_1,2);
+            n2 = size(vectors_2,2);
+            M1 = zeros(n1,n2);M2 = M1;M3 = M1;            
+            for i = 1:n1
+                if mod(i,100) == 0
+                    disp(['i = ' num2str(i)]);
+                end
+                ui = vectors_1(:,i);
+                for j = 1:n2
+                    vj = vectors_2(:,j);                    
+                    % L2 norm of difference between vectors
+                    m1 = norm(ui - vj);
+                    % dot product of norm of vectors
+                    m2 = abs(dot(ui,vj));
+                    % angle between vectors
+                    m3 = rad2deg(acos(dot(ui/norm(ui),vj/norm(vj))));                    
+                    M1(i,j) = m1; M2(i,j) = m2; M3(i,j) = m3;
+                end
+            end
         end
         function obj = set_eigvec_comparison_mats(obj,computeRegular,computePermuted)
-            e1 = obj.eigenvectors_ana;
-            e2 = obj.eigenvectors_asy;
-            e3 = obj.eigenvectors_asy_permuted;
-            M = zeros(size(e1,2));
-            NN = M;
-            Mp = M;
-            NNp = M;
-            disp('set_eigvec_comparison_mats');
-            for i = 1:size(e1,2)
-                if mod(i,100)==0
-                    disp(i);
-                end
-                v1 = e1(:,i); % ith analytic eigenvector
-                if computeRegular
-                    M(i,:) = vecnorm(e2 - v1);
-                end
-                for j = 1:size(e2,2)
-                    if computeRegular
-                        v2 = e2(:,j);
-                        NN(i,j) = acos(dot(v1,v2))*180/pi;
-                    end
-                    if computePermuted
-                        v3 = e3(:,j);
-                        NNp(i,j) = acos(dot(v1,v3))*180/pi;
-                    end
-                end
-                if computePermuted
-                    Mp(i,:) = vecnorm(e3-v1);
-                end
+            if computeRegular
+                vasy = obj.eigenvectors_asy;                
+            elseif computePermuted
+                vasy = obj.eigenvectors_asy_permuted;
             end
-            obj.eigvec_dist_comparison_mat_ana2asy = M;
-            obj.eigvec_angle_comparison_mat_ana2asy = NN;
-            obj.eigvec_dist_comparison_mat_ana2asy_permuted = Mp;
-            obj.eigvec_angle_comparison_mat_ana2asy_permuted = NNp;
-            if ~isequal(real(NN),NN)
+            vana = obj.eigenvectors_ana;
+            [dist, absdot, angles] = obj.compute_comparison_matrix(vana,vasy);
+            
+            if computeRegular
+                obj.eigvec_dist_comparison_mat_ana2asy = dist;
+                obj.eigvec_angle_comparison_mat_ana2asy = angles;
+                obj.eigvec_dot_comparison_mat_ana2asy = absdot;
+            elseif computePermuted
+                obj.eigvec_dist_comparison_mat_ana2asy_permuted = dist;
+                obj.eigvec_angle_comparison_mat_ana2asy_permuted = angles;
+                obj.eigvec_dot_comparison_mat_ana2asy_permuted = absdot;
+            end
+            if ~isequal(real(angles),angles)
                 disp('Warning: eigvec_angle_comparison_mat has complex values');
             end
+        end
+        function obj = set_eigvec_comparison_mats2(obj)
+            vana = obj.eigenvectors_ana;
+            vasy = obj.eigenvectors_asy_permuted;
+            [~, dotsana, ~] = obj.compute_comparison_matrix(vana,vana);
+            [~, dotsasy, ~] = obj.compute_comparison_matrix(vasy,vasy);
+            obj.eigvec_dot_comparison_mat_ana2ana = dotsana;
+            obj.eigvec_dot_comparison_mat_asy_permuted2asy_permuted = dotsasy;
         end
         function obj = set_permutation_eigvec_ana2asy(obj,thresh)
             NN = obj.eigvec_angle_comparison_mat_ana2asy;
             NN = abs(90 - NN);
             [M,I] = max(NN,[],2);
-            M = M < thresh;
+            m = M < thresh;
+            disp('set_permutation_eigvec_ana2asy: ');
+            disp(['sum(m) = ' num2str(sum(m))]);
             ii = 1:size(I,1);
-            I(M) = ii(M);
+            I(m) = ii(m);
             [val,ind] = unique(I);
-            if isequal(ind,ii)
+            if isequal(val,ii)
                 disp('I is a permutation')
             end
             obj.permutation_eigvec_ana2asy = I';
@@ -1020,7 +1154,7 @@ classdef EngineClass <  handle
                         ylabel(ylabelStr{figInd,1},'Interpreter','latex','FontSize',14);
                         legend(legendStr,'FontSize',14);
                         obj.save_fig(f,name);
-                        if figInd == 4 && myPlotInd == 1
+                        if (figInd == 4 || figInd ==3) && myPlotInd == 1
                             myPlotInd = 2;
                         else
                             break
@@ -1194,18 +1328,19 @@ classdef EngineClass <  handle
             obj.save_fig(f,name);
         end
         function plot_eigenvectors(obj,usePermuted)
+            n = obj.numeigenplots2;
             if usePermuted
-                e2 = obj.eigenvectors_asy_permuted;
+                e2 = obj.eigenvectors_asy_permuted(:,1:n);
                 suf = '-Permuted';
-                dist = obj.eigvec_dist_comparison_mat_ana2asy_permuted;
-                angle = obj.eigvec_angle_comparison_mat_ana2asy_permuted;
+                dist = obj.eigvec_dist_comparison_mat_ana2asy_permuted(1:n,1:n);
+                angle = obj.eigvec_angle_comparison_mat_ana2asy_permuted(1:n,1:n);
             else
-                e2 = obj.eigenvectors_asy;
+                e2 = obj.eigenvectors_asy(:,1:n);
                 suf = '';
-                dist = obj.eigvec_dist_comparison_mat_ana2asy;
-                angle = obj.eigvec_angle_comparison_mat_ana2asy;
+                dist = obj.eigvec_dist_comparison_mat_ana2asy(1:n,1:n);
+                angle = obj.eigvec_angle_comparison_mat_ana2asy(1:n,1:n);
             end
-            e1 = obj.eigenvectors_ana;
+            e1 = obj.eigenvectors_ana(:,1:n);
             % fig6a
             name = ['fig6a' suf];
             figdesc = ['Jacobian Eigenvectors Comparison' suf];
@@ -1269,6 +1404,25 @@ classdef EngineClass <  handle
             title({[name ' ' obj.scenarioName];obj.desc;figdesc});
             legend('Analytic Jacobian','Asymptotic Jacobian');
             obj.save_fig(f,name);
+            %% fig6f* fig6g*
+            namepre = {'fig6f-','fig6g-'};
+            namesuf = {'1'};
+            figdescstr1 = {'Analytic', 'Asymptotic'};
+            figdescstr2 = {'Dot Product Absolute Value'};
+            mat = {obj.eigvec_dot_comparison_mat_ana2ana(1:n,1:n),obj.eigvec_dot_comparison_mat_asy_permuted2asy_permuted(1:n,1:n)};
+            for i1 = 1:size(namepre,2)
+                for i2 = 1:size(namesuf,2)
+                    name = [namepre{i1} namesuf{i2}];
+                    figdesc = [figdescstr1{i1} ' Jacobian Eigenvectors ' figdescstr2{i2} 'Comparison Matrix'];
+                    f = figure('Name',name,'NumberTitle','off');
+                    image(mat{i1},'CDatamapping','scaled');
+                    colorbar;
+                    ylabel([figdescstr1{i1} ' Eigenvectors']);
+                    xlabel([figdescstr1{i1} ' Eigenvectors']);
+                    title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\mid v_i \cdot v_j \mid$'},'interpreter','latex');
+                    obj.save_fig(f,name);
+                end
+            end
         end
         function obj = plot_eigenvectors2(obj,isFirst,isKinn,isPermuted,isLogLog,isBinned)
             %%% fig7a,fig7b, fig7c,fig7d, -permuted -loglog -binned
@@ -1617,6 +1771,110 @@ classdef EngineClass <  handle
                 obj.save_fig(f,name);
             end
         end
+        function obj = plot_eigvec_map(obj)
+            structs{1} = obj.pert_map_struct;
+            m.new_epsilons = obj.eps_adjusted(1,7);
+            m.is_inits_legit = [1];
+            m.solutions_t = obj.solution_t_eigvecasy(1,2,1);
+            m.solutions_x = obj.solution_x_eigvecasy(1,2,1);
+            structs{2} = m;
+            [f1,hax] = obj.plot_eigvec_map1(structs,obj.eigenvectors_ana(:,1),...
+                obj.eigenvectors_ana(:,2),obj.steady_state');
+        end
+        function [f, hax] = plot_eigvec_map1(obj,map_structs,v1,v2,ss)
+            numfigs = 8;
+            for i = 1:numfigs
+                name = ['fig11-' num2str(i)];
+                f{i} = figure('Name',name,'NumberTitle','off');
+                hax{i} = axes;
+            end
+            m1 = size(map_structs,2);
+            markers = ['.*'];
+            legendStr = {};
+            legendInd = 1;
+            for i1 = 1:m1
+                map_struct = map_structs{1,i1};
+                n1 = size(map_struct.is_inits_legit,2);
+                marker = markers(i1);                
+                first = true;
+                for i = 1:n1
+                    if map_struct.is_inits_legit(1,i)
+                        if isfield(map_struct,'factors1')                            
+                            if i<=length(map_struct.factors1)
+                                str = ['x_0 = ' num2str(map_struct.factors1(i)) '*' map_struct.v1str ' + ' map_struct.v2str];
+                            else
+                                str = ['x_0 = ' map_struct.v1str ' + ' num2str(map_struct.factors2(i-length(map_struct.factors1))) '*' map_struct.v2str];
+                            end
+                            legendStr{legendInd} = str;
+                        else
+                            legendStr{legendInd} = map_struct.legendStr{i};
+                        end
+                        legendInd = legendInd + 1;
+                        pert_t = map_struct.solutions_t{1,i};
+                        pert_x = map_struct.solutions_x{1,i}' - ss;
+                        epsilon = map_struct.new_epsilons(1,i);
+                        v1mat = v1 + zeros(size(pert_x));
+                        pert_x_norm = vecnorm(pert_x).*ones(size(pert_x));
+                        pert_x_normalized = pert_x./pert_x_norm;
+                        pert_x_normalized_1 = pert_x_normalized * epsilon;
+                        dotv1 = dot(v1mat,pert_x_normalized);
+                        dotv1_1 = dot(v1mat,pert_x_normalized_1);
+                        dotv1_2 = dot(v1mat,pert_x);
+                        v2mat = v2 + zeros(size(pert_x));
+                        dotv2 = dot(v2mat,pert_x_normalized);
+                        dotv2_1 = dot(v2mat,pert_x_normalized_1);
+                        dotv2_2 = dot(v2mat,pert_x);
+                        x = {pert_t,pert_t,dotv1,dotv1_1,pert_t,pert_t,dotv1_2,dotv1_2};
+                        y = {dotv1,dotv2,dotv2,dotv2_1,dotv1,dotv2,dotv2_2,dotv2_2};
+                        myplot = {@plot,@plot,@plot,@plot,@semilogy,@semilogy,@plot,@loglog};
+                        for j = 1:numfigs
+                            myplot{j}(hax{j},x{j},y{j},marker);
+                            if first
+                            hold(hax{j},'on');
+                            end
+                            legend(hax{j},legendStr);
+                        end
+                        first = false;
+%                         plot(hax{1},pert_t,dotv1,marker);
+%                         hold(hax{1},'on');
+%                         plot(hax{2},pert_t,dotv2,marker);
+%                         hold(hax{2},'on');
+%                         plot(hax{3},dotv1,dotv2,marker);
+%                         hold(hax{3},'on');
+%                         plot(hax{4},dotv1_1,dotv2_1,marker);
+%                         hold(hax{4},'on');
+%                         semilogy(hax{5},pert_t,dotv1,marker);
+%                         hold(hax{5},'on');
+%                         semilogy(hax{6},pert_t,dotv2,marker);
+%                         hold(hax{6},'on');
+%                         plot(hax{7},dotv1_2,dotv2_2,marker);
+%                         hold(hax{7},'on');
+%                         loglog(hax{8},dotv1_2,dotv2_2,marker);
+%                         hold(hax{8},'on');
+                    end
+                end
+            end
+            figdesc = {'Normalized perturbation projection on v_{1,ana} vs time',...
+                'Normalized perturbation projection on v_{2,ana} vs time',...
+                'Normalized perturbation projection',...
+                'Normalized perturbation projection scaled to x_0',...
+                'Normalized perturbation projection on v_{1,ana} vs time (log)',...
+                'Normalized perturbation projection on v_{2,ana} vs time (log)',...
+                'Perturbation projection','Perturbation projection (log)'};
+            str1 = '$\textit{proj}_{\textbf{v}_{1,ana}}\widehat{\textbf{pert}}$';
+            str2 = '$\textit{proj}_{\textbf{v}_{2,ana}}\widehat{\textbf{pert}}$';
+            str3 = '$\textit{proj}_{\textbf{v}_{1,ana}}\textbf{pert}$';
+            str4 = '$\textit{proj}_{\textbf{v}_{2,ana}}\textbf{pert}$';
+            xlabs = {'t','t',str1,str1,'t','t',str3,str3};
+            ylabs = {str1,str2,str2,str2,str1,str2,str4,str4};
+            for j = 1:numfigs
+                name = ['fig11-' num2str(j)];
+                title(hax{j},{[name ' ' obj.scenarioName];obj.desc;figdesc{j}});
+                xlabel(hax{j},xlabs{j},'Interpreter','latex');
+                ylabel(hax{j},ylabs{j},'Interpreter','latex');
+                obj.save_fig(f{j},name);
+            end
+        end
         function obj = save_fig(obj,f,name)
             try
                 saveas(f,fullfile(obj.resultsPath,'figs',name),'fig');
@@ -1648,6 +1906,11 @@ classdef EngineClass <  handle
         %             catch exception
         %                 display(exception.message);
         %             end
+    end
+    methods (Static)
+        function xout = test_fun(a,b)
+            xout = a+b;
+        end
     end
     
 end
