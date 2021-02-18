@@ -48,6 +48,7 @@ classdef EngineClass <  handle
         node_relax_time
         sys_relax_time
         node_half_life
+        node_half_lives_struct
         sys_half_life
         N
         k_nn
@@ -76,6 +77,7 @@ classdef EngineClass <  handle
         eigvec_dot_comparison_mat_ana2asy_permuted
         eigvec_dot_comparison_mat_ana2ana
         eigvec_dot_comparison_mat_asy_permuted2asy_permuted
+        eigvec_dot_comparison_mat_asy2asy
         permutation_eigvec_ana2asy
         eps = [1];
         eps_adjusted;
@@ -83,6 +85,7 @@ classdef EngineClass <  handle
         epsThreshold = .01;
         perturbation_factor = .1;
         pert_map_struct
+        pert_map_struct_v2asy
         init_condition
         stop_condition_2
         opts
@@ -283,6 +286,54 @@ classdef EngineClass <  handle
             B = ones(n,1)/sqrt(n);
             X = linsolve(V,B);
         end
+        function obj = set_single_node_pert_struct(obj,eps_vector,folder_name)
+            perts = diag(eps_vector);
+            pert_inds = [];
+            for i = 1:size(obj.bins,1)
+                bin = obj.bins{i};
+                sbin = size(bin,1);
+                randvec = rand(sbin,1);
+                j = 0;
+                while true
+                    if ~isempty(find(randvec > j*.07 & randvec < (j+1)*.07,1))
+                        inds = bin(randvec >j*.07 & randvec < (j+1)*.07);
+                        break
+                    else
+                        j=j+1;
+                    end
+                end
+                
+                pert_inds = [pert_inds;inds];
+            end
+            pert_inds_sorted = sort(pert_inds,'ascend');
+            struct.perts_inds = pert_inds_sorted;
+            perts_reduced = perts(:,pert_inds_sorted);
+            struct.perts = perts_reduced;
+            n = size(perts_reduced,2);
+            i = 1;
+            isEnd = false;
+            path = fullfile('D:\',obj.resultsPath);
+            while ~isEnd
+                disp(['i = ' num2str(i)]);
+                if i+1 >= n
+                    isEnd = true;
+                    j = n;
+                else
+                    j = i+1;
+                end
+                perts_curr = perts_reduced(:,i:j);                
+                [new_eps, inits, is_inits_legit] = check_epsilons(obj,obj.eps,perts_curr,obj.steady_state',obj.epsThreshold,...
+                    obj.epsFactor,obj.init_condition);
+                [solutions_t, solutions_x] = obj.multi_solve(obj.opts,obj.difEqSolver,inits,is_inits_legit,...
+                    obj.solverTimeStep,obj.maxTime,obj.stop_condition_2);
+                struct.inits = inits;struct.new_epsilons = new_eps;
+                struct.is_inits_legit = is_inits_legit;struct.solutions_t = solutions_t;
+                struct.solutions_x = solutions_x;
+                
+                obj.save_var(struct,path,folder_name,['pert_' num2str(i) '-' num2str(j)]);
+                i = i+2;
+            end
+        end
         function struct = set_pert_map(obj,a,b,v1,v2,v1str,v2str)
             struct.perts = [];
             struct.factors1 = a;
@@ -293,6 +344,7 @@ classdef EngineClass <  handle
             if ~isempty(b)
                 struct.perts = [struct.perts,v2+b.*v1];
             end
+            perts = struct.perts;
             [new_eps, inits, is_inits_legit] = check_epsilons(obj,obj.eps,perts,obj.steady_state',obj.epsThreshold,...
                 obj.epsFactor,obj.init_condition);
             [solutions_t, solutions_x] = obj.multi_solve(obj.opts,obj.difEqSolver,inits,is_inits_legit,...
@@ -304,7 +356,6 @@ classdef EngineClass <  handle
         function obj = set_opts(obj)
             obj.opts = odeset('RelTol',obj.relTol,'AbsTol',obj.absTol);
         end
-
         function obj = set_pert_map_struct(obj)
             a = [0 .2 .4 .6 .8 1];
             v1 = obj.eigenvectors_ana(:,1);
@@ -314,8 +365,9 @@ classdef EngineClass <  handle
             %%%%%% Adjust Epsilons
             epsVals = obj.eps;
             ss = obj.steady_state;
+            init_condition = @(init) ~(any(init < 0 | init > 1,'all'));
             [obj.pert_map_struct.new_epsilons, obj.pert_map_struct.inits, obj.pert_map_struct.is_inits_legit] = check_epsilons(obj,epsVals,perts,ss',obj.epsThreshold,...
-                obj.epsFactor,obj.init_condition);
+                obj.epsFactor,init_condition);
             %%%%%%%%%%%%%%
             stop_cond = @(t,x) (size(t,1)>100 && max(abs(x(end,:) - x(end-100,:)))<obj.absTol);
             inits = obj.pert_map_struct.inits;is_inits_legit=obj.pert_map_struct.is_inits_legit;
@@ -346,7 +398,7 @@ classdef EngineClass <  handle
             is_init_legit = false;            
             while ~is_init_legit
                 disp(['eps = ' num2str(eps_val)]);
-                if eps_val < epsThreshold
+                if abs(eps_val) < epsThreshold
                     disp('eps too small, breaking');
                     break
                 end
@@ -354,7 +406,11 @@ classdef EngineClass <  handle
                 init = ss + eps_pert;
                 if ~init_condition(init)
                     disp('Adjusting Epsilon');
-                    eps_val = eps_val*epsFactor;
+                    if eps_val > 0
+                        eps_val = -1*eps_val;
+                    else
+                        eps_val = -1*eps_val*epsFactor;
+                    end
                     disp(['eps = ' num2str(eps_val)]);
                 else
                     is_init_legit = true;
@@ -400,6 +456,7 @@ classdef EngineClass <  handle
                 inits_current = inits{epsInd};n1 = size(inits_current,2);
                 for initInd = 1:n1
                     if is_Inits_Legit(epsInd,initInd)
+                        disp(['epsInd = ' num2str(epsInd) ', initInd = ' num2str(initInd)]);
                         init = inits_current(:,initInd);
                         [sol_t, sol_x] = obj.single_solve(opts,difEqSolver,init,timeStep,maxTime,stop_cond);
                         solutions_t{epsInd,initInd} = sol_t;
@@ -540,6 +597,76 @@ classdef EngineClass <  handle
                 obj.split_solution_eigvec();
             end
             obj.save_obj();
+        end
+        function [node_half_life_1, node_half_life_2, prec1, prec2] = find_node_half_life(obj,sol_t,sol_x,node_num)
+            node_sol_x = sol_x(:,node_num);
+            node_pert_x = node_sol_x - obj.steady_state(node_num);
+            node_half_val_1 = (node_pert_x(1) + node_pert_x(end))/2;
+            node_half_val_index_1 = find(abs(node_pert_x) < abs(node_half_val_1),1,'first');
+            node_half_life_1 = sol_t(node_half_val_index_1);
+            prec1 = node_half_val_1 - node_pert_x(node_half_val_index_1);
+            
+            [~,I] = max(abs(node_pert_x));
+            M = node_pert_x(I);
+            node_half_val_2 = (M + node_pert_x(end))/2;
+            node_pert_x_adj = node_pert_x;
+            node_pert_x_adj(1:I-1) = 999999;
+            node_half_val_index_2 = find(abs(node_pert_x_adj) < abs(node_half_val_2),1,'first');
+            node_half_life_2 = sol_t(node_half_val_index_2) - sol_t(I);
+            prec2 = node_half_val_2 - node_pert_x(node_half_val_index_2);
+        end
+        function [node_half_lives_1, node_half_lives_2, prec1, prec2] = find_node_half_lives(obj,sol_t,sol_x)
+            n = size(sol_x,2);
+            node_half_lives_1 = zeros(n,1);
+            node_half_lives_2 = zeros(n,1);
+            prec1 = zeros(n,1);
+            prec2 = zeros(n,1);
+            for node_num = 1:n
+                [node_half_lives_1(node_num,1), node_half_lives_2(node_num,1), prec1(node_num,1), prec2(node_num,1)] = find_node_half_life(obj,sol_t,sol_x,node_num);
+            end
+        end
+        function obj = plot_node_half_lives(obj)
+            %% fig12-*
+            name = 'fig12-1';
+            figdesc = 'Node Half Lives vs Degree';
+            f = figure('Name',name,'NumberTitle','off');
+            hax = axes;
+            S = obj.node_half_lives_struct;
+            yvals = [S.nhl2{2}{1} S.nhl2{2}{2} S.nhl2{2}{3} S.nhl2{2}{4}];
+            plot(obj.degree_vector_weighted,yvals,'o');
+            hold on;
+            l = obj.eigenvalues_ana(1:4);
+            l = -1./l * log(2);
+            plot(hax.XLim',[l,l]','-');
+            legend('$pert = v_{1,ana}$','$pert = v_{2,ana}$','$pert = v_{3,ana}$',...
+                '$pert = v_{4,ana}$','$ln2/\lambda_1$','$ln2/\lambda_2$',...
+                '$ln2/\lambda_3$','$ln2/\lambda_4$','interpreter','latex');
+            xlabel('k_i (weighted)');
+            ylabel('node half life');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+            obj.save_fig(f,name);
+        end
+        function obj = set_node_half_lives_struct(obj)
+            S.names = {'x_0 = rand','pert_0 = \varepsilon * v_{i,ana}',...
+                'pert_0 = \varepsilon * v_{i,asy}', 'pert_0 = v_{1,ana} + v_{2,ana}',...
+                };
+            sols_t = {{obj.solution_t},obj.solution_t_eigvecana(1,1:4),...
+                obj.solution_t_eigvecasy(1,1:5),obj.pert_map_struct.solutions_t(1,6)};
+            sols_x = {{obj.solution_x},obj.solution_x_eigvecana(1,1:4),...
+                obj.solution_x_eigvecasy(1,1:5),obj.pert_map_struct.solutions_x(1,6)};
+            n1 = size(sols_t,2);
+            for i=1:n1
+                sols_ti = sols_t{1,i}; sols_xi = sols_x{1,i};
+                n2 = size(sols_ti,2);
+                for j = 1:n2
+                    disp(['i= ' num2str(i)]);
+                    disp(['j= ' num2str(j)]);
+                    sol_t = sols_ti{1,j};sol_x = sols_xi{1,j};
+                    [nhl1,nhl2,p1,p2]=obj.find_node_half_lives(sol_t,sol_x);
+                    S.nhl1{i}{j} = nhl1; S.nhl2{i}{j} = nhl2; S.prec1{i}{j} = p1; S.prec2{i}{j} = p2;
+                end
+            end
+            obj.node_half_lives_struct = S;
         end
         function obj = split_solution_eigvec(obj)
             sol_t = obj.solution_t_eigvec;
@@ -691,6 +818,10 @@ classdef EngineClass <  handle
             [~, dotsasy, ~] = obj.compute_comparison_matrix(vasy,vasy);
             obj.eigvec_dot_comparison_mat_ana2ana = dotsana;
             obj.eigvec_dot_comparison_mat_asy_permuted2asy_permuted = dotsasy;
+            vasy1 = obj.eigenvectors_asy;
+            [~, dotsasy1, ~] = obj.compute_comparison_matrix(vasy1,vasy1);
+            obj.eigvec_dot_comparison_mat_asy2asy = dotsasy1;
+            
         end
         function obj = set_permutation_eigvec_ana2asy(obj,thresh)
             NN = obj.eigvec_angle_comparison_mat_ana2asy;
@@ -1404,23 +1535,65 @@ classdef EngineClass <  handle
             title({[name ' ' obj.scenarioName];obj.desc;figdesc});
             legend('Analytic Jacobian','Asymptotic Jacobian');
             obj.save_fig(f,name);
-            %% fig6f* fig6g*
-            namepre = {'fig6f-','fig6g-'};
+            %% fig6f* fig6g* fig6h*
+            n = obj.numeigenplots2;
+            namepre = {'fig6f-','fig6g-','fig6h-'};
             namesuf = {'1'};
-            figdescstr1 = {'Analytic', 'Asymptotic'};
+            f = @(x) (x);
+            namesuf2 = {'','-log'};
+            myfun = {f, @log10};
+            figdescstr1 = {'Analytic', 'Asymptotic-Permuted', 'Asymptotic'};
             figdescstr2 = {'Dot Product Absolute Value'};
-            mat = {obj.eigvec_dot_comparison_mat_ana2ana(1:n,1:n),obj.eigvec_dot_comparison_mat_asy_permuted2asy_permuted(1:n,1:n)};
+            figdescstr3 = {'','Log of '};
+            mat = {obj.eigvec_dot_comparison_mat_ana2ana(1:n,1:n),...
+                obj.eigvec_dot_comparison_mat_asy_permuted2asy_permuted(1:n,1:n),...
+                obj.eigvec_dot_comparison_mat_asy2asy(1:n,1:n)};
             for i1 = 1:size(namepre,2)
                 for i2 = 1:size(namesuf,2)
-                    name = [namepre{i1} namesuf{i2}];
-                    figdesc = [figdescstr1{i1} ' Jacobian Eigenvectors ' figdescstr2{i2} 'Comparison Matrix'];
+                    for i3 = 1:size(namesuf2,2)
+                    name = [namepre{i1} namesuf{i2} namesuf2{i3}];
+                    figdesc = [figdescstr1{i1} ' Jacobian Eigenvectors ' figdescstr3{i3} figdescstr2{i2} ' Comparison Matrix'];
                     f = figure('Name',name,'NumberTitle','off');
-                    image(mat{i1},'CDatamapping','scaled');
+                    image(myfun{i3}(mat{i1}),'CDatamapping','scaled');
                     colorbar;
                     ylabel([figdescstr1{i1} ' Eigenvectors']);
                     xlabel([figdescstr1{i1} ' Eigenvectors']);
                     title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\mid v_i \cdot v_j \mid$'},'interpreter','latex');
                     obj.save_fig(f,name);
+                    end
+                end
+            end
+            %% fig6i*
+            namepre = {'fig6i'}; namesuf1 = {'-1'}; namesuf2 = {'','-log'};
+            f = @(x) (x); myfun = {f, @log10};
+            figdescstr1 = {'Absolute Value of Eigenvector Dot Products'};
+            figdescstr2 = {'', '-log'};
+            labels = {'','\log'};
+            mat = {obj.eigvec_dot_comparison_mat_ana2ana,...
+                obj.eigvec_dot_comparison_mat_asy2asy,...
+                obj.eigvec_dot_comparison_mat_ana2asy_permuted};
+            for i1 = 1:size(namepre,2)
+                for i2 = 1:size(namesuf1,2)
+                    for i3 = 1:size(namesuf2,2)
+                        name = [namepre{i1} namesuf1{i2} namesuf2{i3}];
+                        figdesc = [figdescstr1{i1} figdescstr2{i3} ' Histogram'];
+                        f = figure('Name',name,'NumberTitle','off');
+                        for i4 = 1:size(mat,2)
+                            mat_curr = mat{i4};
+                            a = ones(size(mat_curr)) - eye(size(mat_curr,1));
+                            a = a > 0;
+                            mat_curr = mat_curr(a);
+                            histogram(myfun{i3}(mat_curr));
+                            hold on;
+                        end
+                        legend('$\mid v_{i,ana} \cdot v_{j,ana} \mid$',...
+                            '$\mid v_{i,asy} \cdot v_{j,asy} \mid$',...
+                            '$\mid v_{i,asy_perm} \cdot v_{j,asy_perm} \mid$',...
+                            'Interpreter','latex');
+                        xlabel(['$' labels{i3} '\mid v_i \cdot v_j \mid$'],'Interpreter','latex');
+                        title({[name ' ' obj.scenarioName];obj.desc;figdesc;['$' labels{i3} '\mid v_i \cdot v_j \mid$']},'interpreter','latex');
+                        obj.save_fig(f,name);
+                    end
                 end
             end
         end
@@ -1803,7 +1976,7 @@ classdef EngineClass <  handle
                             if i<=length(map_struct.factors1)
                                 str = ['x_0 = ' num2str(map_struct.factors1(i)) '*' map_struct.v1str ' + ' map_struct.v2str];
                             else
-                                str = ['x_0 = ' map_struct.v1str ' + ' num2str(map_struct.factors2(i-length(map_struct.factors1))) '*' map_struct.v2str];
+                                str = ['x_0 = ' map_struct.v2str ' + ' num2str(map_struct.factors2(i-length(map_struct.factors1))) '*' map_struct.v1str];
                             end
                             legendStr{legendInd} = str;
                         else
@@ -1835,22 +2008,6 @@ classdef EngineClass <  handle
                             legend(hax{j},legendStr);
                         end
                         first = false;
-%                         plot(hax{1},pert_t,dotv1,marker);
-%                         hold(hax{1},'on');
-%                         plot(hax{2},pert_t,dotv2,marker);
-%                         hold(hax{2},'on');
-%                         plot(hax{3},dotv1,dotv2,marker);
-%                         hold(hax{3},'on');
-%                         plot(hax{4},dotv1_1,dotv2_1,marker);
-%                         hold(hax{4},'on');
-%                         semilogy(hax{5},pert_t,dotv1,marker);
-%                         hold(hax{5},'on');
-%                         semilogy(hax{6},pert_t,dotv2,marker);
-%                         hold(hax{6},'on');
-%                         plot(hax{7},dotv1_2,dotv2_2,marker);
-%                         hold(hax{7},'on');
-%                         loglog(hax{8},dotv1_2,dotv2_2,marker);
-%                         hold(hax{8},'on');
                     end
                 end
             end
@@ -1890,18 +2047,15 @@ classdef EngineClass <  handle
         function obj = save_obj(obj)
             save(fullfile(obj.resultsPath,[obj.scenarioName 'Obj.mat']),'obj','-v7.3');
         end
-        % plot results
-        %             f = figure;
-        %             plot(obj.solution_t,obj.solution_x,'.-','MarkerSize',12);
-        %             legend(obj.header(2:end));
-        %             title(obj.scenarioName);
-        %             xlabel(obj.header{1});
-        %             ylabel('x');
-        %             text(1,.5,num2str(obj.adjacencyMatrix));
-        %             if ~isfolder(fullfile(obj.resultsPath,'figs'))
-        %                 mkdir(fullfile(obj.resultsPath,'figs'));
-        %             end
-        %             try
+        function obj = create_single_pert_runs(obj)
+        end
+        function obj = save_var(obj,var,path,folder_name,filename)
+            varname = inputname(2);
+            if ~isfolder(fullfile(path,folder_name))
+                mkdir(fullfile(path,folder_name));
+            end
+            save(fullfile(path,folder_name,filename),'var');
+        end
         %                 saveas(f,fullfile(obj.resultsPath,'figs','fig1.fig'),'fig');
         %             catch exception
         %                 display(exception.message);
