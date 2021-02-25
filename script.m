@@ -850,3 +850,5 @@ obj.set_single_node_pert_struct(ones(6000,1));
 eps_vector = .1*obj.steady_state';
 struct2 = set_single_node_pert_struct(obj,eps_vector,'single_node_perts_eps_0p1_ss');
 
+%%
+            obj.plot_pert_approx(5631);

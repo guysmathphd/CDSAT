@@ -108,6 +108,7 @@ classdef EngineClass <  handle
         header
         degree_vector
         degree_vector_weighted
+        degree_weighted_average
         steady_state
         steady_state_calculated
         mu = 0
@@ -163,7 +164,11 @@ classdef EngineClass <  handle
             obj.set_kinn();
             obj.binskinn = obj.set_bins_generic(obj.numbins,obj.ki_nn,tol,true(obj.N,1));
             obj.ki_nnbinned = obj.set_binned_vals(obj.ki_nn,obj.binskinn);
+            obj.set_degree_weighted_average();
             obj.save_obj();
+        end
+        function obj = set_degree_weighted_average(obj)
+            obj.degree_weighted_average = sum(obj.degree_vector_weighted)/obj.N;
         end
         function ind_bins_var = set_bins_generic(~,numbins,values_vec,tol,cond_vec)
             ind_bins_var = cell(numbins,1);
@@ -2032,6 +2037,112 @@ classdef EngineClass <  handle
                 obj.save_fig(f{j},name);
             end
         end
+        function pert_approx_x = find_nth_order_approx(~,sol_t,pert,eigvecs,eigvals,order)
+            approx = 0;
+            pert_0 = pert(1,:);
+            pert_approx_x = cell(1,order);
+            for i = 1:order
+                eigvec_i = eigvecs(:,i);
+                eigval_i = eigvals(i);
+                approx = approx + dot(pert_0,eigvec_i)*eigvec_i*exp(eigval_i*sol_t');
+                pert_approx_x{1,i} = approx';
+            end
+        end
+        function obj = plot_pert_approx(obj)
+            %% fig 13*
+            namepre = 'fig13-';
+            [~,node_maxk_ind] = max(obj.degree_vector_weighted);
+            [~,node_avgk_ind] = min(abs(obj.degree_weighted_average - obj.degree_vector_weighted));
+            [~,node_mink_ind] = min(obj.degree_vector_weighted);
+            [~,node_maxkinn_ind] = max(obj.ki_nn);
+            [~,node_knn_ind] = min(abs(obj.k_nn - obj.ki_nn));
+            [~,node_minkinn_ind] = min(obj.ki_nn);
+            node_ids = [node_maxk_ind,node_avgk_ind,node_mink_ind,node_maxkinn_ind,...
+                node_knn_ind,node_minkinn_ind];
+            sol_t_runs = {{obj.solution_t},obj.solution_t_eigvecana,obj.solution_t_eigvecasy,...
+                obj.solution_t_perturbations}; 
+            sol_x_runs = {{obj.solution_x},obj.solution_x_eigvecana,obj.solution_x_eigvecasy,...
+                obj.solution_x_perturbations};
+            figdesc1 = {'pert = rand', 'pert = v_{i,ana}', 'pert = v_{i,asy}', 'pert = .1*rand*ss'};
+            figdesc2 = {'max(k_j)', 'mean(k_j)', 'min(k_j)', 'max(k_{j,nn})',...
+                'mean(k_{j,nn})', 'min(k_{j,nn})'};            
+            % pert_0 = rand, obj.solution_t,...
+            num_nodes = size(node_ids,2);num_runs = size(sol_t_runs,2);
+            num_runs_str = 'abcdefghjijklmnopqrstuvwxyz';
+            eigvecs_sets = {obj.eigenvectors_ana,obj.eigenvectors_asy_permuted};
+            eigvals_sets = {obj.eigenvalues_ana,obj.eigenvalues_asy_permuted};
+            num_eigvec_sets = size(eigvecs_sets,2);
+            eigvecsets_str = {'ana','asy'};
+            order = 5;
+            linestyles = {'--',':'};markers = {'o','*','+','x','s'};
+            colors = {'r','k'};step = 100;
+            myplotfuns = {@plot,@semilogy};numplotfuns = size(myplotfuns,2);plottypestr = {'','-logabs'};
+            myabsfuns = {@(x) x, @(x) abs(x)};
+            for i1 = 1:num_runs
+                sol_ts = sol_t_runs{1,i1};sol_xs = sol_x_runs{1,i1};
+                num_sols = size(sol_ts,2);
+                for i2 = 1:num_sols
+                    if ~isempty(sol_ts{1,i2})
+                        if (i1 == 2) || (i1 == 3)
+                            figdesc3 = ['i = ' num2str(i2)];
+                        else
+                            figdesc3 = '';
+                        end
+                        for i3 = 1:num_nodes
+                            for i6 = 1:numplotfuns
+                                name = [namepre num_runs_str(i1) '-' num2str(i2) '-node' num2str(node_ids(i3))...
+                                    plottypestr{i6}];
+                                f = figure('Name',name,'NumberTitle','off');
+                                legendStr = {}; legendInd = 1;
+                                sol_t = sol_ts{1,i2}; sol_x = sol_xs{1,i2};
+                                pert = (sol_x' - obj.steady_state')';
+                                node_id = node_ids(i3);
+                                myplotfuns{i6}(sol_t,myabsfuns{i6}(pert(:,node_id)),'-','LineWidth',3);
+                                hold on;
+                                legendStr{legendInd} = 'Numerical Solution (non-linear)';
+                                legendInd = legendInd + 1;
+                                for i4 = 1:num_eigvec_sets
+                                    eigvecs = eigvecs_sets{1,i4};
+                                    eigvals = eigvals_sets{1,i4};
+                                    pert_approx_x = obj.find_nth_order_approx(sol_t,pert,eigvecs,eigvals,order);
+                                    num_pert_approx_x = size(pert_approx_x,2);
+                                    for i5 = 1:num_pert_approx_x
+                                        pert_approx_x_curr = pert_approx_x{1,i5};
+                                        myplotfuns{i6}(sol_t(1:step:end),myabsfuns{i6}(pert_approx_x_curr(1:step:end,node_id)),'LineStyle',...
+                                            linestyles{i4},'Marker',markers{i5},'Color',colors{i4},'MarkerEdgeColor',colors{i4});
+                                        legendStr{legendInd} = ['Order ' num2str(i5) ' approx, v_{ ' eigvecsets_str{i4} '}'];
+                                        legendInd = legendInd + 1;
+                                    end
+                                end
+                                xlabel('t');
+                                ylabel(['x_{' num2str(node_id) '}']);
+                                figdesc = ['Linear approximations,' figdesc1{i1} ', ' figdesc3 ', node with ' figdesc2{i3}];
+                                title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+                                legend(legendStr);
+                                obj.save_fig(f,name);
+                            end
+                        end
+                    end
+                end
+            end
+%             
+%             sol_t = obj.solution_t_eigvecana{1,1};
+%             sol_x = obj.solution_x_eigvecana{1,1};
+%             pert = (sol_x' - obj.steady_state')';
+%             eigvecs = obj.eigenvectors_ana;
+%             eigvals = obj.eigenvalues_ana;
+%             order = 5;
+%             pert_approx_x = obj.find_nth_order_approx(sol_t,pert,eigvecs,eigvals,order);
+%             plot(sol_t,pert(:,node_id),'-');
+%             hold on;
+%             plot(sol_t,pert_approx_x{1,}(:,node_id),'--');
+%             xlabel('t');
+%             ylabel('x_i');
+%             legend('pert_i',[num2str(order) '^{th} order approx']);
+%             figdesc = 'n^{th} Order Linear Approximation of non-linear model';
+%             title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+%             obj.save_fig(f,name);
+        end
         function obj = save_fig(obj,f,name)
             try
                 saveas(f,fullfile(obj.resultsPath,'figs',name),'fig');
@@ -2047,8 +2158,6 @@ classdef EngineClass <  handle
         function obj = save_obj(obj)
             save(fullfile(obj.resultsPath,[obj.scenarioName 'Obj.mat']),'obj','-v7.3');
         end
-        function obj = create_single_pert_runs(obj)
-        end
         function obj = save_var(obj,var,path,folder_name,filename)
             varname = inputname(2);
             if ~isfolder(fullfile(path,folder_name))
@@ -2056,10 +2165,6 @@ classdef EngineClass <  handle
             end
             save(fullfile(path,folder_name,filename),'var');
         end
-        %                 saveas(f,fullfile(obj.resultsPath,'figs','fig1.fig'),'fig');
-        %             catch exception
-        %                 display(exception.message);
-        %             end
     end
     methods (Static)
         function xout = test_fun(a,b)
