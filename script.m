@@ -851,4 +851,20 @@ eps_vector = .1*obj.steady_state';
 struct2 = set_single_node_pert_struct(obj,eps_vector,'single_node_perts_eps_0p1_ss');
 
 %%
-            obj.plot_pert_approx(5631);
+obj.plot_pert_approx(5631);
+%%
+
+[eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_set, Wij_asy_set] = obj.set_eig_v2_sets(obj.Dii_asy, obj.Wij_asy, obj.C_D_set, obj.C_W_set, obj.numeigen,1);
+%%
+obj.plot_pert_approx(eigvecs_asy_v2_set,eigvals_asy_v2_set);
+%%
+[C_D, guesses1, guesses2, errors1, errors2, eigvals,eigvecs] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),276);
+obj.C_D_v3 = C_D;
+obj.guesses1_v3 = guesses1;
+obj.guesses2_v3 = guesses2;
+obj.errors1_v3 = errors1;
+obj.errors2_v3 = errors2;
+obj.eigvals_v3 = eigvals;
+obj.eigvecs_v3 = eigvecs;
+
+

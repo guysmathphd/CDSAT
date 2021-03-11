@@ -66,6 +66,15 @@ classdef EngineClass <  handle
         Dii_asybinned
         Wij_anabinned
         Wij_asybinned
+        C_W_set
+        C_D_set
+        C_D_v3
+        guesses1_v3
+        guesses2_v3
+        errors1_v3
+        errors2_v3
+        eigvals_v3
+        eigvecs_v3
         numeigen=10;
         numeigenplots = 5;
         numeigenplots2 = 100;
@@ -214,7 +223,14 @@ classdef EngineClass <  handle
                     end
                 end
             end
-        end 
+        end
+        function constants = find_constants_binned_sets(~,binned_vals_1,binned_vals_2)
+            if size(binned_vals_1,1) ~= size(binned_vals_2,1)
+                disp(['find_constants_binned_sets: size of binned_vals_1 ~= size of binned_vals_2']);
+            else
+                constants = binned_vals_1./binned_vals_2;
+            end
+        end
         function obj = set_R(obj)
             obj.f_R = @(x) (-1*(obj.f_M1(x)./obj.f_M0(x)));
             disp('set_R(obj): obj.f_R = ');
@@ -573,12 +589,12 @@ classdef EngineClass <  handle
                 obj.set_eig_ana();
                 obj.Dii_anabinned = obj.set_binned_vals(obj.Dii_ana,obj.bins);
                 obj.Wij_anabinned = obj.set_binned_vals(obj.Wij_ana(obj.adjacencyMatrix>0),obj.binsij);
-%               obj.set_Dii_anabinned();
-%               obj.set_Wij_anabinned();                
+                obj.C_D_set = obj.find_constants_binned_sets(obj.Dii_anabinned,obj.Dii_asybinned);
+                obj.C_W_set = obj.find_constants_binned_sets(obj.Wij_anabinned,obj.Wij_asybinned);
                 obj.set_eigvec_comparison_mats(true,false);
                 obj.set_permutation_eigvec_ana2asy(40);
                 obj.set_eig_asy_permuted();
-                
+                [eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_set, Wij_asy_set] = obj.set_eig_v2_sets(obj.Dii_asy, obj.Wij_asy, obj.C_D_set, obj.C_W_set, obj.numeigen,1);
                 for i = 1:obj.numeigenplots
                     obj.binseigvecana{i,1} = obj.set_bins_generic(obj.numbins,abs(obj.eigenvectors_ana(:,i)),1e-13,true(obj.N,1));
                     obj.binseigvecasy_permuted{i,1} = obj.set_bins_generic(obj.numbins,abs(obj.eigenvectors_asy_permuted(:,i)),1e-13,true(obj.N,1));
@@ -753,26 +769,134 @@ classdef EngineClass <  handle
         function obj = set_Wij_asy(obj)
             obj.Wij_asy = obj.adjacencyMatrix .* (obj.degree_vector_weighted.^obj.nu * obj.degree_vector_weighted'.^obj.rho);
         end
-        function obj = set_eig_ana(obj)
-            J = obj.Wij_ana;
+        function [C_D, guesses1, guesses2, errors1, errors2, eigvals, eigvecs] = find_best_C_D(obj,real_eigval_1,C_D_init)
+            guess1 = C_D_init;
+            guess2 = guess1 + 200;
+            recalc1 = true;recalc2=true;
+            numeigen = 20;
+            guesses1 = [];guesses2 = [];
+            errors1 = []; errors2 = [];
+            while true
+                guesses1(end+1) = guess1;
+                guesses2(end+1) = guess2;
+                disp(['guess1 = ' num2str(guess1) ', guess2 = ' num2str(guess2)]);
+                if recalc1
+                    [eigvals_1, eigvecs_1, ~, ~] = obj.set_eig(obj.Dii_asy, obj.Wij_asy, guess1, 1, numeigen, 1);
+                end
+                if recalc2
+                    [eigvals_2, eigvecs_2, ~, ~] = obj.set_eig(obj.Dii_asy, obj.Wij_asy, guess2, 1, numeigen, 1);
+                end
+                error1 = eigvals_1(1,1) - real_eigval_1;
+                error2 = eigvals_2(1,1) - real_eigval_1;
+                errors1(end+1) = error1;errors2(end+1) = error2;
+                disp(['error1 = ' num2str(error1) ', error2 = ' num2str(error2)]);
+                if abs(error1) < 1
+                    disp('breaking');
+                    C_D = guess1;
+                    eigvals = eigvals_1;
+                    eigvecs = eigvecs_1;
+                    break
+                elseif abs(error2) < 1
+                    disp('breaking');
+                    C_D = guess2;
+                    eigvals = eigvals_2;
+                    eigvecs = eigvecs_2;
+                    break
+                end
+                if (error1 > 0 && error2 > 0) || (error1 < 0 && error2 < 0)
+                    if abs(error2) > abs(error1)
+                        if guess2 > guess1
+                            guess2 = guess1 - (guess2 - guess1);
+                        elseif guess2 < guess1
+                            guess2 = guess1 + (guess1 - guess2);
+                        end
+                        recalc2 = true;recalc1 = false;
+                    elseif abs(error1) > abs(error2)
+                        if guess1 > guess2
+                            guess1 = guess2 - (guess1 - guess2);
+                        elseif guess1 < guess2
+                            guess1 = guess2 + (guess2 - guess1);
+                        end
+                        recalc1 = true;recalc2 = false;
+                    end
+                elseif (error1 > 0 && error2 < 0) || (error1 < 0 && error2 > 0)
+                    if abs(error1) > abs(error2)
+                        guess1 = (guess1 + guess2)/2;
+                        recalc1 = true;recalc2=false;
+                    elseif abs(error2) > abs(error1)
+                        guess2 = (guess1 + guess2)/2;
+                        recalc2 = true;recalc1=false;
+                    end
+                end
+            end
+        end
+        function [eigvals, eigvecs, Dii_v2, Wij_v2] = set_eig(~, Dii, Wij, C_D, C_W, numeigen, iscalceigen)
+            v = []; d = [];
+            J = Wij*C_W;
             J = J - diag(diag(J));
-            J = J + diag(obj.Dii_ana);
-            %[v,d] = eig(J);
-            [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
-            obj.eigenvalues_ana = diag(d);
-            obj.eigenvectors_ana = v;
+            D = Dii*C_D;
+            J = J + diag(D);
+            if iscalceigen
+                [v,d] = eigs(J,min(size(J,1),numeigen),'largestreal');
+            end
+            eigvals = diag(d);
+            eigvecs = v;
+            Dii_v2 = Dii*C_D;
+            Wij_v2 = Wij*C_W;
             disp('Done');
+        end
+        function obj = set_eig_ana(obj)
+            [obj.eigenvalues_ana, obj.eigenvectors_ana, ~, ~] = obj.set_eig(obj.Dii_ana,obj.Wij_ana,1,1,obj.numeigen);
         end
         function obj = set_eig_asy(obj)
-            J = obj.Wij_asy;
-            J = J - diag(diag(J));
-            J = J + diag(obj.Dii_asy);
-            %[v,d] = eig(J);
-            [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
-            obj.eigenvalues_asy = diag(d);
-            obj.eigenvectors_asy = v;
-            disp('Done');
+            [obj.eigenvalues_asy, obj.eigenvectors_asy, ~, ~] = obj.set_eig(obj.Dii_asy,obj.Wij_asy,1,1,obj.numeigen);
         end
+        function [eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_v2_set, Wij_asy_v2_set, Dii_asy_v2_binned_set, Wij_asy_v2_binned_set] = set_eig_v2_sets(obj, Dii_asy, Wij_asy, C_D_set, C_W_set, numeigen, iscalceigen)
+            num_constants = size(C_D_set,1);
+            Dii_asy_v2_set = cell(num_constants,1);Wij_asy_v2_set = cell(num_constants,1);
+            eigvals_asy_v2_set = cell(num_constants,1); eigvecs_asy_v2_set = cell(num_constants,1);
+            Dii_asy_v2_binned_set = cell(num_constants,1);Wij_asy_v2_binned_set = cell(num_constants,1);
+            for i = 1:num_constants
+                disp(['set_eig_v2: i = ' num2str(i)]);
+                C_D = C_D_set(num_constants - i + 1);
+                C_W = C_W_set(i);
+                [a,b,c,d] = obj.set_eig(obj.Dii_asy,obj.Wij_asy,C_D,C_W,numeigen, iscalceigen);
+                if iscalceigen
+                    eigvals_asy_v2_set{i,1}=a; eigvecs_asy_v2_set{i,1}=b;
+                end
+                Dii_asy_v2_set{i,1}=c; Wij_asy_v2_set{i,1}=d;
+                Dii_asy_v2_binned_set{i,1} = obj.set_binned_vals(c,obj.bins);
+                Wij_asy_v2_binned_set{i,1} = obj.set_binned_vals(d(obj.adjacencyMatrix>0),obj.binsij);
+            end
+            if iscalceigen
+                obj.save_var(eigvals_asy_v2_set,obj.resultsPath,'obj_properties','eigvals_asy_v2_set');
+                obj.save_var(eigvecs_asy_v2_set,obj.resultsPath,'obj_properties','eigvecs_asy_v2_set');
+            end
+            obj.save_var(Dii_asy_v2_set, obj.resultsPath,'obj_properties','Dii_asy_v2_set');
+            obj.save_var(Wij_asy_v2_set, obj.resultsPath,'obj_properties','Wij_asy_v2_set');
+            obj.save_var(Dii_asy_v2_binned_set,obj.resultsPath,'obj_properties','Dii_asy_v2_binned_set');
+            obj.save_var(Wij_asy_v2_binned_set,obj.resultsPath,'obj_properties','Wij_asy_v2_binned_set');            
+        end
+%         function obj = set_eig_ana(obj)
+%             J = obj.Wij_ana;
+%             J = J - diag(diag(J));
+%             J = J + diag(obj.Dii_ana);
+%             %[v,d] = eig(J);
+%             [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
+%             obj.eigenvalues_ana = diag(d);
+%             obj.eigenvectors_ana = v;
+%             disp('Done');
+%         end
+%         function obj = set_eig_asy(obj)
+%             J = obj.Wij_asy;
+%             J = J - diag(diag(J));
+%             J = J + diag(obj.Dii_asy);
+%             %[v,d] = eig(J);
+%             [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
+%             obj.eigenvalues_asy = diag(d);
+%             obj.eigenvectors_asy = v;
+%             disp('Done');
+%         end
         function [M1 M2 M3] = compute_comparison_matrix(~,vectors_1,vectors_2)
             n1 = size(vectors_1,2);
             n2 = size(vectors_2,2);
@@ -1378,6 +1502,10 @@ classdef EngineClass <  handle
             obj.save_fig(f,name);
         end
         function obj = plot_jacobian(obj)
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','Wij_asy_v2_set.mat'),'var');Wij_asy_v2_set=mydata.var;
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','Dii_asy_v2_set.mat'),'var');Dii_asy_v2_set=mydata.var;
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','Wij_asy_v2_binned_set.mat'),'var');Wij_asy_v2_binned_set=mydata.var;
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','Dii_asy_v2_binned_set.mat'),'var');Dii_asy_v2_binned_set=mydata.var;
             name = 'fig4a';
             f = figure('Name',name,'NumberTitle','off');
             x = obj.degree_vector_weighted;
@@ -1386,10 +1514,12 @@ classdef EngineClass <  handle
             hold on;
             y1 = obj.Dii_asy;
             loglog(x,y1,'^','MarkerSize',10);
+            y2 = Dii_asy_v2_set{1,1};
+            loglog(x,y2,'v','MarkerSize',10);
             xlabel('k_i - weighted');
             ylabel('J_{ii}');
             title({[name ' ' obj.scenarioName];obj.desc});
-            legend('Analytic Jacobian', 'Asymptotic Jacobian');
+            legend('Analytic Jacobian', 'Asymptotic Jacobian', 'Asymptotic Jacobian v2');
             obj.save_fig(f,name);
             %%%%
             name = 'fig4b';
@@ -1400,10 +1530,13 @@ classdef EngineClass <  handle
             hold on;
             y1 = obj.Wij_asy;
             loglog(x1(:),y1(:),'^','MarkerSize',10);
+            y2 = Wij_asy_v2_set{1,1};
+            loglog(x1(:),y2(:),'v','MarkerSize',10);
             xlabel('k_ik_j - weighted');
             ylabel('W_{ij}');
             title({[name ' ' obj.scenarioName];obj.desc});
-            legend('Analytic Jacobian','Asymptotic Jacobian');
+            legend('Analytic Jacobian','Asymptotic Jacobian',...
+                'Asymptotic Jacobian v2');
             obj.save_fig(f,name);
             %%%%
             name = 'fig4c';
@@ -1412,11 +1545,13 @@ classdef EngineClass <  handle
             loglog(x2(:),y(:),'.','MarkerSize',12);
             hold on;
             loglog(x2(:),y1(:),'^','MarkerSize',10);
+            loglog(x2(:),y2(:),'v','MarkerSize',10);
             xlabel(['k_i^{\nu}k_j^{\rho} - weighted, \nu = ' num2str(obj.nu)...
                 ', \rho = ' num2str(obj.rho)]);
             ylabel('W_{ij}');
             title({[name ' ' obj.scenarioName];obj.desc});
-            legend('Analytic Jacobian','Asymptotic Jacobian');
+            legend('Analytic Jacobian','Asymptotic Jacobian',...
+                'Asymptotic Jacobian v2');
             obj.save_fig(f,name);
             %%%%
             name = 'fig4d';
@@ -1425,13 +1560,16 @@ classdef EngineClass <  handle
             x = obj.kbinned;
             y1 = obj.Dii_anabinned;
             y2 = obj.Dii_asybinned;
+            y3 = Dii_asy_v2_binned_set{1,1};
             loglog(x,y1,'s','MarkerSize',12);
             hold on;
             loglog(x,y2,'^','MarkerSize',10);
+            loglog(x,y3,'v','MarkerSize',10);
             xlabel('k_i - weighted');
             ylabel('J_{ii}');
             title({[name ' ' obj.scenarioName];obj.desc;figdesc});
-            legend('Analytic Jacobian','Asymptotic Jacobian');
+            legend('Analytic Jacobian','Asymptotic Jacobian',...
+                'Asymptotic Jacobian v2');
             obj.save_fig(f,name);
             %%%%
             name = 'fig4e';
@@ -1440,27 +1578,47 @@ classdef EngineClass <  handle
             x = obj.kijbinned;
             y1 = obj.Wij_anabinned;
             y2 = obj.Wij_asybinned;
+            y3 = Wij_asy_v2_binned_set{1,1};
             loglog(x,y1,'s','MarkerSize',12);
             hold on;
             loglog(x,y2,'^','MarkerSize',10);
+            loglog(x,y3,'v','MarkerSize',10);
             xlabel(['k_i^{\nu}k_j^{\rho} - weighted, \nu = ' num2str(obj.nu)...
                 ', \rho = ' num2str(obj.rho)]);
             ylabel('W_{ij}');
             title({[name ' ' obj.scenarioName];obj.desc;figdesc});
-            legend('Analytic Jacobian','Asymptotic Jacobian');
+            legend('Analytic Jacobian','Asymptotic Jacobian',...
+                'Asymptotic Jacobian v2');
             obj.save_fig(f,name);
         end
         function plot_eigenvalues(obj)
+            try
+                mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvals_asy_v2_set.mat'),'var');eigvals_asy_v2_set=mydata.var;
+            catch exception
+            end
             name = 'fig5a';
             figdesc = 'Jacobian Eigenvalues';
+            legendStr = {};
+            legendInd = 1;
             f = figure('Name',name,'NumberTitle','off');
             plot(real(obj.eigenvalues_ana),'*-');
+            legendStr{legendInd} = 'Analytic Jacobian'; legendInd = legendInd + 1;
             hold on;
             plot(real(obj.eigenvalues_asy),'^-');
+            legendStr{legendInd} = 'Asymptotic Jacobian'; legendInd = legendInd + 1;
+            if exist('eigvals_asy_v2_set','var')
+                n = size(eigvals_asy_v2_set,1);
+                for i =1:n
+                    plot(eigvals_asy_v2_set{i,1},'v-');
+                    legendStr{legendInd} = ['Asymptotic Jacobian v2-' num2str(i)];legendInd=legendInd+1;
+                end
+            end
+            plot(obj.eigvals_v3,'s-');
+            legendStr{legendInd} = ['Asymptotic Jacobian v3, C_D = ' num2str(obj.C_D_v3)];legendInd=legendInd+1;
             xlabel('n');
             ylabel('real(\lambda_n)');
             title({[name ' ' obj.scenarioName];obj.desc;figdesc});
-            legend('Analytic Jacobian','Asymptotic Jacobian');
+            legend(legendStr);
             obj.save_fig(f,name);
         end
         function plot_eigenvectors(obj,usePermuted)
@@ -2050,6 +2208,8 @@ classdef EngineClass <  handle
         end
         function obj = plot_pert_approx(obj)
             %% fig 13*
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvals_asy_v2_set.mat'),'var');eigvals_asy_v2_set=mydata.var;
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvecs_asy_v2_set.mat'),'var');eigvecs_asy_v2_set=mydata.var;
             namepre = 'fig13-';
             [~,node_maxk_ind] = max(obj.degree_vector_weighted);
             [~,node_avgk_ind] = min(abs(obj.degree_weighted_average - obj.degree_vector_weighted));
@@ -2069,13 +2229,13 @@ classdef EngineClass <  handle
             % pert_0 = rand, obj.solution_t,...
             num_nodes = size(node_ids,2);num_runs = size(sol_t_runs,2);
             num_runs_str = 'abcdefghjijklmnopqrstuvwxyz';
-            eigvecs_sets = {obj.eigenvectors_ana,obj.eigenvectors_asy_permuted};
-            eigvals_sets = {obj.eigenvalues_ana,obj.eigenvalues_asy_permuted};
+            eigvecs_sets = {obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,eigvecs_asy_v2_set{1,1},eigvecs_asy_v2_set{14,1},obj.eigvecs_v3};
+            eigvals_sets = {obj.eigenvalues_ana,obj.eigenvalues_asy_permuted,eigvals_asy_v2_set{1,1},eigvals_asy_v2_set{14,1},obj.eigvals_v3};
             num_eigvec_sets = size(eigvecs_sets,2);
-            eigvecsets_str = {'ana','asy'};
+            eigvecsets_str = {'ana','asy','asy-v2-1','asy-v2-8','asy-v3'};
             order = 5;
-            linestyles = {'--',':'};markers = {'o','*','+','x','s'};
-            colors = {'r','k'};step = 100;
+            linestyles = {'--',':','-.','-.','-'};markers = {'o','*','+','x','s'};
+            colors = {'r','k','m','b','g'};step = 100;
             myplotfuns = {@plot,@semilogy};numplotfuns = size(myplotfuns,2);plottypestr = {'','-logabs'};
             myabsfuns = {@(x) x, @(x) abs(x)};
             for i1 = 1:num_runs
@@ -2163,7 +2323,7 @@ classdef EngineClass <  handle
             if ~isfolder(fullfile(path,folder_name))
                 mkdir(fullfile(path,folder_name));
             end
-            save(fullfile(path,folder_name,filename),'var');
+            save(fullfile(path,folder_name,filename),'var','-v7.3');
         end
     end
     methods (Static)
