@@ -134,6 +134,10 @@ classdef EngineClass <  handle
             for key = keys(propertiesMap)
                 eval(['obj.' key{1} '=propertiesMap(key{1})']);
             end
+            obj.init_object(obj);
+            obj.save_obj();
+        end
+        function obj = init_object(obj)
             obj.solution_x = obj.initialValues';
             % create header
             obj.header = {'t'};
@@ -146,35 +150,31 @@ classdef EngineClass <  handle
             if ~isfolder(fullfile(obj.resultsPath,'figs'))
                 mkdir(fullfile(obj.resultsPath,'figs'));
             end
-            obj.calculate_degree();
-            obj.calculate_degree_weighted();
-            obj.set_dM0();
-            obj.set_dM1();
-            obj.set_dM2();
-            obj.set_R();
-            obj.set_const_functions();
-            obj.set_N();
-            obj.set_knn();
-            obj.set_Dii_asy();
-            obj.set_Wij_asy();
-            obj.set_eig_asy();
+            disp('calculate_degree');obj.calculate_degree();
+            disp('calculate_degree_weighted');obj.calculate_degree_weighted();
+            disp('set_dM0');obj.set_dM0();
+            disp('set_dM1');obj.set_dM1();
+            disp('set_dM2');obj.set_dM2();
+            disp('set_R');obj.set_R();
+            disp('set_const_functions');obj.set_const_functions();
+            disp('set_N');obj.set_N();
+            disp('set_knn');obj.set_knn();
+            disp('set_Dii_asy');obj.set_Dii_asy();
+            disp('set_Wij_asy');obj.set_Wij_asy();
+            disp('set_eig_asy');obj.set_eig_asy();
             tol = 1e-13;
+            disp('obj.bins = obj.set_bins_generic');
             obj.bins = obj.set_bins_generic(obj.numbins,obj.degree_vector_weighted,tol,true(obj.N,1));
-            obj.kbinned = obj.set_binned_vals(obj.degree_vector_weighted,obj.bins);
-%             obj.set_bins();
-%             obj.set_kbinned();
-            obj.Dii_asybinned = obj.set_binned_vals(obj.Dii_asy,obj.bins);
-%             obj.set_Dii_asybinned();
+            disp('obj.kbinned = obj.set_binned_vals'); obj.kbinned = obj.set_binned_vals(obj.degree_vector_weighted,obj.bins);
+            disp('obj.Dii_asybinned = obj.set_binned_vals'); obj.Dii_asybinned = obj.set_binned_vals(obj.Dii_asy,obj.bins);
             x = obj.degree_vector_weighted;x2 = (x.^obj.nu) * (x.^obj.rho)';x3 = x2(:);
-            obj.binsij = obj.set_bins_generic(obj.numbins,x3,tol,obj.adjacencyMatrix>0);
-            obj.kijbinned = obj.set_binned_vals(x2(obj.adjacencyMatrix>0),obj.binsij);
-            obj.Wij_asybinned = obj.set_binned_vals(obj.Wij_asy(obj.adjacencyMatrix>0),obj.binsij);
-%             obj.set_Wij_asybinned();
-            obj.set_kinn();
-            obj.binskinn = obj.set_bins_generic(obj.numbins,obj.ki_nn,tol,true(obj.N,1));
-            obj.ki_nnbinned = obj.set_binned_vals(obj.ki_nn,obj.binskinn);
-            obj.set_degree_weighted_average();
-            obj.save_obj();
+            disp('obj.binsij = obj.set_bins_generic'); obj.binsij = obj.set_bins_generic(obj.numbins,x3,tol,obj.adjacencyMatrix>0);
+            disp('obj.kijbinned = obj.set_binned_vals'); obj.kijbinned = obj.set_binned_vals(x2(obj.adjacencyMatrix>0),obj.binsij);
+            disp('obj.Wij_asybinned = obj.set_binned_vals'); obj.Wij_asybinned = obj.set_binned_vals(obj.Wij_asy(obj.adjacencyMatrix>0),obj.binsij);
+            disp('set_kinn'); obj.set_kinn();
+            disp('obj.binskinn = obj.set_bins_generic'); obj.binskinn = obj.set_bins_generic(obj.numbins,obj.ki_nn,tol,true(obj.N,1));
+            disp('obj.ki_nnbinned = obj.set_binned_vals'); obj.ki_nnbinned = obj.set_binned_vals(obj.ki_nn,obj.binskinn);
+            disp('obj.set_degree_weighted_average'); obj.set_degree_weighted_average();
         end
         function obj = set_degree_weighted_average(obj)
             obj.degree_weighted_average = sum(obj.degree_vector_weighted)/obj.N;
@@ -532,10 +532,9 @@ classdef EngineClass <  handle
             obj.isInitsLegit = is_inits_legit;
             %%%%%%%%%%%%%%
             
-            %%%%%% Move to inside solver
-            eval([sol_t_var_str '{1,pertInd,epsInd} = 0;']);
-            eval([sol_x_var_str '{1,pertInd,epsInd} = init;']);
-            %%%%%
+            %%%%%%
+            eval([sol_t_var_str ' = {};']);
+            eval([sol_x_var_str ' = {};']);
             
             opts = odeset('RelTol',obj.relTol,'AbsTol',obj.absTol);
             clear odefun;
@@ -547,8 +546,12 @@ classdef EngineClass <  handle
                     if obj.isInitsLegit(epsInd,pertInd)
                         disp(['pertInd = ' num2str(pertInd)]);
                         init = inits{1,epsInd}(:,pertInd);
+                        init = init';
                         t = 0;
-                        %%%%%%%%%
+                        %%%%%%%%%%%%%%
+                        eval([sol_t_var_str '{1,pertInd,epsInd} = 0;']);
+                        eval([sol_x_var_str '{1,pertInd,epsInd} = init;']);
+                        %%%%%%%%%%%%%%
                         setBreak = false; % stop while loop?
                         while ~setBreak
                             % check if this step passes maxTime and set stepEndTime
@@ -591,6 +594,8 @@ classdef EngineClass <  handle
                 obj.Wij_anabinned = obj.set_binned_vals(obj.Wij_ana(obj.adjacencyMatrix>0),obj.binsij);
                 obj.C_D_set = obj.find_constants_binned_sets(obj.Dii_anabinned,obj.Dii_asybinned);
                 obj.C_W_set = obj.find_constants_binned_sets(obj.Wij_anabinned,obj.Wij_asybinned);
+                [obj.C_D_v3, obj.guesses1_v3, obj.guesses2_v3, obj.errors1_v3, obj.errors2_v3, obj.eigvals_v3,obj.eigvecs_v3] = obj.find_best_C_D(obj.eigenvalues_ana,1,5,0.5,1);
+                [obj.C_D_v4, obj.guesses1_v4, obj.guesses2_v4, obj.errors1_v4, obj.errors2_v4, obj.eigvals_v4,obj.eigvecs_v4] = obj.find_best_C_D(obj.eigenvalues_ana,1,5,0.5,obj.permutation_eigvec_ana2asy);
                 obj.set_eigvec_comparison_mats(true,false);
                 obj.set_permutation_eigvec_ana2asy(40);
                 obj.set_eig_asy_permuted();
@@ -614,10 +619,11 @@ classdef EngineClass <  handle
                     isOnlyPositive = false;
                 end
                 obj.set_perturbations(isOnlyPositive);
+                obj.set_eigvec_comparison_mats2();
             elseif pertType==2
                 obj.split_solution_eigvec();
             end
-            obj.save_obj();
+%             obj.save_obj();
         end
         function [node_half_life_1, node_half_life_2, prec1, prec2] = find_node_half_life(obj,sol_t,sol_x,node_num)
             node_sol_x = sol_x(:,node_num);
@@ -769,11 +775,11 @@ classdef EngineClass <  handle
         function obj = set_Wij_asy(obj)
             obj.Wij_asy = obj.adjacencyMatrix .* (obj.degree_vector_weighted.^obj.nu * obj.degree_vector_weighted'.^obj.rho);
         end
-        function [C_D, guesses1, guesses2, errors1, errors2, eigvals, eigvecs] = find_best_C_D(obj,real_eigval_1,C_D_init)
-            guess1 = C_D_init;
-            guess2 = guess1 + 200;
+        function [C_D, guesses1, guesses2, errors1, errors2, eigvals, eigvecs] = find_best_C_D(obj,real_eigval_1,guess_1_init,guess_2_init,req_acc)
+            guess1 = guess_1_init;
+            guess2 = guess_2_init;
             recalc1 = true;recalc2=true;
-            numeigen = 20;
+            numeigen = 50;
             guesses1 = [];guesses2 = [];
             errors1 = []; errors2 = [];
             while true
@@ -790,13 +796,13 @@ classdef EngineClass <  handle
                 error2 = eigvals_2(1,1) - real_eigval_1;
                 errors1(end+1) = error1;errors2(end+1) = error2;
                 disp(['error1 = ' num2str(error1) ', error2 = ' num2str(error2)]);
-                if abs(error1) < 1
+                if abs(error1) < req_acc
                     disp('breaking');
                     C_D = guess1;
                     eigvals = eigvals_1;
                     eigvecs = eigvecs_1;
                     break
-                elseif abs(error2) < 1
+                elseif abs(error2) < req_acc
                     disp('breaking');
                     C_D = guess2;
                     eigvals = eigvals_2;
@@ -846,10 +852,10 @@ classdef EngineClass <  handle
             disp('Done');
         end
         function obj = set_eig_ana(obj)
-            [obj.eigenvalues_ana, obj.eigenvectors_ana, ~, ~] = obj.set_eig(obj.Dii_ana,obj.Wij_ana,1,1,obj.numeigen);
+            [obj.eigenvalues_ana, obj.eigenvectors_ana, ~, ~] = obj.set_eig(obj.Dii_ana,obj.Wij_ana,1,1,obj.numeigen,1);
         end
         function obj = set_eig_asy(obj)
-            [obj.eigenvalues_asy, obj.eigenvectors_asy, ~, ~] = obj.set_eig(obj.Dii_asy,obj.Wij_asy,1,1,obj.numeigen);
+            [obj.eigenvalues_asy, obj.eigenvectors_asy, ~, ~] = obj.set_eig(obj.Dii_asy,obj.Wij_asy,1,1,obj.numeigen,1);
         end
         function [eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_v2_set, Wij_asy_v2_set, Dii_asy_v2_binned_set, Wij_asy_v2_binned_set] = set_eig_v2_sets(obj, Dii_asy, Wij_asy, C_D_set, C_W_set, numeigen, iscalceigen)
             num_constants = size(C_D_set,1);
@@ -1595,6 +1601,7 @@ classdef EngineClass <  handle
             try
                 mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvals_asy_v2_set.mat'),'var');eigvals_asy_v2_set=mydata.var;
             catch exception
+                disp(['plot_eigenvalues: load eigvals_asy_v2_set.mat exception: ' exception.message]);
             end
             name = 'fig5a';
             figdesc = 'Jacobian Eigenvalues';
@@ -2200,13 +2207,14 @@ classdef EngineClass <  handle
             pert_0 = pert(1,:);
             pert_approx_x = cell(1,order);
             for i = 1:order
+                disp(['i = ' num2str(i)]);
                 eigvec_i = eigvecs(:,i);
                 eigval_i = eigvals(i);
                 approx = approx + dot(pert_0,eigvec_i)*eigvec_i*exp(eigval_i*sol_t');
                 pert_approx_x{1,i} = approx';
             end
         end
-        function obj = plot_pert_approx(obj)
+        function obj = plot_pert_approx(obj,drawNodes,drawBinned)
             %% fig 13*
             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvals_asy_v2_set.mat'),'var');eigvals_asy_v2_set=mydata.var;
             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvecs_asy_v2_set.mat'),'var');eigvecs_asy_v2_set=mydata.var;
@@ -2219,20 +2227,23 @@ classdef EngineClass <  handle
             [~,node_minkinn_ind] = min(obj.ki_nn);
             node_ids = [node_maxk_ind,node_avgk_ind,node_mink_ind,node_maxkinn_ind,...
                 node_knn_ind,node_minkinn_ind];
+            node_bins = {obj.bins, obj.binskinn};
             sol_t_runs = {{obj.solution_t},obj.solution_t_eigvecana,obj.solution_t_eigvecasy,...
                 obj.solution_t_perturbations}; 
             sol_x_runs = {{obj.solution_x},obj.solution_x_eigvecana,obj.solution_x_eigvecasy,...
                 obj.solution_x_perturbations};
             figdesc1 = {'pert = rand', 'pert = v_{i,ana}', 'pert = v_{i,asy}', 'pert = .1*rand*ss'};
             figdesc2 = {'max(k_j)', 'mean(k_j)', 'min(k_j)', 'max(k_{j,nn})',...
-                'mean(k_{j,nn})', 'min(k_{j,nn})'};            
+                'mean(k_{j,nn})', 'min(k_{j,nn})','max(pert)'};         
+            figdesc1b = {'k', 'k_{nn}'};
             % pert_0 = rand, obj.solution_t,...
             num_nodes = size(node_ids,2);num_runs = size(sol_t_runs,2);
+            num_node_bins = size(node_bins,2);
             num_runs_str = 'abcdefghjijklmnopqrstuvwxyz';
-            eigvecs_sets = {obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,eigvecs_asy_v2_set{1,1},eigvecs_asy_v2_set{14,1},obj.eigvecs_v3};
-            eigvals_sets = {obj.eigenvalues_ana,obj.eigenvalues_asy_permuted,eigvals_asy_v2_set{1,1},eigvals_asy_v2_set{14,1},obj.eigvals_v3};
+            eigvecs_sets = {obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,eigvecs_asy_v2_set{14,1},eigvecs_asy_v2_set{15,1},obj.eigvecs_v3};
+            eigvals_sets = {obj.eigenvalues_ana,obj.eigenvalues_asy_permuted,eigvals_asy_v2_set{14,1},eigvals_asy_v2_set{15,1},obj.eigvals_v3};
             num_eigvec_sets = size(eigvecs_sets,2);
-            eigvecsets_str = {'ana','asy','asy-v2-1','asy-v2-8','asy-v3'};
+            eigvecsets_str = {'ana','asy','asy-v2-14','asy-v2-15','asy-v3'};
             order = 5;
             linestyles = {'--',':','-.','-.','-'};markers = {'o','*','+','x','s'};
             colors = {'r','k','m','b','g'};step = 100;
@@ -2248,20 +2259,25 @@ classdef EngineClass <  handle
                         else
                             figdesc3 = '';
                         end
-                        for i3 = 1:num_nodes
+                        sol_t = sol_ts{1,i2}; sol_x = sol_xs{1,i2};
+                        pert = (sol_x' - obj.steady_state')';
+                        [~, node_maxpert_ind] = max(pert(1,:));
+                        node_ids(1,num_nodes + 1) = node_maxpert_ind;
+                        if drawNodes
+                        for i3 = 1:num_nodes + 1
+                            node_id = node_ids(i3);
+%                         for i3 = num_nodes + 1
                             for i6 = 1:numplotfuns
-                                name = [namepre num_runs_str(i1) '-' num2str(i2) '-node' num2str(node_ids(i3))...
+                                name = [namepre num_runs_str(i1) '-' num2str(i2) '-node' num2str(node_id)...
                                     plottypestr{i6}];
                                 f = figure('Name',name,'NumberTitle','off');
-                                legendStr = {}; legendInd = 1;
-                                sol_t = sol_ts{1,i2}; sol_x = sol_xs{1,i2};
-                                pert = (sol_x' - obj.steady_state')';
-                                node_id = node_ids(i3);
+                                legendStr = {}; legendInd = 1;                                
                                 myplotfuns{i6}(sol_t,myabsfuns{i6}(pert(:,node_id)),'-','LineWidth',3);
                                 hold on;
                                 legendStr{legendInd} = 'Numerical Solution (non-linear)';
                                 legendInd = legendInd + 1;
                                 for i4 = 1:num_eigvec_sets
+                                    disp(['i4 = ' num2str(i4)]);
                                     eigvecs = eigvecs_sets{1,i4};
                                     eigvals = eigvals_sets{1,i4};
                                     pert_approx_x = obj.find_nth_order_approx(sol_t,pert,eigvecs,eigvals,order);
@@ -2277,10 +2293,55 @@ classdef EngineClass <  handle
                                 xlabel('t');
                                 ylabel(['x_{' num2str(node_id) '}']);
                                 figdesc = ['Linear approximations,' figdesc1{i1} ', ' figdesc3 ', node with ' figdesc2{i3}];
-                                title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+                                figdesc4 =  ['k_i = ' num2str(obj.degree_vector_weighted(node_id)) ', k_{i,nn} = ' num2str(obj.ki_nn(node_id))];
+                                title({[name ' ' obj.scenarioName];obj.desc;figdesc;figdesc4});
                                 legend(legendStr);
                                 obj.save_fig(f,name);
                             end
+                        end
+                        end
+                        if drawBinned
+                        for i7 = 1:num_node_bins
+                            curr_bins = node_bins{1,i7};
+                            num_curr_bins = size(curr_bins,1);
+                            curr_bins_desc = figdesc1b{1,i7};
+                            for i8 = 1:num_curr_bins
+                                name = [namepre num_runs_str(i1) '-' num2str(i2) '-binnedby-' curr_bins_desc...
+                                    'bin-' num2str(i8) plottypestr{2}];
+                                f = figure('Name',name,'NumberTitle','off');
+                                legendStr = {}; legendInd = 1;
+                                curr_bin = curr_bins{i8,1};
+                                pert_binned = mean(pert(:,curr_bin),2);
+                                myplotfuns{2}(sol_t,myabsfuns{2}(pert_binned),'-','LineWidth',3);
+                                hold on;
+                                legendStr{legendInd} = 'Numerical Solution';
+                                legendInd = legendInd + 1;                                
+                                for i9 = 1:num_eigvec_sets
+                                    disp(['i9 = ' num2str(i9)]);
+                                    eigvecs = eigvecs_sets{1,i9};
+                                    eigvals = eigvals_sets{1,i9};
+                                    pert_approx_x = obj.find_nth_order_approx(sol_t,pert,eigvecs,eigvals,order);
+                                    num_pert_approx_x = size(pert_approx_x,2);
+                                    pert_approx_x_curr = pert_approx_x{1,num_pert_approx_x};
+                                    pert_approx_x_curr_binned = mean(pert_approx_x_curr(:,curr_bin),2);
+                                    myplotfuns{2}(sol_t(1:step:end),myabsfuns{2}(pert_approx_x_curr_binned(1:step:end,:)),'LineStyle',...
+                                        linestyles{i9},'Marker',markers{num_pert_approx_x},'Color',colors{i9},'MarkerEdgeColor',colors{i9});
+                                    legendStr{legendInd} = ['Order ' num2str(num_pert_approx_x) ' approx, v_{ ' eigvecsets_str{i9} '}'];
+                                    legendInd = legendInd + 1;
+                                end
+                                xlabel('t');
+                                ylabel(['x']);
+                                figdesc = ['Linear approximations,' figdesc1{i1} ', ' figdesc3 ', binned by ' curr_bins_desc ', bin ' num2str(i8)];
+                                figdesc4 =  ['Num nodes in bin: ' num2str(size(curr_bin,1)),...
+                                    ', k_{min} = ' num2str(min(obj.degree_vector_weighted(curr_bin))),...
+                                    ', k_{max} = ' num2str(max(obj.degree_vector_weighted(curr_bin))),...
+                                    ', k_{nn,min} = ' num2str(min(obj.ki_nn(curr_bin))),...
+                                    ', k_{nn,max} = ' num2str(max(obj.ki_nn(curr_bin)))];
+                                title({[name ' ' obj.scenarioName];obj.desc;figdesc;figdesc4});
+                                legend(legendStr);
+                                obj.save_fig(f,name);
+                            end
+                        end
                         end
                     end
                 end

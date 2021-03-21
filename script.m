@@ -866,5 +866,13 @@ obj.errors1_v3 = errors1;
 obj.errors2_v3 = errors2;
 obj.eigvals_v3 = eigvals;
 obj.eigvecs_v3 = eigvecs;
-
-
+%%
+obj8.solve(2,1,1,1);
+obj8.solve(3,1,1,1);
+%%
+obj.plot_pert_approx()
+obj.plot_eigenvalues();
+%%
+obj1.solve(1,1,1,1);
+obj1.solve(2,1,1,1);
+obj1.solve(3,1,1,1);
