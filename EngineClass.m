@@ -594,8 +594,8 @@ classdef EngineClass <  handle
                 obj.Wij_anabinned = obj.set_binned_vals(obj.Wij_ana(obj.adjacencyMatrix>0),obj.binsij);
                 obj.C_D_set = obj.find_constants_binned_sets(obj.Dii_anabinned,obj.Dii_asybinned);
                 obj.C_W_set = obj.find_constants_binned_sets(obj.Wij_anabinned,obj.Wij_asybinned);
-                [obj.C_D_v3, obj.guesses1_v3, obj.guesses2_v3, obj.errors1_v3, obj.errors2_v3, obj.eigvals_v3,obj.eigvecs_v3] = obj.find_best_C_D(obj.eigenvalues_ana,1,5,0.5,1);
-                [obj.C_D_v4, obj.guesses1_v4, obj.guesses2_v4, obj.errors1_v4, obj.errors2_v4, obj.eigvals_v4,obj.eigvecs_v4] = obj.find_best_C_D(obj.eigenvalues_ana,1,5,0.5,obj.permutation_eigvec_ana2asy);
+                [obj.C_D_v3, obj.guesses1_v3, obj.guesses2_v3, obj.errors1_v3, obj.errors2_v3, obj.eigvals_v3,obj.eigvecs_v3] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.1);
+                [obj.C_D_v4, obj.guesses1_v4, obj.guesses2_v4, obj.errors1_v4, obj.errors2_v4, obj.eigvals_v4,obj.eigvecs_v4] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.5,obj.permutation_eigvec_ana2asy);
                 obj.set_eigvec_comparison_mats(true,false);
                 obj.set_permutation_eigvec_ana2asy(40);
                 obj.set_eig_asy_permuted();
@@ -779,7 +779,7 @@ classdef EngineClass <  handle
             guess1 = guess_1_init;
             guess2 = guess_2_init;
             recalc1 = true;recalc2=true;
-            numeigen = 50;
+            numeigen = 200;
             guesses1 = [];guesses2 = [];
             errors1 = []; errors2 = [];
             while true
@@ -794,8 +794,8 @@ classdef EngineClass <  handle
                 end
                 error1 = eigvals_1(1,1) - real_eigval_1;
                 error2 = eigvals_2(1,1) - real_eigval_1;
-                errors1(end+1) = error1;errors2(end+1) = error2;
                 disp(['error1 = ' num2str(error1) ', error2 = ' num2str(error2)]);
+                errors1(end+1) = error1;errors2(end+1) = error2;
                 if abs(error1) < req_acc
                     disp('breaking');
                     C_D = guess1;
@@ -903,7 +903,7 @@ classdef EngineClass <  handle
 %             obj.eigenvectors_asy = v;
 %             disp('Done');
 %         end
-        function [M1 M2 M3] = compute_comparison_matrix(~,vectors_1,vectors_2)
+        function [M1, M2, M3] = compute_comparison_matrix(obj,vectors_1,vectors_2,isSaveM2,varNameStr)
             n1 = size(vectors_1,2);
             n2 = size(vectors_2,2);
             M1 = zeros(n1,n2);M2 = M1;M3 = M1;            
@@ -923,6 +923,15 @@ classdef EngineClass <  handle
                     M1(i,j) = m1; M2(i,j) = m2; M3(i,j) = m3;
                 end
             end
+            if isSaveM2
+                obj.save_var(M2,obj.resultsPath,'obj_properties',varNameStr);
+            end
+        end
+        function obj = set_eigvec_comparison_mats3(obj)
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvecs_asy_v2_set.mat'),'var');eigvecs_asy_v2_set=mydata.var;
+            [~, ~, ~] = obj.compute_comparison_matrix(obj.eigenvectors_asy,eigvecs_asy_v2_set{14,1},true,'eigvec_dot_comparison_mat_asy2asy-v2-14');
+            [~, ~, ~] = obj.compute_comparison_matrix(obj.eigenvectors_asy,eigvecs_asy_v2_set{15,1},true,'eigvec_dot_comparison_mat_asy2asy-v2-15');
+            [~, ~, ~] = obj.compute_comparison_matrix(obj.eigenvectors_asy,obj.eigvecs_v3,true,'eigvec_dot_comparison_mat_asy2asy-v3');            
         end
         function obj = set_eigvec_comparison_mats(obj,computeRegular,computePermuted)
             if computeRegular
@@ -931,7 +940,7 @@ classdef EngineClass <  handle
                 vasy = obj.eigenvectors_asy_permuted;
             end
             vana = obj.eigenvectors_ana;
-            [dist, absdot, angles] = obj.compute_comparison_matrix(vana,vasy);
+            [dist, absdot, angles] = obj.compute_comparison_matrix(vana,vasy,false,'');
             
             if computeRegular
                 obj.eigvec_dist_comparison_mat_ana2asy = dist;
@@ -949,14 +958,13 @@ classdef EngineClass <  handle
         function obj = set_eigvec_comparison_mats2(obj)
             vana = obj.eigenvectors_ana;
             vasy = obj.eigenvectors_asy_permuted;
-            [~, dotsana, ~] = obj.compute_comparison_matrix(vana,vana);
-            [~, dotsasy, ~] = obj.compute_comparison_matrix(vasy,vasy);
+            [~, dotsana, ~] = obj.compute_comparison_matrix(vana,vana,false,'');
+            [~, dotsasy, ~] = obj.compute_comparison_matrix(vasy,vasy,false,'');
             obj.eigvec_dot_comparison_mat_ana2ana = dotsana;
             obj.eigvec_dot_comparison_mat_asy_permuted2asy_permuted = dotsasy;
             vasy1 = obj.eigenvectors_asy;
-            [~, dotsasy1, ~] = obj.compute_comparison_matrix(vasy1,vasy1);
-            obj.eigvec_dot_comparison_mat_asy2asy = dotsasy1;
-            
+            [~, dotsasy1, ~] = obj.compute_comparison_matrix(vasy1,vasy1,false,'');
+            obj.eigvec_dot_comparison_mat_asy2asy = dotsasy1;            
         end
         function obj = set_permutation_eigvec_ana2asy(obj,thresh)
             NN = obj.eigvec_angle_comparison_mat_ana2asy;
@@ -1705,7 +1713,7 @@ classdef EngineClass <  handle
             title({[name ' ' obj.scenarioName];obj.desc;figdesc});
             legend('Analytic Jacobian','Asymptotic Jacobian');
             obj.save_fig(f,name);
-            %% fig6f* fig6g* fig6h*
+            %% fig6f* fig6g* fig6h* matrix image
             n = obj.numeigenplots2;
             namepre = {'fig6f-','fig6g-','fig6h-'};
             namesuf = {'1'};
@@ -1733,7 +1741,7 @@ classdef EngineClass <  handle
                     end
                 end
             end
-            %% fig6i*
+            %% fig6i* histogram
             namepre = {'fig6i'}; namesuf1 = {'-1'}; namesuf2 = {'','-log'};
             f = @(x) (x); myfun = {f, @log10};
             figdescstr1 = {'Absolute Value of Eigenvector Dot Products'};
@@ -2214,7 +2222,7 @@ classdef EngineClass <  handle
                 pert_approx_x{1,i} = approx';
             end
         end
-        function obj = plot_pert_approx(obj,drawNodes,drawBinned)
+        function obj = plot_pert_approx(obj,drawNodes,drawBinned,drawWholeSystem,drawDecayTime)
             %% fig 13*
             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvals_asy_v2_set.mat'),'var');eigvals_asy_v2_set=mydata.var;
             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvecs_asy_v2_set.mat'),'var');eigvecs_asy_v2_set=mydata.var;
@@ -2249,6 +2257,8 @@ classdef EngineClass <  handle
             colors = {'r','k','m','b','g'};step = 100;
             myplotfuns = {@plot,@semilogy};numplotfuns = size(myplotfuns,2);plottypestr = {'','-logabs'};
             myabsfuns = {@(x) x, @(x) abs(x)};
+            norms = [1 2];
+            num_norms = size(norms,2);
             for i1 = 1:num_runs
                 sol_ts = sol_t_runs{1,i1};sol_xs = sol_x_runs{1,i1};
                 num_sols = size(sol_ts,2);
@@ -2261,108 +2271,202 @@ classdef EngineClass <  handle
                         end
                         sol_t = sol_ts{1,i2}; sol_x = sol_xs{1,i2};
                         pert = (sol_x' - obj.steady_state')';
+                        pert0 = pert(1,:);
                         [~, node_maxpert_ind] = max(pert(1,:));
                         node_ids(1,num_nodes + 1) = node_maxpert_ind;
                         if drawNodes
-                        for i3 = 1:num_nodes + 1
-                            node_id = node_ids(i3);
-%                         for i3 = num_nodes + 1
-                            for i6 = 1:numplotfuns
-                                name = [namepre num_runs_str(i1) '-' num2str(i2) '-node' num2str(node_id)...
-                                    plottypestr{i6}];
-                                f = figure('Name',name,'NumberTitle','off');
-                                legendStr = {}; legendInd = 1;                                
-                                myplotfuns{i6}(sol_t,myabsfuns{i6}(pert(:,node_id)),'-','LineWidth',3);
-                                hold on;
-                                legendStr{legendInd} = 'Numerical Solution (non-linear)';
-                                legendInd = legendInd + 1;
-                                for i4 = 1:num_eigvec_sets
-                                    disp(['i4 = ' num2str(i4)]);
-                                    eigvecs = eigvecs_sets{1,i4};
-                                    eigvals = eigvals_sets{1,i4};
-                                    pert_approx_x = obj.find_nth_order_approx(sol_t,pert,eigvecs,eigvals,order);
-                                    num_pert_approx_x = size(pert_approx_x,2);
-                                    for i5 = 1:num_pert_approx_x
-                                        pert_approx_x_curr = pert_approx_x{1,i5};
-                                        myplotfuns{i6}(sol_t(1:step:end),myabsfuns{i6}(pert_approx_x_curr(1:step:end,node_id)),'LineStyle',...
-                                            linestyles{i4},'Marker',markers{i5},'Color',colors{i4},'MarkerEdgeColor',colors{i4});
-                                        legendStr{legendInd} = ['Order ' num2str(i5) ' approx, v_{ ' eigvecsets_str{i4} '}'];
-                                        legendInd = legendInd + 1;
+                            for i3 = 1:num_nodes + 1
+                                node_id = node_ids(i3);
+                                %                         for i3 = num_nodes + 1
+                                for i6 = 1:numplotfuns
+                                    name = [namepre num_runs_str(i1) '-' num2str(i2) '-node' num2str(node_id)...
+                                        plottypestr{i6}];
+                                    f = figure('Name',name,'NumberTitle','off');
+                                    legendStr = {}; legendInd = 1;
+                                    myplotfuns{i6}(sol_t,myabsfuns{i6}(pert(:,node_id)),'-','LineWidth',3);
+                                    hold on;
+                                    legendStr{legendInd} = 'Numerical Solution (non-linear)';
+                                    legendInd = legendInd + 1;
+                                    for i4 = 1:num_eigvec_sets
+                                        disp(['i4 = ' num2str(i4)]);
+                                        eigvecs = eigvecs_sets{1,i4};
+                                        eigvals = eigvals_sets{1,i4};
+                                        pert_approx_x = obj.find_nth_order_approx(sol_t,pert,eigvecs,eigvals,order);
+                                        num_pert_approx_x = size(pert_approx_x,2);
+                                        for i5 = 1:num_pert_approx_x
+                                            pert_approx_x_curr = pert_approx_x{1,i5};
+                                            myplotfuns{i6}(sol_t(1:step:end),myabsfuns{i6}(pert_approx_x_curr(1:step:end,node_id)),'LineStyle',...
+                                                linestyles{i4},'Marker',markers{i5},'Color',colors{i4},'MarkerEdgeColor',colors{i4});
+                                            legendStr{legendInd} = ['Order ' num2str(i5) ' approx, v_{ ' eigvecsets_str{i4} '}'];
+                                            legendInd = legendInd + 1;
+                                        end
                                     end
+                                    xlabel('t');
+                                    ylabel(['x_{' num2str(node_id) '}']);
+                                    figdesc = ['Linear approximations,' figdesc1{i1} ', ' figdesc3 ', node with ' figdesc2{i3}];
+                                    figdesc4 =  ['k_i = ' num2str(obj.degree_vector_weighted(node_id)) ', k_{i,nn} = ' num2str(obj.ki_nn(node_id))];
+                                    title({[name ' ' obj.scenarioName];obj.desc;figdesc;figdesc4});
+                                    legend(legendStr);
+                                    obj.save_fig(f,name);
                                 end
-                                xlabel('t');
-                                ylabel(['x_{' num2str(node_id) '}']);
-                                figdesc = ['Linear approximations,' figdesc1{i1} ', ' figdesc3 ', node with ' figdesc2{i3}];
-                                figdesc4 =  ['k_i = ' num2str(obj.degree_vector_weighted(node_id)) ', k_{i,nn} = ' num2str(obj.ki_nn(node_id))];
-                                title({[name ' ' obj.scenarioName];obj.desc;figdesc;figdesc4});
-                                legend(legendStr);
-                                obj.save_fig(f,name);
                             end
                         end
-                        end
                         if drawBinned
-                        for i7 = 1:num_node_bins
-                            curr_bins = node_bins{1,i7};
-                            num_curr_bins = size(curr_bins,1);
-                            curr_bins_desc = figdesc1b{1,i7};
-                            for i8 = 1:num_curr_bins
-                                name = [namepre num_runs_str(i1) '-' num2str(i2) '-binnedby-' curr_bins_desc...
-                                    'bin-' num2str(i8) plottypestr{2}];
+                            for i7 = 1:num_node_bins
+                                curr_bins = node_bins{1,i7};
+                                num_curr_bins = size(curr_bins,1);
+                                curr_bins_desc = figdesc1b{1,i7};
+                                for i8 = 1:num_curr_bins
+                                    name = [namepre num_runs_str(i1) '-' num2str(i2) '-binnedby-' curr_bins_desc...
+                                        'bin-' num2str(i8) plottypestr{2}];
+                                    f = figure('Name',name,'NumberTitle','off');
+                                    legendStr = {}; legendInd = 1;
+                                    curr_bin = curr_bins{i8,1};
+                                    pert_binned = mean(pert(:,curr_bin),2);
+                                    myplotfuns{2}(sol_t,myabsfuns{2}(pert_binned),'-','LineWidth',3);
+                                    hold on;
+                                    legendStr{legendInd} = 'Numerical Solution';
+                                    legendInd = legendInd + 1;
+                                    for i9 = 1:num_eigvec_sets
+                                        disp(['i9 = ' num2str(i9)]);
+                                        eigvecs = eigvecs_sets{1,i9};
+                                        eigvals = eigvals_sets{1,i9};
+                                        pert_approx_x = obj.find_nth_order_approx(sol_t,pert,eigvecs,eigvals,order);
+                                        num_pert_approx_x = size(pert_approx_x,2);
+                                        pert_approx_x_curr = pert_approx_x{1,num_pert_approx_x};
+                                        pert_approx_x_curr_binned = mean(pert_approx_x_curr(:,curr_bin),2);
+                                        myplotfuns{2}(sol_t(1:step:end),myabsfuns{2}(pert_approx_x_curr_binned(1:step:end,:)),'LineStyle',...
+                                            linestyles{i9},'Marker',markers{num_pert_approx_x},'Color',colors{i9},'MarkerEdgeColor',colors{i9});
+                                        legendStr{legendInd} = ['Order ' num2str(num_pert_approx_x) ' approx, v_{ ' eigvecsets_str{i9} '}'];
+                                        legendInd = legendInd + 1;
+                                    end
+                                    xlabel('t');
+                                    ylabel(['x']);
+                                    figdesc = ['Linear approximations,' figdesc1{i1} ', ' figdesc3 ', binned by ' curr_bins_desc ', bin ' num2str(i8)];
+                                    figdesc4 =  ['Num nodes in bin: ' num2str(size(curr_bin,1)),...
+                                        ', k_{min} = ' num2str(min(obj.degree_vector_weighted(curr_bin))),...
+                                        ', k_{max} = ' num2str(max(obj.degree_vector_weighted(curr_bin))),...
+                                        ', k_{nn,min} = ' num2str(min(obj.ki_nn(curr_bin))),...
+                                        ', k_{nn,max} = ' num2str(max(obj.ki_nn(curr_bin)))];
+                                    title({[name ' ' obj.scenarioName];obj.desc;figdesc;figdesc4});
+                                    legend(legendStr);
+                                    obj.save_fig(f,name);
+                                end
+                            end
+                        end
+                        if drawWholeSystem
+                            for i10 = 1:num_norms
+                                normP = norms(i10);
+                                pert_normed = vecnorm(pert',normP)';
+                                name = [namepre num_runs_str(i1) '-' num2str(i2) '-WholeSystemNorm-L' num2str(normP)...
+                                    '-' plottypestr{2}];
                                 f = figure('Name',name,'NumberTitle','off');
                                 legendStr = {}; legendInd = 1;
-                                curr_bin = curr_bins{i8,1};
-                                pert_binned = mean(pert(:,curr_bin),2);
-                                myplotfuns{2}(sol_t,myabsfuns{2}(pert_binned),'-','LineWidth',3);
+                                myplotfuns{2}(sol_t,myabsfuns{2}(pert_normed),'-','LineWidth',3);
                                 hold on;
                                 legendStr{legendInd} = 'Numerical Solution';
-                                legendInd = legendInd + 1;                                
+                                legendInd = legendInd + 1;
                                 for i9 = 1:num_eigvec_sets
-                                    disp(['i9 = ' num2str(i9)]);
+                                    %disp(['i9 = ' num2str(i9)]);
                                     eigvecs = eigvecs_sets{1,i9};
                                     eigvals = eigvals_sets{1,i9};
                                     pert_approx_x = obj.find_nth_order_approx(sol_t,pert,eigvecs,eigvals,order);
                                     num_pert_approx_x = size(pert_approx_x,2);
                                     pert_approx_x_curr = pert_approx_x{1,num_pert_approx_x};
-                                    pert_approx_x_curr_binned = mean(pert_approx_x_curr(:,curr_bin),2);
-                                    myplotfuns{2}(sol_t(1:step:end),myabsfuns{2}(pert_approx_x_curr_binned(1:step:end,:)),'LineStyle',...
+                                    pert_approx_x_curr_normed = vecnorm(pert_approx_x_curr',normP)';
+                                    myplotfuns{2}(sol_t(1:step:end),myabsfuns{2}(pert_approx_x_curr_normed(1:step:end,:)),'LineStyle',...
                                         linestyles{i9},'Marker',markers{num_pert_approx_x},'Color',colors{i9},'MarkerEdgeColor',colors{i9});
                                     legendStr{legendInd} = ['Order ' num2str(num_pert_approx_x) ' approx, v_{ ' eigvecsets_str{i9} '}'];
                                     legendInd = legendInd + 1;
                                 end
                                 xlabel('t');
-                                ylabel(['x']);
-                                figdesc = ['Linear approximations,' figdesc1{i1} ', ' figdesc3 ', binned by ' curr_bins_desc ', bin ' num2str(i8)];
-                                figdesc4 =  ['Num nodes in bin: ' num2str(size(curr_bin,1)),...
-                                    ', k_{min} = ' num2str(min(obj.degree_vector_weighted(curr_bin))),...
-                                    ', k_{max} = ' num2str(max(obj.degree_vector_weighted(curr_bin))),...
-                                    ', k_{nn,min} = ' num2str(min(obj.ki_nn(curr_bin))),...
-                                    ', k_{nn,max} = ' num2str(max(obj.ki_nn(curr_bin)))];
-                                title({[name ' ' obj.scenarioName];obj.desc;figdesc;figdesc4});
+                                ylabel(['|x|_{L' num2str(normP) '}']);
+                                figdesc = ['Linear approximations,' figdesc1{i1} ', ' figdesc3 ', System L' num2str(normP) ' norm'];
+                                title({[name ' ' obj.scenarioName];obj.desc;figdesc});
                                 legend(legendStr);
                                 obj.save_fig(f,name);
                             end
                         end
+                        if drawDecayTime
+                            xvalues = {obj.degree_vector_weighted, obj.ki_nn};
+                            num_xvalues = size(xvalues,2);
+                            xlabelstrsf = {'ki','kinn'};
+                            xlabelstrs = {'k_i','k_{i,nn}'};
+                            nodesDecayTime = obj.find_decay_times(pert,sol_t);
+                            for i11 = 1:num_xvalues
+                                xvalue = xvalues{i11};xlabelstr = xlabelstrs{i11};
+                                xlabelstrf = xlabelstrsf{i11};
+                                name = [namepre num_runs_str(i1) '-' num2str(i2) '-DecayTimeVs' xlabelstrf...
+                                    ];
+                                f = figure('Name',name,'NumberTitle','off');
+                                legendStr = {}; legendInd = 1;
+                                semilogx(xvalue,nodesDecayTime,'s');
+                                hold on;
+                                legendStr{legendInd} = 'Numerical Solution';
+                                legendInd = legendInd + 1;
+                                for i9 = 1:num_eigvec_sets
+                                    %disp(['i9 = ' num2str(i9)]);
+                                    eigvecs = eigvecs_sets{1,i9};
+                                    eigvals = eigvals_sets{1,i9};
+                                    pert_approx_x = obj.find_nth_order_approx(sol_t,pert,eigvecs,eigvals,order);
+                                    num_pert_approx_x = size(pert_approx_x,2);
+                                    pert_approx_x_curr = pert_approx_x{1,num_pert_approx_x};
+                                    pert_approx_x_curr_decayTimes = obj.find_decay_times(pert_approx_x_curr,sol_t);
+                                    semilogx(xvalue,pert_approx_x_curr_decayTimes,'^','MarkerEdgeColor',colors{i9});
+                                    legendStr{legendInd} = ['Order ' num2str(num_pert_approx_x) ' approx, v_{ ' eigvecsets_str{i9} '}'];
+                                    legendInd = legendInd + 1;
+                                end
+                                xlabel(xlabelstr);
+                                ylabel(['t_{1/e}']);
+                                figdesc = ['Linear approximations,' figdesc1{i1} ', ' figdesc3 ', Node Decay Times vs ' xlabelstr];
+                                title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+                                legend(legendStr);
+                                obj.save_fig(f,name);
+                            end
                         end
                     end
                 end
             end
-%             
-%             sol_t = obj.solution_t_eigvecana{1,1};
-%             sol_x = obj.solution_x_eigvecana{1,1};
-%             pert = (sol_x' - obj.steady_state')';
-%             eigvecs = obj.eigenvectors_ana;
-%             eigvals = obj.eigenvalues_ana;
-%             order = 5;
-%             pert_approx_x = obj.find_nth_order_approx(sol_t,pert,eigvecs,eigvals,order);
-%             plot(sol_t,pert(:,node_id),'-');
-%             hold on;
-%             plot(sol_t,pert_approx_x{1,}(:,node_id),'--');
-%             xlabel('t');
-%             ylabel('x_i');
-%             legend('pert_i',[num2str(order) '^{th} order approx']);
-%             figdesc = 'n^{th} Order Linear Approximation of non-linear model';
-%             title({[name ' ' obj.scenarioName];obj.desc;figdesc});
-%             obj.save_fig(f,name);
+        end
+        function obj = plot_eigenvectors3(obj)
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_asy2asy-v2-14.mat'),'var');
+            eigvec_dot_comparison_mat_asy2asy_v2_14 = mydata.var;
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_asy2asy-v2-15.mat'),'var');
+            eigvec_dot_comparison_mat_asy2asy_v2_15 = mydata.var;
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_asy2asy-v3.mat'),'var');
+            eigvec_dot_comparison_mat_asy2asy_v3 = mydata.var;
+            mats = {eigvec_dot_comparison_mat_asy2asy_v2_14,...
+                eigvec_dot_comparison_mat_asy2asy_v2_15,...
+                eigvec_dot_comparison_mat_asy2asy_v3};
+            namepre = 'fig14-';
+            figdesc1 = 'Dot product of Absolute value of eigenvectors';
+            xlabelstrs = {'Asymptotic Jacobian v2 bin 14 Eigenvectors',...
+                'Asymptotic Jacobian v2 bin 15 Eigenvectors',...
+                'Asymptotic Jacobian v3 Eigenvectors'};
+            num_mats = size(mats,2);
+            for i1 = 1:num_mats
+                name = [namepre num2str(i1)];
+                figdesc = [figdesc1];
+                f = figure('Name',name,'NumberTitle','off');
+                image(mats{i1},'CDatamapping','scaled');
+                colorbar;
+                ylabel('Asymptotic Jacobian Eigenvectors');
+                xlabel(xlabelstrs{i1});
+                title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\mid v_i \cdot v_j \mid$'},'interpreter','latex');
+                obj.save_fig(f,name);
+            end
+        end
+        function decayTimes = find_decay_times(~,pert,sol_t)
+            pert0 = pert(1,:);
+            pert1 = exp(-1)*pert0;
+            c = size(pert,2);
+            decayTimes = zeros(1,c);
+            for i=1:c
+                perti = pert(:,i);
+                pert1i = pert1(1,i);
+                ind = find(perti < pert1i,1,'first');
+                decayTimes(1,i) = sol_t(ind);
+            end
         end
         function obj = save_fig(obj,f,name)
             try
