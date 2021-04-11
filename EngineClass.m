@@ -77,7 +77,7 @@ classdef EngineClass <  handle
         eigvecs_v3
         numeigen=10;
         numeigenplots = 5;
-        numeigenplots2 = 100;
+        numeigenplots2 = 200;
         eigvec_dist_comparison_mat_ana2asy
         eigvec_angle_comparison_mat_ana2asy
         eigvec_dist_comparison_mat_ana2asy_permuted
@@ -125,6 +125,8 @@ classdef EngineClass <  handle
         rho = 0
         eta = 0
         isEngineSet = false
+        % J_ana
+        % J_asy
     end
     methods
         function obj = EngineClass(propertiesMap)
@@ -161,6 +163,9 @@ classdef EngineClass <  handle
             disp('set_knn');obj.set_knn();
             disp('set_Dii_asy');obj.set_Dii_asy();
             disp('set_Wij_asy');obj.set_Wij_asy();
+            obj.set_J_asy();
+            obj.set_J_asy_degree_vector_weighted();
+            obj.set_J_asy_k_inn();
             disp('set_eig_asy');obj.set_eig_asy();
             tol = 1e-13;
             disp('obj.bins = obj.set_bins_generic');
@@ -589,6 +594,9 @@ classdef EngineClass <  handle
                 obj.set_steady_state_calculated();
                 obj.set_Dii_ana();
                 obj.set_Wij_ana();
+                obj.set_J_ana();
+                obj.set_J_ana_degree_vector_weighted();
+                obj.set_J_ana_k_inn();
                 obj.set_eig_ana();
                 obj.Dii_anabinned = obj.set_binned_vals(obj.Dii_ana,obj.bins);
                 obj.Wij_anabinned = obj.set_binned_vals(obj.Wij_ana(obj.adjacencyMatrix>0),obj.binsij);
@@ -755,6 +763,34 @@ classdef EngineClass <  handle
             disp('set_Wij_ana(obj): obj.Wij_ana = ');
             %disp(obj.Wij_ana);
         end
+        function obj = set_J_ana(obj)
+            J_ana = EngineClass.compute_J(obj.Dii_ana,obj.Wij_ana,1,1);
+            obj.save_var(J_ana,obj.resultsPath,'obj_properties','J_ana');
+        end
+        function obj = set_J_asy(obj)
+            J_asy = EngineClass.compute_J(obj.Dii_asy,obj.Wij_asy,1,1);
+            obj.save_var(J_asy,obj.resultsPath,'obj_properties','J_asy');
+        end       
+        function obj = set_J_ana_degree_vector_weighted(obj)
+            mydata=load(fullfile(obj.resultsPath,'obj_properties','J_ana'));J_ana=mydata.var;
+            J_ana_degree_vector_weighted = EngineClass.compute_degree_vector_weighted(J_ana);
+            obj.save_var(J_ana_degree_vector_weighted,obj.resultsPath,'obj_properties','J_ana_degree_vector_weighted');
+        end
+        function obj = set_J_asy_degree_vector_weighted(obj)
+            mydata=load(fullfile(obj.resultsPath,'obj_properties','J_asy'));J_asy=mydata.var;
+            J_asy_degree_vector_weighted = EngineClass.compute_degree_vector_weighted(J_asy);
+            obj.save_var(J_asy_degree_vector_weighted,obj.resultsPath,'obj_properties','J_asy_degree_vector_weighted');
+        end
+        function obj = set_J_asy_k_inn(obj)
+            mydata=load(fullfile(obj.resultsPath,'obj_properties','J_asy'));J_asy=mydata.var;
+            J_asy_k_inn = EngineClass.compute_k_inn(J_asy);
+            obj.save_var(J_asy_k_inn,obj.resultsPath,'obj_properties','J_asy_k_inn');
+        end
+        function obj = set_J_ana_k_inn(obj)
+            mydata=load(fullfile(obj.resultsPath,'obj_properties','J_ana'));J_ana=mydata.var;
+            J_ana_k_inn = EngineClass.compute_k_inn(J_ana);
+            obj.save_var(J_ana_k_inn,obj.resultsPath,'obj_properties','J_ana_k_inn');
+        end        
         function obj = set_N(obj)
             obj.N = size(obj.adjacencyMatrix,1);
         end
@@ -1611,6 +1647,11 @@ classdef EngineClass <  handle
             catch exception
                 disp(['plot_eigenvalues: load eigvals_asy_v2_set.mat exception: ' exception.message]);
             end
+            try
+                mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvals_asy_v5.mat'),'var');eigvals_asy_v5=mydata.var;
+            catch exception
+                disp(['plot_eigenvalues: load eigvals_asy_v5.mat exception: ' exception.message]);
+            end
             name = 'fig5a';
             figdesc = 'Jacobian Eigenvalues';
             legendStr = {};
@@ -1630,6 +1671,10 @@ classdef EngineClass <  handle
             end
             plot(obj.eigvals_v3,'s-');
             legendStr{legendInd} = ['Asymptotic Jacobian v3, C_D = ' num2str(obj.C_D_v3)];legendInd=legendInd+1;
+            if exist('eigvals_asy_v5','var')
+                plot(eigvals_asy_v5,'o-');
+                legendStr{legendInd} = ['Asymptotic Jacobian v5'];legendInd=legendInd+1;                
+            end
             xlabel('n');
             ylabel('real(\lambda_n)');
             title({[name ' ' obj.scenarioName];obj.desc;figdesc});
@@ -1643,11 +1688,13 @@ classdef EngineClass <  handle
                 suf = '-Permuted';
                 dist = obj.eigvec_dist_comparison_mat_ana2asy_permuted(1:n,1:n);
                 angle = obj.eigvec_angle_comparison_mat_ana2asy_permuted(1:n,1:n);
+                vecdot = obj.eigvec_dot_comparison_mat_ana2asy_permuted(1:n,1:n);
             else
                 e2 = obj.eigenvectors_asy(:,1:n);
                 suf = '';
                 dist = obj.eigvec_dist_comparison_mat_ana2asy(1:n,1:n);
                 angle = obj.eigvec_angle_comparison_mat_ana2asy(1:n,1:n);
+                vecdot = obj.eigvec_dot_comparison_mat_ana2asy(1:n,1:n);
             end
             e1 = obj.eigenvectors_ana(:,1:n);
             % fig6a
@@ -1684,7 +1731,7 @@ classdef EngineClass <  handle
             xlabel(['Asymptotic Eigenvectors' suf]);
             title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\mid v-\hat{v} \mid$'},'interpreter','latex');
             obj.save_fig(f,name);
-            %%% fig6d
+            %% fig6d
             name = ['fig6d' suf];
             figdesc = ['Jacobian Eigenvectors Angle Comparison Matrix' suf];
             f = figure('Name',name,'NumberTitle','off');
@@ -1693,6 +1740,17 @@ classdef EngineClass <  handle
             ylabel('Analytic Eigenvectors');
             xlabel(['Asymptotic Eigenvectors' suf]);
             title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\theta_{v,\hat{v}} [deg]$'},'interpreter','latex');
+            obj.save_fig(f,name);
+            
+            %% fig6d-1
+            name = ['fig6d-1' suf];
+            figdesc = ['Jacobian Eigenvectors Dot Product Comparison Matrix' suf];
+            f = figure('Name',name,'NumberTitle','off');
+            image(vecdot,'CDatamapping','scaled');
+            colorbar;
+            ylabel('Analytic Eigenvectors');
+            xlabel(['Asymptotic Eigenvectors' suf]);
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\mid v \cdot \hat{v} \mid $'},'interpreter','latex');
             obj.save_fig(f,name);
             %% fig6e
             name = ['fig6e' suf];
@@ -2456,6 +2514,59 @@ classdef EngineClass <  handle
                 obj.save_fig(f,name);
             end
         end
+        function obj = plot_jacobian2(obj)
+            Jana = obj.Wij_ana + diag(obj.Dii_ana);
+            Jasy = obj.Wij_asy + diag(obj.Dii_asy);
+            jacobians = {Jana,Jasy};
+            namepre = 'fig15-';
+            path = obj.resultsPath;
+            title = {'Analytic Jacobian','Asymptotic Jacobian'};
+            xlabel = '';
+            ylabel = '';
+            n = size(jacobians,2);
+            for i1 = 1:n
+                name = [namepre num2str(i1)];
+                EngineClass.plot_image_static(jacobians{i1},name,name,path,title{i1},xlabel,ylabel);
+            end
+        end
+        function obj = plot_jacobian3(obj)
+            %% fig16-1*
+            mydata=load(fullfile(obj.resultsPath,'obj_properties','J_ana_degree_vector_weighted'));
+            J_ana_degree_vector_weighted = mydata.var;
+            mydata=load(fullfile(obj.resultsPath,'obj_properties','J_asy_degree_vector_weighted'));
+            J_asy_degree_vector_weighted = mydata.var;
+            name = 'fig16-1';
+            figdesc = 'Jacobian node degree vs. node degree';
+            f = figure('Name',name,'NumberTitle','off');
+            semilogx(obj.degree_vector_weighted,J_ana_degree_vector_weighted,'.');
+            legendStr{1} = 'Real Jacobian';
+            hold on;
+            semilogx(obj.degree_vector_weighted,J_asy_degree_vector_weighted,'o');
+            legendStr{2} = 'Theoretical Jacobian';
+            ylabel('Jacobian Node Degree');
+            xlabel('Adjacency Matrix Node Degree');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+            legend(legendStr);
+            obj.save_fig(f,name);
+            %% fig16-2*
+            mydata=load(fullfile(obj.resultsPath,'obj_properties','J_ana_k_inn'));
+            J_ana_k_inn = mydata.var;
+            mydata=load(fullfile(obj.resultsPath,'obj_properties','J_asy_k_inn'));
+            J_asy_k_inn = mydata.var;
+            name = 'fig16-2';
+            figdesc = 'Jacobian vs. adjacency matrix nearest neighbor degree';
+            f = figure('Name',name,'NumberTitle','off');
+            loglog(obj.ki_nn,J_ana_k_inn,'.');
+            legendStr{1} = 'Real Jacobian';
+            hold on;
+            loglog(obj.ki_nn,J_asy_k_inn,'o');
+            legendStr{2} = 'Theoretical Jacobian';
+            ylabel('Jacobian Nearest Neighbor degree k_{i,nn}');
+            xlabel('Adjacency Matrix Nearest Neighbor Degree');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+            legend(legendStr);
+            obj.save_fig(f,name);
+        end
         function decayTimes = find_decay_times(~,pert,sol_t)
             pert0 = pert(1,:);
             pert1 = exp(-1)*pert0;
@@ -2483,17 +2594,260 @@ classdef EngineClass <  handle
         function obj = save_obj(obj)
             save(fullfile(obj.resultsPath,[obj.scenarioName 'Obj.mat']),'obj','-v7.3');
         end
-        function obj = save_var(obj,var,path,folder_name,filename)
-            varname = inputname(2);
+
+    end
+    methods (Static)
+        function [] = save_var(var,path,folder_name,filename)
+            varname = inputname(1);
             if ~isfolder(fullfile(path,folder_name))
                 mkdir(fullfile(path,folder_name));
             end
             save(fullfile(path,folder_name,filename),'var','-v7.3');
         end
-    end
-    methods (Static)
         function xout = test_fun(a,b)
             xout = a+b;
+        end
+        function J = compute_J(Dii,Wij,C_D,C_W)
+            J = C_W*(Wij - diag(diag(Wij))) + C_D*(diag(Dii));
+        end
+        function deg_vec = compute_degree_vector_weighted(matrix)
+            deg_vec = sum(matrix,2);
+        end
+        function k_inn = compute_k_inn(matrix)
+            ki = sum(matrix,2);
+            tmp = matrix * ki;
+            k_inn = tmp ./ ki;
+        end
+        function M = create_random_matrix(size_in,isSymmetric)
+            M = rand(size_in);
+            if isSymmetric
+                M = M - tril(M,-1) + tril(M',-1);
+                if isequal(M,M')
+                    disp('M is symmetric');
+                else
+                    disp('M is not symmetric');
+                end
+            end
+        end
+        function [] = check_eigen0()
+            path = fullfile('tests','eigvec_test_1');
+            sizes = [10, 100, 1000, 10000];
+            EngineClass.save_var(sizes,path,'','sizes');
+            for i1 = 1:size(sizes,2)
+                s = sizes(i1);
+                M = EngineClass.create_random_matrix(s,true);
+                EngineClass.save_var(M,path,'matrices',['M-' num2str(s)]);
+            end
+        end
+        function [] = check_eigen1()
+            path = fullfile('tests','eigvec_test_1');
+            mydata = load(fullfile(path,'sizes'),'var');sizes = mydata.var;
+            n_max = 200;
+            EngineClass.save_var(n_max,path,'','n_max');
+            for i1 = 1:size(sizes,2)
+                s = sizes(i1);
+                disp(['s = ' num2str(s)]);
+                mydata = load(fullfile(path,'matrices',['M-' num2str(s)]),'var');M=mydata.var;
+                n = min(n_max,s);
+                [v,d,flag] = eigs(M,n,'largestreal');
+                if flag == 0
+                    disp('Eigenvectors converged');
+                else
+                    disp('Eigenvectors did not converge');
+                end
+                EngineClass.save_var(v,path,'eigvecs',['M-' num2str(s) '-1-v']);
+                EngineClass.save_var(d,path,'eigvals',['M-' num2str(s) '-1-d']);
+            end
+        end
+        function [] = check_eigen2()
+            path = fullfile('tests','eigvec_test_1');
+            mydata = load(fullfile(path,'sizes'),'var');sizes = mydata.var;
+            mydata = load(fullfile(path,'n_max'),'var');n_max = mydata.var;
+            C_Ds = [2 5 10 100 1000];
+            EngineClass.save_var(C_Ds,path,'','C_Ds');
+            for i1 = 1:size(sizes,2)
+                s = sizes(i1);
+                mydata = load(fullfile(path,'matrices',['M-' num2str(s)]),'var');M=mydata.var;
+                for i2 = 1:size(C_Ds,2)
+                    C_D = C_Ds(i2);
+                    disp(['C_D = ' num2str(C_D)]);
+                    M2 = M - diag(diag(M)) + C_D*diag(diag(M));
+                    n = min(n_max,s);
+                    [v,d,flag] = eigs(M2,n,'largestreal');
+                    if flag == 0
+                        disp('Eigenvectors converged');
+                    else
+                        disp('Eigenvectors did not converge');
+                    end
+                    EngineClass.save_var(v,path,'eigvecs',['M-' num2str(s) '-' num2str(C_D) '-v']);
+                    EngineClass.save_var(d,path,'eigvals',['M-' num2str(s) '-' num2str(C_D) '-d']);
+                end
+            end
+        end
+        
+        function [] = check_eigen3()
+            path = fullfile('tests','eigvec_test_1');
+            mydata = load(fullfile(path,'sizes'),'var');sizes = mydata.var;
+            mydata = load(fullfile(path,'C_Ds'),'var');C_Ds = mydata.var;
+            mydata = load(fullfile(path,'n_max'),'var');n_max = mydata.var;
+            for i1 = 1:size(sizes,2)
+                disp(['i1 = ' num2str(i1)]);
+                s = sizes(i1);
+                n = min(s,n_max);
+                mydata = load(fullfile(path,'eigvecs',['M-' num2str(s) '-' num2str(1) '-v']),'var');
+                vecs1 = mydata.var;
+                for i2 = 1:size(C_Ds,2)
+                    disp(['i2 = ' num2str(i2)]);
+                    C_D = C_Ds(i2);
+                    MDots = zeros(n);
+                    mydata = load(fullfile(path,'eigvecs',['M-' num2str(s) '-' num2str(C_D) '-v']),'var');
+                    vecsC_D = mydata.var;
+                    for i3 = 1:n
+                        %disp(['i3 = ' num2str(i3)]);
+                        vi3 = vecs1(:,i3);
+                        for i4 = 1:n
+                            %disp(['i4 = ' num2str(i4)]);
+                            ui4 = vecsC_D(:,i4);
+                            MDots(i3,i4) = dot(vi3,ui4);
+                        end
+                    end
+                    EngineClass.save_var(MDots,path,'MDots',['M-' num2str(s) '-' num2str(C_D) '-MDots']);
+                end
+            end
+        end
+        function [] = check_eigen4()
+            path = fullfile('tests','eigvec_test_1');
+            mydata = load(fullfile(path,'sizes'),'var');sizes = mydata.var;
+            mydata = load(fullfile(path,'C_Ds'),'var');C_Ds = mydata.var;
+            for i1 = 1:size(sizes,2)
+                s = sizes(i1);
+                for i2 = 1:size(C_Ds,2)
+                    C_D = C_Ds(i2);
+                    mydata = load(fullfile(path,'MDots',['M-' num2str(s) '-' num2str(C_D) '-MDots']),'var');
+                    MDots = mydata.var;
+                    name = ['Eigenvectors Dot Product Comparison Matrix $S = ' num2str(s) '$, $C_D = ' num2str(C_D) '$'];
+                    namef = ['fig1-M-' num2str(s) '-C_D-' num2str(C_D)];
+                    f = figure('Name',namef,'NumberTitle','off');
+                    image(abs(MDots),'CDatamapping','scaled');
+                    colorbar;
+                    ylabel('C_D = 1 Eigenvectors');
+                    xlabel(['C_D = ' num2str(C_D) ' Eigenvectors']);
+                    title({name;'$\mid v_i \cdot v_j \mid $'},'interpreter','latex');
+                    EngineClass.save_fig_static(f,namef,path);
+                end
+            end
+        end
+        function [] = check_eigen5()
+            path = fullfile('tests','eigvec_test_1');
+            mydata = load(fullfile(path,'sizes'),'var');sizes = mydata.var;
+            mydata = load(fullfile(path,'C_Ds'),'var');C_Ds = [1 mydata.var];
+            for i1 = 1:size(sizes,2)
+                s = sizes(i1);
+                mydata = load(fullfile(path,'matrices',['M-' num2str(s)]),'var');M = mydata.var;
+                namef = ['fig3-M-' num2str(s)];
+                f = figure('Name',namef,'NumberTitle','off');
+                image(M,'CDatamapping','scaled');
+                colorbar;
+                title(namef);
+                EngineClass.save_fig_static(f,namef,path);
+                namef = ['fig2-M-' num2str(s)];
+                name = ['Eigenvalues Comparison $S = ' num2str(s) '$'];
+                f = figure('Name',namef,'NumberTitle','off');
+                legendStr = {};
+                for i2 = 1:size(C_Ds,2)
+                    C_D = C_Ds(i2);
+                    mydata = load(fullfile(path,'eigvals',['M-' num2str(s) '-' num2str(C_D) '-d']),'var');
+                    eigvals = diag(mydata.var);
+                    plot(eigvals,'o');
+                    hold on;
+                    legendStr{end+1} = ['C_D = ' num2str(C_D)];
+                end
+                xlabel('index');
+                ylabel('Eigenvalues');
+                legend(legendStr);
+                title(name,'Interpreter','latex');
+                EngineClass.save_fig_static(f,namef,path);
+            end
+        end
+        function [] = plot_image_static(M,name,namef,path,mytitle,xlabel,ylabel)
+            f = figure('Name',namef,'NumberTitle','off');
+            image(log10(abs(M)),'CDatamapping','scaled');
+            colorbar;
+            title(mytitle);
+            xlabel(xlabel);
+            ylabel(ylabel);
+            EngineClass.save_fig_static(f,namef,path);
+        end
+        function M2 = compute_M2(M,C_W,C_D)
+            M2 = C_W*(M - diag(diag(M))) + C_D*(diag(diag(M)));
+        end
+        function [vecs,vals] = compute_eigs(M,n)
+            [vecs,vals] = eigs(M,n,'largestreal');
+        end
+        function [e_v, e_l, e_sum] = compute_errors(vecs0,vals0,vecs1,vals1)
+            v0 = vecs0(:,1);
+            v1 = vecs1(:,1);
+            vdot = dot(v0,v1);
+            e_v = 1 - abs(vdot);
+            l0 = vals0(1,1);
+            l1 = vals1(1,1);
+            e_l = l1 - l0;
+            e_sum = abs(e_v) + abs(e_l);
+        end
+        function [e_vs,e_ls,e_sums] = compute_loop(A,M,C_D,C_W,n)
+            %n=3;
+            %A = magic(n);A = A - tril(A,-1) + tril(A',-1);
+            %M = EngineClass.compute_M2(A,2,4);
+            [vecs0,vals0] = EngineClass.compute_eigs(A,n);
+            %[vecs1,vals1] = EngineClass.compute_eigs(M,n);
+            %C_D = [-1:.5:2];C_W = [-1:.25:1.25];
+            tic;
+            e_vs = [];e_ls = []; e_sums = [];
+            for i=1:size(C_D,2)
+                disp(['i=' num2str(i)]);
+                C_Di = C_D(i);
+                parfor j=1:size(C_W,2)
+                    disp(['j=' num2str(j)]);
+                    M2 = EngineClass.compute_M2(M,C_Di,C_W(j));
+                    [vecs,vals] = EngineClass.compute_eigs(M2,n);
+                    [e_vs(j,i), e_ls(j,i), e_sums(j,i)] = EngineClass.compute_errors(vecs0,vals0,vecs,vals);
+                end
+            end
+            toc;
+            [X,Y] = meshgrid(C_D,C_W);
+            path = fullfile('tests','eigvec_test_1');
+            f=figure;surf(X,Y,e_vs);xlabel('C_D');ylabel('C_W');zlabel('e_v');
+            title('Error in first eigenvector $1 - \mid v \cdot \hat{v} \mid$','Interpreter','latex');
+            EngineClass.save_fig_static(f,'e_vs',path);
+            f=figure;surf(X,Y,abs(e_ls));xlabel('C_D');ylabel('C_W');zlabel('|e_l|');
+            title('Error in first eigenvalue $ \mid \lambda - \hat{\lambda} \mid $','Interpreter','latex');
+            EngineClass.save_fig_static(f,'abs_e_ls',path);
+            f=figure;surf(X,Y,e_sums);xlabel('C_D');ylabel('C_W');zlabel('|e_v| + |e_l|');
+            title('Sum of errors in first eigenvector and eigenvalue');
+            EngineClass.save_fig_static(f,'e_sum',path);
+            figure;plot(C_D,e_vs(6,:));xlabel('C_D, C_W = .25');ylabel('e_vs');
+            figure;plot(C_W,e_vs(:,4));xlabel('C_W, C_D = .5');ylabel('e_vs');
+            figure;plot(C_D,abs(e_ls(6,:)));xlabel('C_D, C_W = .25');ylabel('e_ls');
+            figure;plot(C_W,abs(e_ls(:,4)));xlabel('C_W, C_D = .5');ylabel('e_ls');
+        end
+        function [] = save_fig_static(f,name,path)
+            if ~isfolder(fullfile(path,'figs'))
+                mkdir(fullfile(path,'figs'));
+            end
+            try
+                saveas(f,fullfile(path,'figs',name),'fig');
+            catch exception
+                disp(exception.message);
+            end
+            try
+                saveas(f,fullfile(path,'figs',name),'png');
+            catch exception
+                disp(exception.message);
+            end
+        end
+        function [M] = test_global()
+            global M;
+            M(end+1) = 1;
         end
     end
     
