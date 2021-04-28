@@ -61,6 +61,8 @@ classdef EngineClass <  handle
         binseigvecana
         binseigvecasy_permuted
         kbinned
+        kbinned_mins
+        kbinned_maxs
         kijbinned
         Dii_anabinned
         Dii_asybinned
@@ -75,7 +77,7 @@ classdef EngineClass <  handle
         errors2_v3
         eigvals_v3
         eigvecs_v3
-        numeigen=10;
+        numeigen=6000;
         numeigenplots = 5;
         numeigenplots2 = 200;
         eigvec_dist_comparison_mat_ana2asy
@@ -170,7 +172,7 @@ classdef EngineClass <  handle
             tol = 1e-13;
             disp('obj.bins = obj.set_bins_generic');
             obj.bins = obj.set_bins_generic(obj.numbins,obj.degree_vector_weighted,tol,true(obj.N,1));
-            disp('obj.kbinned = obj.set_binned_vals'); obj.kbinned = obj.set_binned_vals(obj.degree_vector_weighted,obj.bins);
+            disp('obj.kbinned = obj.set_binned_vals'); [obj.kbinned,obj.kbinned_mins,obj.kbinned_maxs] = obj.set_binned_vals(obj.degree_vector_weighted,obj.bins);
             disp('obj.Dii_asybinned = obj.set_binned_vals'); obj.Dii_asybinned = obj.set_binned_vals(obj.Dii_asy,obj.bins);
             x = obj.degree_vector_weighted;x2 = (x.^obj.nu) * (x.^obj.rho)';x3 = x2(:);
             disp('obj.binsij = obj.set_bins_generic'); obj.binsij = obj.set_bins_generic(obj.numbins,x3,tol,obj.adjacencyMatrix>0);
@@ -217,14 +219,17 @@ classdef EngineClass <  handle
                 disp(['num_vals = ' num2str(num_vals)])
             end
         end
-        function vals_binned = set_binned_vals(~,values_vec,bins)
-            vals_binned = zeros(size(bins,1),size(values_vec,2));
-            for j = 1:size(values_vec,2)
+        function [vals_binned,vals_binned_mins,vals_binned_maxs] = set_binned_vals(~,values_vec,bins)
+            n = size(bins,1);m=size(values_vec,2);
+            vals_binned = zeros(n,m);vals_binned_mins = zeros(n,m);vals_binned_maxs = zeros(n,m);
+            for j = 1:m
                 values_vec_j = values_vec(:,j);
-                for i=1:size(vals_binned,1)
+                for i=1:n
                     ind = bins{i,1};
                     if ~isempty(ind)
                         vals_binned(i,j) = mean(values_vec_j(ind));
+                        [vals_binned_mins(i,j),~] = min(values_vec_j(ind));
+                        [vals_binned_maxs(i,j),~] = max(values_vec_j(ind));
                     end
                 end
             end
@@ -598,16 +603,17 @@ classdef EngineClass <  handle
                 obj.set_J_ana_degree_vector_weighted();
                 obj.set_J_ana_k_inn();
                 obj.set_eig_ana();
+                obj.set_eig_ana_ordered_nodes();
                 obj.Dii_anabinned = obj.set_binned_vals(obj.Dii_ana,obj.bins);
                 obj.Wij_anabinned = obj.set_binned_vals(obj.Wij_ana(obj.adjacencyMatrix>0),obj.binsij);
-                obj.C_D_set = obj.find_constants_binned_sets(obj.Dii_anabinned,obj.Dii_asybinned);
-                obj.C_W_set = obj.find_constants_binned_sets(obj.Wij_anabinned,obj.Wij_asybinned);
-                [obj.C_D_v3, obj.guesses1_v3, obj.guesses2_v3, obj.errors1_v3, obj.errors2_v3, obj.eigvals_v3,obj.eigvecs_v3] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.1);
-                [obj.C_D_v4, obj.guesses1_v4, obj.guesses2_v4, obj.errors1_v4, obj.errors2_v4, obj.eigvals_v4,obj.eigvecs_v4] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.5,obj.permutation_eigvec_ana2asy);
+%                 obj.C_D_set = obj.find_constants_binned_sets(obj.Dii_anabinned,obj.Dii_asybinned);
+%                 obj.C_W_set = obj.find_constants_binned_sets(obj.Wij_anabinned,obj.Wij_asybinned);
+%                 [obj.C_D_v3, obj.guesses1_v3, obj.guesses2_v3, obj.errors1_v3, obj.errors2_v3, obj.eigvals_v3,obj.eigvecs_v3] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.1);
+%                 [obj.C_D_v4, obj.guesses1_v4, obj.guesses2_v4, obj.errors1_v4, obj.errors2_v4, obj.eigvals_v4,obj.eigvecs_v4] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.5,obj.permutation_eigvec_ana2asy);
                 obj.set_eigvec_comparison_mats(true,false);
-                obj.set_permutation_eigvec_ana2asy(40);
+                obj.set_permutation_eigvec_ana2asy(0);
                 obj.set_eig_asy_permuted();
-                [eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_set, Wij_asy_set] = obj.set_eig_v2_sets(obj.Dii_asy, obj.Wij_asy, obj.C_D_set, obj.C_W_set, obj.numeigen,1);
+%                 [eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_set, Wij_asy_set] = obj.set_eig_v2_sets(obj.Dii_asy, obj.Wij_asy, obj.C_D_set, obj.C_W_set, obj.numeigen,1);
                 for i = 1:obj.numeigenplots
                     obj.binseigvecana{i,1} = obj.set_bins_generic(obj.numbins,abs(obj.eigenvectors_ana(:,i)),1e-13,true(obj.N,1));
                     obj.binseigvecasy_permuted{i,1} = obj.set_bins_generic(obj.numbins,abs(obj.eigenvectors_asy_permuted(:,i)),1e-13,true(obj.N,1));
@@ -619,6 +625,7 @@ classdef EngineClass <  handle
                 obj.eigenvectors_asy_permuted_binned_k = obj.set_binned_vals(obj.eigenvectors_asy_permuted,obj.bins);
                 obj.eigenvectors_asy_permuted_binned_kinn = obj.set_binned_vals(obj.eigenvectors_asy_permuted,obj.binskinn);
                 obj.set_eigvec_comparison_mats(false,true);
+                obj.set_weighted_dot_products();
                 obj.pert_eigvec_ana_1 = obj.set_pert_eigvec_1(obj.eigenvectors_ana);
                 obj.pert_eigvec_asy_1 = obj.set_pert_eigvec_1(obj.eigenvectors_asy_permuted);
                 if norm(obj.steady_state) < obj.absTol
@@ -889,9 +896,18 @@ classdef EngineClass <  handle
         end
         function obj = set_eig_ana(obj)
             [obj.eigenvalues_ana, obj.eigenvectors_ana, ~, ~] = obj.set_eig(obj.Dii_ana,obj.Wij_ana,1,1,obj.numeigen,1);
+            obj.save_var(obj.eigenvalues_ana,obj.resultsPath,'obj_properties','eigenvalues_ana');
+            obj.save_var(obj.eigenvectors_ana,obj.resultsPath,'obj_properties','eigenvectors_ana');
+        end
+        function obj = set_eig_ana_ordered_nodes(obj)
+            [ind_bins_var,binned_vals] = EngineClass.set_bins_percentiles(1,obj.degree_vector_weighted);
+            [ordered_eigs] = EngineClass.reorder_eigvecs_nodes(obj.eigenvectors_ana, ind_bins_var);
+            obj.save_var(ordered_eigs,obj.resultsPath,'obj_properties','eigenvectors_ana_ordered_nodes');
         end
         function obj = set_eig_asy(obj)
             [obj.eigenvalues_asy, obj.eigenvectors_asy, ~, ~] = obj.set_eig(obj.Dii_asy,obj.Wij_asy,1,1,obj.numeigen,1);
+            obj.save_var(obj.eigenvalues_asy,obj.resultsPath,'obj_properties','eigenvalues_asy');
+            obj.save_var(obj.eigenvectors_asy,obj.resultsPath,'obj_properties','eigenvectors_asy');
         end
         function [eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_v2_set, Wij_asy_v2_set, Dii_asy_v2_binned_set, Wij_asy_v2_binned_set] = set_eig_v2_sets(obj, Dii_asy, Wij_asy, C_D_set, C_W_set, numeigen, iscalceigen)
             num_constants = size(C_D_set,1);
@@ -940,25 +956,31 @@ classdef EngineClass <  handle
 %             disp('Done');
 %         end
         function [M1, M2, M3] = compute_comparison_matrix(obj,vectors_1,vectors_2,isSaveM2,varNameStr)
+            tic;
             n1 = size(vectors_1,2);
             n2 = size(vectors_2,2);
             M1 = zeros(n1,n2);M2 = M1;M3 = M1;            
-            for i = 1:n1
+            parfor i = 1:n1
                 if mod(i,100) == 0
                     disp(['i = ' num2str(i)]);
                 end
                 ui = vectors_1(:,i);
-                for j = 1:n2
-                    vj = vectors_2(:,j);                    
-                    % L2 norm of difference between vectors
-                    m1 = norm(ui - vj);
-                    % dot product of norm of vectors
-                    m2 = abs(dot(ui,vj));
-                    % angle between vectors
-                    m3 = rad2deg(acos(dot(ui/norm(ui),vj/norm(vj))));                    
-                    M1(i,j) = m1; M2(i,j) = m2; M3(i,j) = m3;
-                end
+                uimat = ui + zeros(size(vectors_2));
+                m2 = abs(dot(uimat,vectors_2));M2(i,:) = m2;
+                m3 = rad2deg(acos(m2)); M3(i,:) = m3;
+%                 parfor j = 1:n2
+%                     vj = vectors_2(:,j);                    
+%                     % L2 norm of difference between vectors
+%                     %m1 = norm(ui - vj);
+%                     % dot product of vectors
+%                     m2 = abs(dot(ui,vj));
+%                     % angle between vectors
+%                     m3 = rad2deg(acos(m2));                    
+%                     %M1(i,j) = m1;
+%                     M2(i,j) = m2; M3(i,j) = m3;
+%                 end
             end
+            toc;
             if isSaveM2
                 obj.save_var(M2,obj.resultsPath,'obj_properties',varNameStr);
             end
@@ -982,10 +1004,12 @@ classdef EngineClass <  handle
                 obj.eigvec_dist_comparison_mat_ana2asy = dist;
                 obj.eigvec_angle_comparison_mat_ana2asy = angles;
                 obj.eigvec_dot_comparison_mat_ana2asy = absdot;
+                EngineClass.save_var(obj.eigvec_dot_comparison_mat_ana2asy,obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy');
             elseif computePermuted
                 obj.eigvec_dist_comparison_mat_ana2asy_permuted = dist;
                 obj.eigvec_angle_comparison_mat_ana2asy_permuted = angles;
                 obj.eigvec_dot_comparison_mat_ana2asy_permuted = absdot;
+                EngineClass.save_var(obj.eigvec_dot_comparison_mat_ana2asy_permuted,obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy_permuted');
             end
             if ~isequal(real(angles),angles)
                 disp('Warning: eigvec_angle_comparison_mat has complex values');
@@ -1020,6 +1044,27 @@ classdef EngineClass <  handle
         function obj = set_eig_asy_permuted(obj)
             obj.eigenvalues_asy_permuted = obj.eigenvalues_asy(obj.permutation_eigvec_ana2asy);
             obj.eigenvectors_asy_permuted = obj.eigenvectors_asy(:,obj.permutation_eigvec_ana2asy);
+        end
+        function obj = set_weighted_dot_products(obj)
+            s = size(obj.eigenvectors_ana,2);
+            step = s/100; disp('1');
+            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,obj.degree_vector_weighted,obj.kbinned_mins,true,[0:step:s]',true);
+            EngineClass.save_var(wdp,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_1');
+            EngineClass.save_var(wdpm,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_1');
+            disp('2');
+            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,obj.degree_vector_weighted,obj.kbinned_maxs,false,[0:step:s]',true);
+            EngineClass.save_var(wdp,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_2');
+            EngineClass.save_var(wdpm,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_2');
+            disp('3');
+            [ind_bins_var,binned_vals] = EngineClass.set_bins_percentiles(20,obj.degree_vector_weighted);
+            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,obj.degree_vector_weighted,binned_vals(1,:)',true,[0:step:s]',true);
+            EngineClass.save_var(wdp,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_3');
+            EngineClass.save_var(wdpm,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_3');
+            disp('4');
+            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,obj.degree_vector_weighted,binned_vals(1,:)',true,[0:step:s]',false);
+            EngineClass.save_var(wdp,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_4');
+            EngineClass.save_var(wdpm,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_4');
+            
         end
         function obj = print_output(obj) %create output file
             T = array2table([obj.solution_t,obj.solution_x],'VariableNames',obj.header);
@@ -1652,37 +1697,45 @@ classdef EngineClass <  handle
             catch exception
                 disp(['plot_eigenvalues: load eigvals_asy_v5.mat exception: ' exception.message]);
             end
-            name = 'fig5a';
-            figdesc = 'Jacobian Eigenvalues';
-            legendStr = {};
-            legendInd = 1;
-            f = figure('Name',name,'NumberTitle','off');
-            plot(real(obj.eigenvalues_ana),'*-');
-            legendStr{legendInd} = 'Analytic Jacobian'; legendInd = legendInd + 1;
-            hold on;
-            plot(real(obj.eigenvalues_asy),'^-');
-            legendStr{legendInd} = 'Asymptotic Jacobian'; legendInd = legendInd + 1;
-            if exist('eigvals_asy_v2_set','var')
-                n = size(eigvals_asy_v2_set,1);
-                for i =1:n
-                    plot(eigvals_asy_v2_set{i,1},'v-');
-                    legendStr{legendInd} = ['Asymptotic Jacobian v2-' num2str(i)];legendInd=legendInd+1;
+            suf1 = {'-Real', '-Complex','-abs'};
+            desc1 = {' real part', ' complex valued', ' absolute value'};
+            xlabs = {'$i$', '$Re(\lambda_i)$', '$i$'};
+            ylabs = {'$Re(\lambda_i)$','$Im(\lambda_i)$' ,'$\mid \lambda_i \mid$'};
+            fs = {@real, @(x) (1*x), @abs};
+            for i1 = 1:length(fs)
+                name = ['fig5a' suf1{i1}];
+                figdesc = ['Jacobian Eigenvalues' desc1{i1}];
+                legendStr = {};
+                legendInd = 1;
+                f = figure('Name',name,'NumberTitle','off');
+                plot(fs{i1}(obj.eigenvalues_ana),'*-');
+                legendStr{legendInd} = 'Analytic Jacobian'; legendInd = legendInd + 1;
+                hold on;
+                plot(fs{i1}(obj.eigenvalues_asy),'^-');
+                legendStr{legendInd} = 'Asymptotic Jacobian'; legendInd = legendInd + 1;
+                if exist('eigvals_asy_v2_set','var')
+                    n = size(eigvals_asy_v2_set,1);
+                    for i =1:n
+                        plot(fs{i1}(eigvals_asy_v2_set{i,1}),'v-');
+                        legendStr{legendInd} = ['Asymptotic Jacobian v2-' num2str(i)];legendInd=legendInd+1;
+                    end
                 end
+                plot(fs{i1}(obj.eigvals_v3),'s-');
+                legendStr{legendInd} = ['Asymptotic Jacobian v3, C_D = ' num2str(obj.C_D_v3)];legendInd=legendInd+1;
+                if exist('eigvals_asy_v5','var')
+                    plot(fs{i1}(eigvals_asy_v5),'o-');
+                    legendStr{legendInd} = ['Asymptotic Jacobian v5'];legendInd=legendInd+1;
+                end
+                xlabel(xlabs{i1},'Interpreter','latex');
+                ylabel(ylabs{i1},'Interpreter','latex');
+                title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+                legend(legendStr);
+                obj.save_fig(f,name);
             end
-            plot(obj.eigvals_v3,'s-');
-            legendStr{legendInd} = ['Asymptotic Jacobian v3, C_D = ' num2str(obj.C_D_v3)];legendInd=legendInd+1;
-            if exist('eigvals_asy_v5','var')
-                plot(eigvals_asy_v5,'o-');
-                legendStr{legendInd} = ['Asymptotic Jacobian v5'];legendInd=legendInd+1;                
-            end
-            xlabel('n');
-            ylabel('real(\lambda_n)');
-            title({[name ' ' obj.scenarioName];obj.desc;figdesc});
-            legend(legendStr);
-            obj.save_fig(f,name);
         end
         function plot_eigenvectors(obj,usePermuted)
-            n = obj.numeigenplots2;
+            %n = obj.numeigenplots2;
+            n = obj.numeigen;
             if usePermuted
                 e2 = obj.eigenvectors_asy_permuted(:,1:n);
                 suf = '-Permuted';
@@ -1721,6 +1774,21 @@ classdef EngineClass <  handle
             title({[name ' ' obj.scenarioName];obj.desc;figdesc});
             legend('Analytic Jacobian vs Asymptotic Jacobian');
             obj.save_fig(f,name);
+            %%% fig6b-1
+            suf2 = {'','-1'};d = dot(e1,e2);
+            x1 = 1:size(d,2);x2 = -1./obj.eigenvalues_ana(1:n,:);
+            x = {x1,x2};xlabs = {'v_i','$-1/\lambda_i$'};
+            figdesc = ['Jacobian Eigenvectors Dot Comparison' suf];
+            for i1 = 1:size(x,2)
+                name = ['fig6b-1' suf suf2{i1}];
+                f = figure('Name',name,'NumberTitle','off');
+                plot(x{i1},abs(d),'*-');
+                xlabel(xlabs{i1},'Interpreter','latex');
+                ylabel('$\mid v \cdot \hat{v} \mid$','interpreter','latex');
+                title({[name ' ' obj.scenarioName];obj.desc;figdesc});
+                legend('Analytic Jacobian vs Asymptotic Jacobian');
+                obj.save_fig(f,name);
+            end
             %% fig6c
             name = ['fig6c' suf];
             figdesc = ['Jacobian Eigenvectors Distance Comparison Matrix' suf];
@@ -2486,6 +2554,7 @@ classdef EngineClass <  handle
                 end
             end
         end
+        %%
         function obj = plot_eigenvectors3(obj)
             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_asy2asy-v2-14.mat'),'var');
             eigvec_dot_comparison_mat_asy2asy_v2_14 = mydata.var;
@@ -2514,6 +2583,213 @@ classdef EngineClass <  handle
                 obj.save_fig(f,name);
             end
         end
+        %% fig17*
+        function obj = plot_eigenvectors4(obj)
+            for i=1:4
+                str = ['mydata = load(fullfile(obj.resultsPath,''obj_properties'',''eigvec_ana_asy_perm_weighted_dot_products_' num2str(i) '''),''var'');'];
+                eval(str);
+                str = ['wdp' num2str(i) '= mydata.var;'];
+                eval(str);
+                str = ['mydata = load(fullfile(obj.resultsPath,''obj_properties'',''eigvec_ana_asy_perm_weighted_dot_products_mean_' num2str(i) '''),''var'');'];
+                eval(str);
+                str = ['wdpm' num2str(i) '= mydata.var;'];
+                eval(str);
+            end
+%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_1'),'var');
+%             wdp1 = mydata.var;
+%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_1'),'var');
+%             wdpm1 = mydata.var;
+%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_2'),'var');
+%             wdp2 = mydata.var;
+%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_2'),'var');
+%             wdpm2 = mydata.var;
+%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_3'),'var');
+%             wdp3 = mydata.var;
+%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_3'),'var');
+%             wdpm3 = mydata.var;
+            name = 'fig17-1';
+            f = figure('Name',name,'NumberTitle','off');
+            figdesc = 'Weighted dot products (using only $k_i > k_0$) of corresponding eigenvectors';
+%            semilogx(obj.eigenvalues_ana,abs(wdp1),'o');
+            m = size(wdp1,2);
+            legendStr1 = cell(m,1);
+            for i=1:m
+                legendStr1{i,1} = ['k_0 = ' num2str(obj.kbinned_mins(i))];
+            end
+            legend(legendStr1);
+            xlabel('$\lambda$','Interpreter','latex');
+            ylabel('$\mid v \cdot_{>k_0} \hat{v}\mid$','Interpreter','latex');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+            obj.save_fig(f,name);
+            %%%%
+            name = 'fig17-2';
+            f = figure('Name',name,'NumberTitle','off');
+            figdesc = 'Weighted dot products (using only $k_i < k_0$) of corresponding eigenvectors';
+%            semilogx(obj.eigenvalues_ana,abs(wdp2),'o');
+            m = size(wdp2,2);
+            legendStr2 = cell(m,1);
+            for i=1:m
+                legendStr2{i,1} = ['k_0 = ' num2str(obj.kbinned_maxs(i))];
+            end
+            legend(legendStr2);
+            xlabel('$\lambda$','Interpreter','latex');
+            ylabel('$\mid v \cdot_{<k_0} \hat{v}\mid$','Interpreter','latex');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+            obj.save_fig(f,name);
+            %%%%%%
+            name = 'fig17-3';
+            f = figure('Name',name,'NumberTitle','off');
+            figdesc = 'Weighted dot products (using only $k_i > k_0$) of corresponding eigenvectors historgrams';
+            for i=1:m
+                histogram(abs(wdp1(:,i)));
+                hold on;
+            end
+            legend(legendStr1);
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+            obj.save_fig(f,name);
+            %%%%%%
+            name = 'fig17-4';
+            f = figure('Name',name,'NumberTitle','off');
+            figdesc = 'Weighted dot products (using only $k_i < k_0$) of corresponding eigenvectors historgrams';
+            for i=1:m
+                histogram(abs(wdp2(:,i)));
+                hold on;
+            end
+            legend(legendStr2);
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+            obj.save_fig(f,name);
+            %%%%%
+            name = 'fig17-5';
+            f = figure('Name',name,'NumberTitle','off');
+            figdesc = 'Average Weighted dot products of corresponding eigenvectors';
+            image(wdpm1,'CDatamapping','scaled');
+            colorbar;
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+            xlabel('k_0');
+            s = size(wdpm1,1);n = 100/s;ytickstep = 5;
+            xticks(1:15);xticklabels(strsplit(num2str(obj.kbinned_mins')));
+            yticks(ytickstep:ytickstep:s);yticklabels(strsplit(num2str(s - ytickstep:-ytickstep:ytickstep)));
+            ylabel('Percentile of eigenvectors (0 = all, 99 = first 60)');
+            obj.save_fig(f,name);
+            %%%%%
+            name = 'fig17-7';
+            f = figure('Name',name,'NumberTitle','off');
+            figdesc = 'Average Weighted dot products of corresponding eigenvectors';
+            image(wdpm3,'CDatamapping','scaled');
+            colorbar;
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+            s = size(wdpm3,1);n = 100/s;ytickstep = 5;
+            xlabel('Node degree percentile (0 = all, 90 = hubs)');
+            xticks(1:20);xticklabels(strsplit(num2str(5:5:100)));
+            yticks(ytickstep:ytickstep:s);yticklabels(strsplit(num2str(s - ytickstep:-ytickstep:ytickstep)));
+            ylabel('Percentile of eigenvectors (0 = all, 99 = first 60)');
+            obj.save_fig(f,name);
+            %%%%%            
+            name = 'fig17-8';
+            f = figure('Name',name,'NumberTitle','off');
+            figdesc = 'Average Weighted dot products of corresponding eigenvectors (reverse order)';
+            image(wdpm4,'CDatamapping','scaled');
+            colorbar;
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+            s = size(wdpm4,1);n = 100/s;ytickstep = 5;
+            xlabel('Node degree percentile (0 = all, 90 = hubs)');
+            xticks(1:20);xticklabels(strsplit(num2str(5:5:100)));
+            yticks(ytickstep:ytickstep:s);yticklabels(strsplit(num2str(s - ytickstep:-ytickstep:ytickstep)));
+            ylabel('Percentile of eigenvectors (0 = all, 99 = last 60)');
+            obj.save_fig(f,name);
+            %%%%%
+        end
+        %%
+        function obj = plot_eigenvectors5(obj)
+            %%% fig18-1
+            if ~isequal(sum(sum(abs(imag(obj.eigenvalues_ana)))),0)
+                disp('there are complex ana eigenvalues');
+            end
+            if ~isequal(sum(sum(abs(imag(obj.eigenvalues_asy)))),0)
+                disp('there are complex asy eigenvalues');
+            end
+            if ~isequal(sum(sum(abs(imag(obj.eigenvectors_ana)))),0)
+                disp('there are complex ana eigenvectors');
+            end
+            if ~isequal(sum(sum(abs(imag(obj.eigenvectors_asy)))),0)
+                disp('there are complex asy eigenvectors');
+            end
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana_ordered_nodes'),'var');
+            tmp = mydata.var;evo = tmp(end:-1:1,:);
+            [ind_bins_var,binned_vals] = EngineClass.set_bins_percentiles(1,obj.degree_vector_weighted);
+            w = obj.degree_vector_weighted.*ones(size(obj.eigenvectors_ana));
+            fs = {@abs,@real,@imag};suf1 = {'-abs','-real','-imag'};
+            desc1 = {'\mid', 'Re(', 'Im('};desc2 = {'\mid', ')', ')'};
+            for i1 = 1:length(fs)
+                name = ['fig18-1' suf1{i1}];
+                f = figure('Name',name,'NumberTitle','off');
+                figdesc = ['Eigenvectors mass distribution $ ' desc1{i1} ' v ' desc2{i1} ' $'];
+                image((fs{i1}(evo)),'CDatamapping','scaled');
+                colorbar;set(gca,'ColorScale','log')
+                title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+                yticks(1000:1000:6000);yticklabels(strsplit(num2str(binned_vals(end-1000:-1000:1000)')));
+                xlabel('$v^{(i)}$','Interpreter','latex');ylabel('$k_i$','Interpreter','latex');
+                obj.save_fig(f,name);
+            end
+            %%% fig18-2
+            %%% fig18-3            
+            w2 = obj.degree_vector_weighted/norm(obj.degree_vector_weighted) .* ones(size(obj.eigenvectors_ana));
+            ws = {w,w2};
+            x1 = 1:size(obj.eigenvectors_ana,2);
+            x2 = -1./obj.eigenvalues_ana;x3 = real(obj.eigenvalues_ana);
+            x2asy = -1./obj.eigenvalues_asy_permuted;
+            x = {x1,x2,x3}; xasy = {x1,x2asy};suf = {'','-2','-3'}; 
+            xlabs = {'$v^{(i)}$','$Re(-1/\lambda_i)$','$Re(\lambda_i)$'};
+            midstr = {'','\mid'};
+            
+            suf2 = {'','-1'}; suf3 = {'','-absv'};
+            descsuf = {'','-normalized'}; fs = {@(x) (1*x), @abs};
+            for i3 = 1:length(fs)
+                f = fs{i3};g = fs{end - i3 + 1};
+                ylabs = {[ '$' midstr{end-i3+1} midstr{i3} ' v ' midstr{i3} ' \cdot k ' midstr{end-i3+1} '$' ],...
+                    ['$' midstr{end-i3+1} midstr{i3} ' v ' midstr{i3} ' \cdot \hat{k}' midstr{end-i3+1} '$']};
+                for i2 = 2:length(ws)
+                    ws1 = g(dot(f(obj.eigenvectors_ana),ws{i2}));
+                    ws2 = g(dot(f(obj.eigenvectors_asy_permuted),ws{i2}));
+                    figdesc = ['Eigenvectors weighted sum' descsuf{i2}];
+                    for i1 = 2:length(x)
+                        name = ['fig18-3' suf{i1} suf2{i2} suf3{i3}];
+                        f = figure('Name',name,'NumberTitle','off');
+                        plot(x{i1},ws1,'-o');hold on;
+                        plot(x{i1},ws2,'o-');
+                        %                     plot(xasy{i1},ws2,'o-');
+                        legend('Real Eigenvectors','Theoretical Eigenvectors');
+                        xlabel(xlabs{i1},'Interpreter','latex');
+                        ylabel(ylabs{i2},'Interpreter','latex');
+                        title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+                        obj.save_fig(f,name);
+                    end
+                end
+            end
+            %%% fig18-4
+            ws1 = abs(dot(obj.eigenvectors_ana,w2));
+            [maxana,imaxana] = max(ws1); [minana,iminana] = min(ws1);
+            ws2 = abs(dot(obj.eigenvectors_asy_permuted,w2));            
+            [maxasy,imaxasy] = max(ws2); [minasy,iminasy] = min(ws2);
+            [B,I] = sort(obj.degree_vector_weighted);
+            parvecana = obj.eigenvectors_ana(I,imaxana);
+            perpvecana = obj.eigenvectors_ana(I,iminana);
+            parvecasy = obj.eigenvectors_asy_permuted(I,imaxasy);
+            perpvecasy = obj.eigenvectors_asy_permuted(I,iminasy);
+            y = [parvecana,perpvecana,parvecasy,perpvecasy];
+            name = 'fig18-4';
+            figdesc = 'Eigenvector node values vs. Degree';
+            f = figure('Name',name,'NumberTitle','off');
+            loglog(B,abs(y),'*-');
+            legend(['v_{re,par}, ind = ' num2str(imaxana) ', dot = ' num2str(maxana)],...
+                ['v_{re,perp}, ind = ' num2str(iminana) ', dot = ' num2str(minana)],...
+                ['v_{th,par}, ind = ' num2str(imaxasy) ', dot = ' num2str(maxasy)],...
+                ['v_{th,perp}, ind = ' num2str(iminasy) ', dot = ' num2str(minasy)]);
+            xlabel('$k_i$','Interpreter','latex');ylabel('$ \mid v_i \mid $ ($i^{th}$ element of v, sorted by degree)','Interpreter','latex');
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');            
+            obj.save_fig(f,name);
+        end
+        %%
         function obj = plot_jacobian2(obj)
             Jana = obj.Wij_ana + diag(obj.Dii_ana);
             Jasy = obj.Wij_asy + diag(obj.Dii_asy);
@@ -2617,6 +2893,49 @@ classdef EngineClass <  handle
             ki = sum(matrix,2);
             tmp = matrix * ki;
             k_inn = tmp ./ ki;
+        end
+        function weighted_dot = compute_weighted_dot_product(v1,v2,weights_vector,weights_threshold,is_greater_than_threshold)
+            if is_greater_than_threshold
+                mask = weights_vector >= weights_threshold;
+            else
+                mask = weights_vector <= weights_threshold;
+            end
+            v1_masked = v1(mask);v1_masked_normed = v1_masked/norm(v1_masked);
+            v2_masked = v2(mask);v2_masked_normed = v2_masked/norm(v2_masked);
+            weighted_dot = dot(v1_masked_normed,v2_masked_normed);
+        end
+        function [weighted_dots,weighted_dots_means] = compute_weighted_dot_products(v1_set,v2_set,weights_vector,weights_thresholds,is_greater_than_threshold,vector_indices_for_averaging,is_first_n_indices)
+            n = size(v1_set,2);
+            m = size(weights_thresholds,1);
+            o = size(vector_indices_for_averaging,1)-1;
+            weighted_dots = zeros(n,m);
+            weighted_dots_means = zeros(o,m);
+            for j = 1:m
+                weights_threshold = weights_thresholds(j,1);
+                for i=1:n
+                    v1 = v1_set(:,i);v2 = v2_set(:,i);
+                    weighted_dots(i,j) = EngineClass.compute_weighted_dot_product(v1,v2,weights_vector,weights_threshold,is_greater_than_threshold);
+                end
+            end
+            for k = 1:o
+                vec_ind = vector_indices_for_averaging(k+1);
+                if is_first_n_indices
+                    weighted_dots_means(k,:) = mean(abs(weighted_dots(1:vec_ind,:)),1);
+                else
+                    weighted_dots_means(k,:) = mean(abs(weighted_dots(end-vec_ind+1:end,:)),1);
+                end
+            end
+        end
+        function [ind_bins_var,binned_vals] = set_bins_percentiles(numbins,values_vec)
+            n = size(values_vec,1);
+            bin_size = n/numbins;            
+            [B,I] = sort(values_vec);
+            sz = [bin_size,numbins];
+            ind_bins_var = reshape(I,sz);
+            binned_vals = reshape(B,sz);            
+        end
+        function [ordered_eigs] = reorder_eigvecs_nodes(eigvec_set, new_ordering)
+            ordered_eigs = eigvec_set(new_ordering,:);
         end
         function M = create_random_matrix(size_in,isSymmetric)
             M = rand(size_in);

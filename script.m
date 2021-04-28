@@ -876,3 +876,91 @@ obj.plot_eigenvalues();
 obj1.solve(1,1,1,1);
 obj1.solve(2,1,1,1);
 obj1.solve(3,1,1,1);
+%%
+%obj.save_obj();
+clear obj;
+tests = {'test16REG1','test24ECO1','test25BIO1'};
+% tests = {'test25BIO1'};
+
+for i=1:length(tests)
+    disp(['i = ' num2str(i)]);
+    test = tests{i};
+    testobj = [test 'Obj.mat'];
+    mypath = fullfile('tests',test,'results',testobj);
+    load(mypath);
+%     obj.numeigen = 6000;
+%     [obj.kbinned,obj.kbinned_mins,obj.kbinned_maxs] = obj.set_binned_vals(obj.degree_vector_weighted,obj.bins);
+%     obj.set_eig_asy();
+%     obj.set_eig_ana();
+%     obj.set_eigvec_comparison_mats(true,false);
+%     obj.set_permutation_eigvec_ana2asy(0);
+%     obj.set_eig_asy_permuted();
+%     obj.set_eigvec_comparison_mats(false,true);
+%     obj.set_weighted_dot_products();
+%     obj.set_eig_ana_ordered_nodes();
+%     obj.plot_eigenvectors(true);
+%     obj.plot_eigenvectors4();
+    obj.plot_eigenvectors5();
+%     obj.save_obj();
+    clear obj;
+end
+%% test16REG1
+% obj.absTol = 1e-18;obj.relTol = 1e-20; obj.solverTimeStep =
+% .2;obj.maxTime=1000;
+obj.solve(1,1,1,1);
+obj.plot_eigenvectors(true);
+obj.plot_eigenvectors4();
+    obj.plot_eigenvectors5();
+    %%
+    %% test26REG2 A = SF1 a=1/2
+name = 'test26REG2';
+desc = 'SF1';
+seed = 1;
+rng(seed);
+load(fullfile('networks','SF1.mat'));
+x0 = rand(1,6000)';
+maxT = 1000;
+maxDt = 0.01;
+timeStep = .2;
+m0 = @(x) (-x^(1/2));
+m1 = @() (1);
+m2 = @(x) (x./(1+x));
+difEqSolver = @ode45;
+absTol = 1e-20;
+relTol = 1e-20;
+resultsPath = fullfile('tests',name,'results');
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2'};
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath};
+props = containers.Map(myKeys,myValues);
+REG = EngineClass(props);
+%display(SIS)
+disp('now solving');
+REG.solve();
+REG.print_output();
+REG.plot_results(true);
+REG.plot_steady_vs_degree();
+%REG.mu = 1; REG.nu = -1; REG.rho = 0; REG.eta = 0;
+REG.save_obj();
+REG.plot_jacobian;
+REG.set_Dii_ana();
+REG.set_Wij_ana();
+REG.set_eig_ana();
+REG.set_Dii_anabinned();
+REG.set_Wij_anabinned();
+REG.mu=0;REG.nu=0;REG.rho=-2;REG.eta=0;
+REG.numbins = 15;
+            REG.set_N();
+            REG.set_knn();
+            REG.set_Dii_asy();
+            REG.set_Wij_asy();
+            REG.set_eig_asy();
+            REG.set_bins();
+            REG.set_kbinned();
+            REG.set_Dii_asybinned();
+            REG.set_Wij_asybinned();
+REG.set_eigvec_comparison_mats(true,false);
+REG.set_permutation_eigvec_ana2asy();
+REG.set_eig_asy_permuted();
+REG.set_eigvec_comparison_mats(false,true);
+REG.solve(true,false,true,1,1,false);
+REG.solve(false,true,true,1,1,false);
