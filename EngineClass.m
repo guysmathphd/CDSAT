@@ -138,7 +138,7 @@ classdef EngineClass <  handle
             for key = keys(propertiesMap)
                 eval(['obj.' key{1} '=propertiesMap(key{1})']);
             end
-            obj.init_object(obj);
+            obj.init_object();
             obj.save_obj();
         end
         function obj = init_object(obj)
@@ -454,14 +454,60 @@ classdef EngineClass <  handle
 %         function x_out = model_odefun(obj,x)
 %             x_out = obj.f_M0(x)+(obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x);
 %         end
-
-        function [sol_t, sol_x] = single_solve(obj,opts,difEqSolver,init,timeStep,maxTime,stop_cond)
+function obj = solve_eigvec_pert_max_hub(obj,hubtype)
+    mydata = load(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana_ordered_nodes.mat'),'var');eigenvectors_ana_ordered_nodes=mydata.var;
+    s = size(eigenvectors_ana_ordered_nodes,1);
+    switch hubtype
+        case 1 % hubs
+            f = @max;row = s;foldernamestr = 'eigvec_pert_max_hub';
+            hubs = eigenvectors_ana_ordered_nodes(row,:);
+        case 2 % antihubs
+            f = @min;row = 1;foldernamestr = 'eigvec_pert_min_hub';
+            hubs = max(abs(eigenvectors_ana_ordered_nodes));
+        otherwise
+    end
+    
+    [~,i] = f(abs(hubs));
+    eigvec_max_hub_ana = obj.eigenvectors_ana(:,i);
+    eigvec_max_hub_asy = obj.eigenvectors_asy_permuted(:,i);
+    stop_cond_str = 'max(abs(sol_x(end,:)-obj.steady_state))<obj.absTol*100';
+    init = obj.steady_state' + .1*eigvec_max_hub_ana;
+    if hubtype == 2
+        [sol_t_ana,sol_x_ana] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
+        obj.save_var(sol_t_ana,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_t_ana');
+        obj.save_var(sol_x_ana,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_x_ana');
+    end
+%     solution_max_hub_eigvec_ana_1.sol_t = sol_t;
+%     solution_max_hub_eigvec_ana_1.sol_x = sol_x;
+%     obj.save_var(solution_max_hub_eigvec_ana_1,obj.resultsPath,'obj_properties','solution_max_hub_eigvec_ana_1');
+    init = obj.steady_state' + .1*eigvec_max_hub_asy;
+    if hubtype == 2
+        [sol_t_asy,sol_x_asy] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
+        obj.save_var(sol_t_asy,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_t_asy');
+        obj.save_var(sol_x_asy,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_x_asy');
+    end
+%     solution_max_hub_eigvec_asy_1.sol_t = sol_t;
+%     solution_max_hub_eigvec_asy_1.sol_x = sol_x;
+%     obj.save_var(solution_max_hub_eigvec_asy_1,obj.resultsPath,'obj_properties','solution_max_hub_eigvec_asy_1');
+    [~,i] = f(obj.degree_vector_weighted);
+    pert_max_hub = zeros(obj.N,1);pert_max_hub(i) = 1;
+    init = obj.steady_state' + .1*pert_max_hub;
+    if hubtype == 1
+        [sol_t_hub,sol_x_hub] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
+        obj.save_var(sol_t_hub,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_t_hub');
+        obj.save_var(sol_x_hub,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_x_hub');
+    end
+%     solution_pert_max_hub_1.sol_t = sol_t;
+%     solution_pert_max_hub_1.sol_x = sol_x;
+%     obj.save_var(solution_pert_max_hub_1,obj.resultsPath,'obj_properties','solution_pert_max_hub_1');
+end
+        function [sol_t, sol_x] = single_solve(obj,opts,difEqSolver,init,timeStep,maxTime,stop_cond_str)
             t = 0;sol_t = [0];sol_x = [init'];
-            setBreak = false; % stop while loop?
-            while ~setBreak
+            setBreak1 = false;setBreak2 = false; % stop while loop?
+            while ~setBreak1 && ~setBreak2
                 % check if this step passes maxTime and set stepEndTime
                 if t + timeStep >= maxTime
-                    stepEndTime = maxTime;setBreak = true;
+                    stepEndTime = maxTime;setBreak1 = true;disp('setBreak1=true');
                 else
                     stepEndTime = t + timeStep;
                 end
@@ -471,11 +517,11 @@ classdef EngineClass <  handle
                 [step_sol_t,step_sol_x] = difEqSolver(odefun,[t stepEndTime],init,opts);
                 t = stepEndTime; init = step_sol_x(end,:);
                 % append results to solution_t and solution_x
-                sol_t(end+1:end+length(step_sol_t)-1,1)=step_sol_t(2:end,:);
-                sol_x(end+1:end+size(step_sol_x,1)-1,:)=step_sol_x(2:end,:);
-                setBreak = stop_cond(sol_t,sol_x,obj.steady_state,obj.absTol);
-                if setBreak
-                    disp('setBreak = true');
+                sol_t(end+1,:)=step_sol_t(end,:);
+                sol_x(end+1,:)=step_sol_x(end,:);
+                eval(['setBreak2 = ' stop_cond_str]);
+                if setBreak2
+                    disp('setBreak2 = true');
                 end
             end
         end
@@ -496,7 +542,7 @@ classdef EngineClass <  handle
                 end
             end
         end
-        function obj = solve(obj,pertType,epsIndStart,pertIndStart,isAdjustEpsilon)
+        function obj = solve(obj,pertType,epsIndStart,pertIndStart,isAdjustEpsilonType)
             %Solve the system
             tic;
             %nn=10;
@@ -514,9 +560,10 @@ classdef EngineClass <  handle
                     sol_x_var_str = 'obj.solution_x';
                     stop_cond_str = 'size(obj.solution_t{1,pertInd,epsInd},1)>100 && max(abs(obj.solution_x{1,pertInd,epsInd}(end,:)-obj.solution_x{1,pertInd,epsInd}(end-100,:)))<obj.absTol';
                 case 2 % perturbations are eigenvectors
-                    perts = [obj.eigenvectors_ana(:,1:nn), obj.eigenvectors_asy_permuted(:,1:nn),...
-                        sum(obj.eigenvectors_ana(:,1:nn),2),sum(obj.eigenvectors_asy_permuted(:,1:nn),2)...
-                        obj.pert_eigvec_ana_1,obj.pert_eigvec_asy_1];
+%                     perts = [obj.eigenvectors_ana(:,1:nn), obj.eigenvectors_asy_permuted(:,1:nn),...
+%                         sum(obj.eigenvectors_ana(:,1:nn),2),sum(obj.eigenvectors_asy_permuted(:,1:nn),2)...
+                    %                         obj.pert_eigvec_ana_1,obj.pert_eigvec_asy_1];
+                    perts = [obj.eigenvectors_ana(:,1:nn), obj.eigenvectors_asy_permuted(:,1:nn)];
                     sol_t_var_str = 'obj.solution_t_eigvec';
                     sol_x_var_str = 'obj.solution_x_eigvec';
                     stop_cond_str = 'max(abs(obj.solution_x_eigvec{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
@@ -533,13 +580,22 @@ classdef EngineClass <  handle
 %             eval([sol_x_var_str ' = {};']);
 
             %%%%%% Adjust Epsilons
-            init_condition = @(init) ~(any(init < 0 | init > 1,'all'));
+            switch isAdjustEpsilonType
+                case 0 %no condition
+                    init_condition = @(init) (true);
+                case 1 %SIS
+                    init_condition = @(init) ~(any(init < 0 | init > 1,'all'));
+                case 2 %REG
+                    init_condition = @(init) ~(any(init < 0));
+                otherwise
+            end                
             epsFactor = .9;
             [new_epsilons, inits_out, is_inits_legit] = check_epsilons(obj,eps_vals,perts,ss',obj.epsThreshold,...
                 epsFactor,init_condition);
             obj.eps_adjusted = new_epsilons;
             inits = inits_out;
             obj.isInitsLegit = is_inits_legit;
+            
             %%%%%%%%%%%%%%
             
             %%%%%%
@@ -562,12 +618,13 @@ classdef EngineClass <  handle
                         eval([sol_t_var_str '{1,pertInd,epsInd} = 0;']);
                         eval([sol_x_var_str '{1,pertInd,epsInd} = init;']);
                         %%%%%%%%%%%%%%
-                        setBreak = false; % stop while loop?
-                        while ~setBreak
+                        setBreak1 = false;setBreak2 = false; % stop while loop?
+                        while ~setBreak1 && ~setBreak2
                             % check if this step passes maxTime and set stepEndTime
                             if t + obj.solverTimeStep >= obj.maxTime
                                 stepEndTime = obj.maxTime;
-                                setBreak = true;
+                                setBreak1 = true;
+                                disp('setBreakk1 = true');
                             else
                                 stepEndTime = t + obj.solverTimeStep;
                             end
@@ -577,11 +634,13 @@ classdef EngineClass <  handle
                             t = stepEndTime;
                             init = sol_x(end,:);
                             % append results to solution_t and solution_x
-                            eval([sol_t_var_str '{1,pertInd,epsInd}(end+1:end+length(sol_t)-1,1)=sol_t(2:end,:);']);
-                            eval([sol_x_var_str '{1,pertInd,epsInd}(end+1:end+size(sol_x,1)-1,:)=sol_x(2:end,:);']);
-                            eval(['setBreak = ' stop_cond_str ';']);
-                            if setBreak
-                                disp('setBreak = true');
+%                             eval([sol_t_var_str '{1,pertInd,epsInd}(end+1:end+length(sol_t)-1,1)=sol_t(2:end,:);']);
+%                             eval([sol_x_var_str '{1,pertInd,epsInd}(end+1:end+size(sol_x,1)-1,:)=sol_x(2:end,:);']);
+                            eval([sol_t_var_str '{1,pertInd,epsInd}(end+1,1)=sol_t(end,:);']);
+                            eval([sol_x_var_str '{1,pertInd,epsInd}(end+1,:)=sol_x(end,:);']);
+                            eval(['setBreak2 = ' stop_cond_str ';']);
+                            if setBreak2
+                                disp('setBreak2 = true');
                             end
                         end
                     else
@@ -591,6 +650,8 @@ classdef EngineClass <  handle
                 end
             end
             toc;
+%             str = ['EngineClass.save_var(' sol_x_var_str ',obj.resultsPath,'obj_properties','J_ana')];
+%             eval();
             if pertType == 1
                 obj.solution_t = obj.solution_t{1};
                 obj.solution_x = obj.solution_x{1};
@@ -1083,6 +1144,48 @@ classdef EngineClass <  handle
             disp('calculate_degree_weighted(obj): obj.degree_vector_weighted = ');
             disp(obj.degree_vector_weighted);
         end
+        function obj = load_solution(obj, folderNameStr, solPrefixStr, solSufStr, isIndexed, tTargetVarStr,xTargetVarStr,isDilute)
+            if isDilute
+                step = 100;
+            else
+                step = 1;
+            end
+            tFileNameStr = [solPrefixStr 't' solSufStr];
+            xFileNameStr = [solPrefixStr 'x' solSufStr];
+            if ~isIndexed
+                mypath_t = fullfile(obj.resultsPath,'obj_properties',folderNameStr,tFileNameStr);
+                mypath_x = fullfile(obj.resultsPath,'obj_properties',folderNameStr,xFileNameStr);
+                mydata = load(mypath_t); sol_t = mydata.var;
+                eval([tTargetVarStr ' = sol_t;']);
+                mydata = load(mypath_x); sol_x = mydata.var;
+                eval([xTargetVarStr ' = sol_x;']);
+            else
+                break1 = false;break2 = false;
+                ind = 1;
+                eval([tTargetVarStr ' = []']);eval([xTargetVarStr ' = []']);                
+                while ~break2 || ~break1
+                    if ~break1
+                        try
+                            mypath_t = fullfile(obj.resultsPath,'obj_properties',folderNameStr,[tFileNameStr '_' num2str(ind)]);
+                            mydata = load(mypath_t); sol_t = mydata.var;
+                            eval([tTargetVarStr '=  [' tTargetVarStr '; sol_t(1:' num2str(step) ':end,:)];']);clear mydata ;
+                        catch exception
+                            break1 = true;
+                        end
+                    end
+                    if ~break2
+                        try
+                            mypath_x = fullfile(obj.resultsPath,'obj_properties',folderNameStr,[xFileNameStr '_' num2str(ind)]);disp(mypath_x);
+                            mydata = load(mypath_x); sol_x = mydata.var;
+                            eval([xTargetVarStr '=  [' xTargetVarStr '; sol_x(1:' num2str(step) ':end,:)];']);
+                        catch exception
+                            break2 = true;
+                        end
+                    end
+                    ind = ind + 1;                    
+                end
+            end
+        end
         function obj = plot_results(obj, isDilute)
             if isDilute
                 step = 100;
@@ -1091,12 +1194,19 @@ classdef EngineClass <  handle
                 step = 1;
                 suffix = [];
             end
+            if size(obj.solution_x,1) == 0
+                obj.load_solution('solution', 'solution_', '', true, 'obj.solution_t','obj.solution_x',isDilute);
+                step = 1;
+            end
             ss = obj.steady_state';
             t1 = obj.solution_t;ind_t1 = 1:step:length(t1);t1 = t1(ind_t1);
             x1 = obj.solution_x(ind_t1,:); p1 = (x1'-ss)';
-            t2 = obj.solution_t_perturbations{1};ind_t2 = 1:step:length(t2);
-            t2 = t2(ind_t2);x2 = obj.solution_x_perturbations{1};x2 = x2(ind_t2,:);
-            p2 = (x2'-ss)';
+            t2 = [];x2=[];p2=[];
+            if ~isempty(obj.solution_t_perturbations)
+                t2 = obj.solution_t_perturbations{1};ind_t2 = 1:step:length(t2);
+                t2 = t2(ind_t2);x2 = obj.solution_x_perturbations{1};x2 = x2(ind_t2,:);
+                p2 = (x2'-ss)';
+            end
             t = {t1,t1,t2,t2};x = {x1,p1,x2,p2};
             
             name1 = ['fig1a-1' suffix];name2 = ['fig1a-2' suffix];
@@ -1192,7 +1302,7 @@ classdef EngineClass <  handle
                     angles_asy = cell(5,n,3);
                     for i = 1:n
                         disp(['vec ' num2str(i)])
-                        if obj.isInitsLegit(epsInd,i)
+                        if size(obj.isInitsLegit,2)>=i && obj.isInitsLegit(epsInd,i) && size(obj.solution_x_eigvecana,2)>=i
                             x1 = obj.solution_x_eigvecana{1,i,epsInd};
                             n1 = size(x1,1);                            
                             for j = 1:n1
@@ -1232,7 +1342,7 @@ classdef EngineClass <  handle
                                 angles_ana{5,i,3}(j,1) = abs(dot_u1_vec);
                             end
                         end
-                        if obj.isInitsLegit(epsInd,n+i)
+                        if size(obj.isInitsLegit,2)>=n+i && obj.isInitsLegit(epsInd,n+i)
                             x2 = obj.solution_x_eigvecasy{1,i,epsInd};
                             n2 = size(x2,1);
                             for j = 1:n2
@@ -1286,7 +1396,7 @@ classdef EngineClass <  handle
                     myPlot = {@plot,@semilogy};
                     for figInd1 = 1:size(name,1)
                         for figInd = 1:numfigs
-                            if ~isempty(figdesc{figInd1,figInd}) && ~isempty(obj.solution_t_eigvecana{1,i,epsInd})
+                            if ~isempty(figdesc{figInd1,figInd}) %&& ~isempty(obj.solution_t_eigvecana{1,i,epsInd})
                                 myPlotInd = 1;
                                 while true
                                     namestr = name{figInd1,figInd};
@@ -1298,7 +1408,7 @@ classdef EngineClass <  handle
                                     f = figure('Name',namestr,'NumberTitle','off');
                                     legendStr = {};
                                     for i = 1:n
-                                        if obj.isInitsLegit(epsInd,i)
+                                        if size(obj.isInitsLegit,2) >=i && obj.isInitsLegit(epsInd,i) && size(obj.solution_t_eigvecana,2)>=i && ~isempty(obj.solution_t_eigvecana{1,i,epsInd})
                                             epsStr = num2str(obj.eps_adjusted(epsInd,i));
                                             myPlot{myPlotInd}(obj.solution_t_eigvecana{1,i,epsInd}(1:step:end,1),angles_ana{figInd1,i,figInd}(1:step:end,1),'.','Color',CM(i,:),'MarkerSize',12);
                                             hold on;
@@ -1306,7 +1416,7 @@ classdef EngineClass <  handle
                                         end
                                     end
                                     for i = 1:n
-                                        if obj.isInitsLegit(n+i)
+                                        if size(obj.isInitsLegit,2)>=n+i && obj.isInitsLegit(n+i) && ~isempty(obj.solution_t_eigvecasy{1,i,epsInd})
                                             epsStr = num2str(obj.eps_adjusted(epsInd,n+i));
                                             myPlot{myPlotInd}(obj.solution_t_eigvecasy{1,i,epsInd}(1:step:end,1),angles_asy{figInd1,i,figInd}(1:step:end,1),'^','Color',CM(i,:));
                                             hold on;
@@ -2714,22 +2824,29 @@ classdef EngineClass <  handle
             if ~isequal(sum(sum(abs(imag(obj.eigenvectors_asy)))),0)
                 disp('there are complex asy eigenvectors');
             end
+            [B,I] = sort(obj.degree_vector_weighted);
             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana_ordered_nodes'),'var');
-            tmp = mydata.var;evo = tmp(end:-1:1,:);
-            [ind_bins_var,binned_vals] = EngineClass.set_bins_percentiles(1,obj.degree_vector_weighted);
-            w = obj.degree_vector_weighted.*ones(size(obj.eigenvectors_ana));
-            fs = {@abs,@real,@imag};suf1 = {'-abs','-real','-imag'};
-            desc1 = {'\mid', 'Re(', 'Im('};desc2 = {'\mid', ')', ')'};
-            for i1 = 1:length(fs)
-                name = ['fig18-1' suf1{i1}];
-                f = figure('Name',name,'NumberTitle','off');
-                figdesc = ['Eigenvectors mass distribution $ ' desc1{i1} ' v ' desc2{i1} ' $'];
-                image((fs{i1}(evo)),'CDatamapping','scaled');
-                colorbar;set(gca,'ColorScale','log')
-                title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
-                yticks(1000:1000:6000);yticklabels(strsplit(num2str(binned_vals(end-1000:-1000:1000)')));
-                xlabel('$v^{(i)}$','Interpreter','latex');ylabel('$k_i$','Interpreter','latex');
-                obj.save_fig(f,name);
+            tmp = mydata.var;evoana = tmp(end:-1:1,:);
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','eigenvectors_asy'),'var');
+            tmp = mydata.var(I,obj.permutation_eigvec_ana2asy);evoasy = tmp(end:-1:1,:);
+            evos = {evoana,evoasy};suf2 = {'-ana','-asy'};
+            for i2 = 1:length(evos)
+                evo = evos{i2};
+                [ind_bins_var,binned_vals] = EngineClass.set_bins_percentiles(1,obj.degree_vector_weighted);
+                w = obj.degree_vector_weighted.*ones(size(obj.eigenvectors_ana));
+                fs = {@(x) (1*x),@real,@imag};suf1 = {'-abs','-real','-imag'};
+                desc1 = {'\mid', '\mid Re(', '\mid Im('};desc2 = {'\mid', ')\mid', ')\mid'};
+                for i1 = 1:length(fs)
+                    name = ['fig18-1' suf1{i1} suf2{i2}];
+                    f = figure('Name',name,'NumberTitle','off');
+                    figdesc = ['Eigenvectors mass distribution $ ' desc1{i1} ' v ' desc2{i1} ' $'];
+                    image(abs(fs{i1}(evo)),'CDatamapping','scaled');
+                    colorbar;set(gca,'ColorScale','log')
+                    title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+                    yticks(1000:1000:6000);yticklabels(strsplit(num2str(binned_vals(end-1000:-1000:1000)')));
+                    xlabel('$v^{(i)}$','Interpreter','latex');ylabel('$k_i$','Interpreter','latex');
+                    obj.save_fig(f,name);
+                end
             end
             %%% fig18-2
             %%% fig18-3            
@@ -2773,21 +2890,29 @@ classdef EngineClass <  handle
             [maxasy,imaxasy] = max(ws2); [minasy,iminasy] = min(ws2);
             [B,I] = sort(obj.degree_vector_weighted);
             parvecana = obj.eigenvectors_ana(I,imaxana);
+            parvecanabinned = obj.eigenvectors_ana_binned_k(:,imaxana);
             perpvecana = obj.eigenvectors_ana(I,iminana);
+            perpvecanabinned = obj.eigenvectors_ana_binned_k(:,iminana);
             parvecasy = obj.eigenvectors_asy_permuted(I,imaxasy);
+            parvecasybinned = obj.eigenvectors_asy_permuted_binned_k(:,imaxasy);
             perpvecasy = obj.eigenvectors_asy_permuted(I,iminasy);
+            perpvecasybinned = obj.eigenvectors_asy_permuted_binned_k(:,iminasy);
             y = [parvecana,perpvecana,parvecasy,perpvecasy];
-            name = 'fig18-4';
-            figdesc = 'Eigenvector node values vs. Degree';
-            f = figure('Name',name,'NumberTitle','off');
-            loglog(B,abs(y),'*-');
-            legend(['v_{re,par}, ind = ' num2str(imaxana) ', dot = ' num2str(maxana)],...
-                ['v_{re,perp}, ind = ' num2str(iminana) ', dot = ' num2str(minana)],...
-                ['v_{th,par}, ind = ' num2str(imaxasy) ', dot = ' num2str(maxasy)],...
-                ['v_{th,perp}, ind = ' num2str(iminasy) ', dot = ' num2str(minasy)]);
-            xlabel('$k_i$','Interpreter','latex');ylabel('$ \mid v_i \mid $ ($i^{th}$ element of v, sorted by degree)','Interpreter','latex');
-            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');            
-            obj.save_fig(f,name);
+            ybinned = [parvecanabinned,perpvecanabinned,parvecasybinned,perpvecasybinned];
+            xs = {B, obj.kbinned};ys = {y,ybinned}; suf = {'','-binned'};
+            for i1=1:length(xs)
+                name = ['fig18-4' suf{i1}];
+                figdesc = ['Eigenvector node values vs. Degree' suf{i1}];
+                f = figure('Name',name,'NumberTitle','off');
+                loglog(xs{i1},abs(ys{i1}),'*-');
+                legend(['v_{re,par}, ind = ' num2str(imaxana) ', dot = ' num2str(maxana)],...
+                    ['v_{re,perp}, ind = ' num2str(iminana) ', dot = ' num2str(minana)],...
+                    ['v_{th,par}, ind = ' num2str(imaxasy) ', dot = ' num2str(maxasy)],...
+                    ['v_{th,perp}, ind = ' num2str(iminasy) ', dot = ' num2str(minasy)]);
+                xlabel('$k_i$','Interpreter','latex');ylabel('$ \mid v_i \mid $ ($i^{th}$ element of v, sorted by degree)','Interpreter','latex');
+                title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+                obj.save_fig(f,name);
+            end
         end
         %%
         function obj = plot_jacobian2(obj)
@@ -2843,6 +2968,107 @@ classdef EngineClass <  handle
             legend(legendStr);
             obj.save_fig(f,name);
         end
+        %% fig19* **fig20*
+        function obj = plot_localization(obj)
+            namepre = 'fig19-';
+            figdesc = {'Perturbation Weighted Std',...                
+                'Perturbation Weighted Mean',...                
+                'Perturbation node max mass'};
+            figdesc2 = {'$\hat{\sigma} = \left[(\sum_i \hat{pert_i} (k_i - \hat{\mu})^2)/S\right]^{1/2}$, $\hat{pert_i} = \mid pert_i \mid/S$, $S = \sum_i \mid pert_i \mid$',...
+                '$\hat{\mu} = \sum_i \mid pert_i \mid k_i / \sum_i \mid pert_i \mid$',...
+                ''};
+            ylabs = {'$\hat{\sigma}$','$\hat{\mu}$','$\mid pert_{i,max}\mid /\sum_i \mid pert_i \mid$'};
+            numfigs = length(figdesc);
+            for i1 = 1:numfigs
+                name = [namepre num2str(i1)];
+                f{i1} = figure('Name',name,'NumberTitle','off');
+                ax{i1} = gca;hold on;
+                xlabel('t');ylabel(ylabs{i1},'interpreter','latex');
+                title({[name ' ' obj.scenarioName];obj.desc;figdesc{i1};figdesc2{i1}},'interpreter','latex');
+            end
+            step = 1;
+            foldernamestrs = {'eigvec_pert_max_hub','eigvec_pert_min_hub'};
+            desc1 = {'pert is real eigvec with most mass at biggest hub ($v^{(2)}$)', ...
+                'pert is theoretical eigvec with most mass at biggest hub ($v^{(2)}$)',...
+                'pert is all mass at biggest hub',...
+                'pert is real eigvec with least mass at any node ($v^{(1181)}$)',...
+                'pert is first real eigvec'};
+            filenamesufstrs = {'ana','asy','hub'};
+            fig20ind = 1;fig21ind = 1;
+            legendInd = 1;legendStr = {};
+            mypathst = {fullfile(obj.resultsPath,'obj_properties','sol_t_ana_v2'),...
+                fullfile(obj.resultsPath,'obj_properties','sol_t_asy_v2'),...
+                fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_t_hub'),...
+                fullfile(obj.resultsPath,'obj_properties','eigvec_pert_min_hub','sol_t_ana'),...
+                fullfile(obj.resultsPath,'obj_properties','sol_t_ana_v1')
+                };
+            mypathsx = {fullfile(obj.resultsPath,'obj_properties','sol_x_ana_v2'),...
+                fullfile(obj.resultsPath,'obj_properties','sol_x_asy_v2'),...
+                fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_x_hub'),...
+                fullfile(obj.resultsPath,'obj_properties','eigvec_pert_min_hub','sol_x_ana'),...
+                fullfile(obj.resultsPath,'obj_properties','sol_x_ana_v1')
+                };
+            descInd = 1;
+            for i4 = 1:length(mypathst)
+                try
+                    mydata = load(mypathst{i4});sol_t = mydata.var(1:step:end);
+                    mydata = load(mypathsx{i4});sol_x = mydata.var(1:step:end,:);
+                    clear mydata;
+                    pert_x = (obj.steady_state' - sol_x')';clear sol_x;
+                    num_quants = 1;
+                    [B,I] = sort(obj.degree_vector_weighted);
+                    pert_x_ordered = pert_x(:,I);clear pert_x;
+                    sum_pert_x_ordered = sum(abs(pert_x_ordered),2);
+                    pert_x_ordered_proportions = abs(pert_x_ordered)./sum_pert_x_ordered;clear pert_x_ordered sum_pert_x_ordered;
+                    pert_x_ordered_quants = num_quants*pert_x_ordered_proportions;clear pert_x_ordered_proportions;
+                    B_mat = B.*ones(size(pert_x_ordered_quants'));
+                    means = dot(B_mat,pert_x_ordered_quants')/num_quants;clear B_mat;
+                    prevar1 = B - means; %B is the ordered degree vector, should be a column,
+                    % means should be a row vector
+                    prevar2 = prevar1.^2; clear prevar1;
+                    prevar3 = pert_x_ordered_quants' .* prevar2; clear prevar2
+                    prevar4 = sum(prevar3,1); clear prevar3;
+                    var = sqrt(prevar4 / num_quants); clear prevar4;
+                    plot(ax{1},sol_t,var);
+                    plot(ax{2},sol_t,means);
+                    plot(ax{3},sol_t,max(pert_x_ordered_quants'));
+                    legendStr{legendInd} = desc1{descInd};legendInd = legendInd+1;
+                    %%% fig20-*
+                    name = ['fig20-' num2str(fig20ind)];
+                    f20 = figure('Name',name,'NumberTitle','off');
+                    xlabel('i');x = 1:6000;
+                    semilogy(x,pert_x_ordered_quants(1,:),'*-');hold on;
+                    tind = find(sol_t >= 46, 1);
+                    semilogy(x,pert_x_ordered_quants(tind,:),'*-');
+                    semilogy(x,pert_x_ordered_quants(end,:),'*-');
+                    title({[name ' ' obj.scenarioName];obj.desc;desc1{descInd}},'interpreter','latex');
+                    fig20ind = fig20ind+1;xlabel('i');
+                    ylabel('$\mid pert_i\mid/\sum_i \mid pert_i \mid$','Interpreter','latex');
+                    legend('t = 0',['t = ' num2str(sol_t(tind))],'t = end');obj.save_fig(f20,name);
+                    %%% fig21-*
+                    name = ['fig21-' num2str(fig21ind)];
+                    f21 = figure('Name',name,'NumberTitle','off');
+                    image(abs(pert_x_ordered_quants(:,end:-1:1)'),'CDatamapping','scaled');
+                    colorbar;set(gca,'ColorScale','log');
+                    inds = 100:100:length(sol_t);
+                    xticks(inds);xticklabels(strsplit(num2str(round(sol_t(inds)'))));
+                    n = size(pert_x_ordered_quants,2);
+                    inds = find(mod(1:n,500)==1); yticks(inds);
+                    inds = find(mod(1:n,500)==0);inds=inds(end:-1:1);yticklabels(strsplit(num2str(inds)));
+                    xlabel('t');ylabel('i (6000 = biggest hub)');
+                    title({[name ' ' obj.scenarioName];obj.desc;desc1{descInd};'$\mid pert_i\mid/\sum_i \mid pert_i \mid$'},'interpreter','latex');
+                    descInd=descInd+1;obj.save_fig(f21,name);fig21ind = fig21ind+1;
+                catch exception
+                    disp(exception.message);
+                end
+            end
+            
+            for i1=1:numfigs
+                legend(ax{i1},legendStr,'interpreter','latex');
+                name = [namepre num2str(i1)];obj.save_fig(f{i1},name);                
+            end
+        end
+        %%
         function decayTimes = find_decay_times(~,pert,sol_t)
             pert0 = pert(1,:);
             pert1 = exp(-1)*pert0;
@@ -2882,6 +3108,18 @@ classdef EngineClass <  handle
         end
         function xout = test_fun(a,b)
             xout = a+b;
+        end
+        function [wmeans, wvars] = compute_wmeans_wvars(columns, weights)
+            % columns is a matrix, we find the weighted mean and variance
+            % of each column, according to the weight vector weights. Don't
+            % forget to take absolute value of columns before calling
+            % function if want mass distribution.
+            weights_mat = weights + zeros(size(columns));
+            d = columns.*weights_mat;clear weights_mat;
+            s = sum(columns);
+            ws = sum(d);clear d;
+            wmeans = ws./s;clear ws;
+            wvars = sum((columns.*(weights-wmeans)).^2)./s;            
         end
         function J = compute_J(Dii,Wij,C_D,C_W)
             J = C_W*(Wij - diag(diag(Wij))) + C_D*(diag(Dii));

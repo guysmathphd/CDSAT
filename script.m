@@ -877,10 +877,10 @@ obj1.solve(1,1,1,1);
 obj1.solve(2,1,1,1);
 obj1.solve(3,1,1,1);
 %%
-%obj.save_obj();
+obj.save_obj();
 clear obj;
-tests = {'test16REG1','test24ECO1','test25BIO1'};
-% tests = {'test25BIO1'};
+% tests = {'test16REG1','test24ECO1','test25BIO1'};
+tests = {'test16REG1','test24ECO1'};
 
 for i=1:length(tests)
     disp(['i = ' num2str(i)]);
@@ -900,8 +900,17 @@ for i=1:length(tests)
 %     obj.set_eig_ana_ordered_nodes();
 %     obj.plot_eigenvectors(true);
 %     obj.plot_eigenvectors4();
-    obj.plot_eigenvectors5();
-%     obj.save_obj();
+
+tol = 1e-13;
+disp('obj.bins = obj.set_bins_generic');
+obj.bins = obj.set_bins_generic(obj.numbins,obj.degree_vector_weighted,tol,true(obj.N,1));
+disp('obj.kbinned = obj.set_binned_vals'); [obj.kbinned,obj.kbinned_mins,obj.kbinned_maxs] = obj.set_binned_vals(obj.degree_vector_weighted,obj.bins);
+obj.eigenvectors_ana_binned_k = obj.set_binned_vals(obj.eigenvectors_ana,obj.bins);
+obj.eigenvectors_ana_binned_kinn = obj.set_binned_vals(obj.eigenvectors_ana,obj.binskinn);
+obj.eigenvectors_asy_permuted_binned_k = obj.set_binned_vals(obj.eigenvectors_asy_permuted,obj.bins);
+obj.eigenvectors_asy_permuted_binned_kinn = obj.set_binned_vals(obj.eigenvectors_asy_permuted,obj.binskinn);
+obj.plot_eigenvectors5();
+    obj.save_obj();
     clear obj;
 end
 %% test16REG1
@@ -922,45 +931,76 @@ x0 = rand(1,6000)';
 maxT = 1000;
 maxDt = 0.01;
 timeStep = .2;
-m0 = @(x) (-x^(1/2));
+m0 = @(x) (-x.^(1/2));
 m1 = @() (1);
 m2 = @(x) (x./(1+x));
 difEqSolver = @ode45;
-absTol = 1e-20;
-relTol = 1e-20;
+absTol = 1e-14;
+relTol = 1e-14;
 resultsPath = fullfile('tests',name,'results');
+mu = -1; nu = 0; rho = -4; eta = 0;
 myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2'};
-myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath};
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,15,6000,false,@(x) (true),[]};
 props = containers.Map(myKeys,myValues);
 REG = EngineClass(props);
 %display(SIS)
 disp('now solving');
-REG.solve();
-REG.print_output();
+REG.solve(1,1,1,1);
+%%
+% REG.print_output();
 REG.plot_results(true);
 REG.plot_steady_vs_degree();
-%REG.mu = 1; REG.nu = -1; REG.rho = 0; REG.eta = 0;
 REG.save_obj();
-REG.plot_jacobian;
-REG.set_Dii_ana();
-REG.set_Wij_ana();
-REG.set_eig_ana();
-REG.set_Dii_anabinned();
-REG.set_Wij_anabinned();
-REG.mu=0;REG.nu=0;REG.rho=-2;REG.eta=0;
-REG.numbins = 15;
-            REG.set_N();
-            REG.set_knn();
-            REG.set_Dii_asy();
-            REG.set_Wij_asy();
-            REG.set_eig_asy();
-            REG.set_bins();
-            REG.set_kbinned();
-            REG.set_Dii_asybinned();
-            REG.set_Wij_asybinned();
-REG.set_eigvec_comparison_mats(true,false);
-REG.set_permutation_eigvec_ana2asy();
-REG.set_eig_asy_permuted();
-REG.set_eigvec_comparison_mats(false,true);
-REG.solve(true,false,true,1,1,false);
-REG.solve(false,true,true,1,1,false);
+%%
+obj.solve(1,1,1,1);
+obj.solve_eigvec_pert_max_hub(2);
+obj.save_obj();
+nt = length(obj.solution_t);
+ind = 1;step=50000;
+for i = 1:step:nt
+    str = ['solution_t_' num2str(ind)];ind = ind+1;
+    endind = min(i + step-1,nt);
+        obj.save_var(obj.solution_t(i:endind),fullfile(obj.resultsPath,'obj_properties'),'solution',str);
+    start = i+1;
+end
+ind = 1;step=500;
+for i = 1:step:nt
+    str = ['solution_x_' num2str(ind)];ind = ind+1;
+    endind = min(i + step-1,nt);
+        obj.save_var(obj.solution_x(i:endind,:),fullfile(obj.resultsPath,'obj_properties'),'solution',str);
+    start = i+1;
+end
+obj.solution_t = [];obj.solution_x = [];
+obj1.save_obj();
+obj.save_var(obj.solution_x,obj.resultsPath,'obj_properties','solution_x');
+
+obj.save_var(sol_t_ana,fullfile(obj.resultsPath,'obj_properties'),'eigvec_pert_max_hub','sol_t_ana');
+obj.save_var(sol_x_ana,fullfile(obj.resultsPath,'obj_properties'),'eigvec_pert_max_hub','sol_x_ana');
+
+obj.load_solution('eigvec_pert_max_hub', 'sol_', '_ana', false, 'obj.solution_t_eigvecana{1,2,1}','obj.solution_x_eigvecana{1,2,1}');
+obj.load_solution('eigvec_pert_max_hub', 'sol_', '_asy', false, 'obj.solution_t_eigvecasy{1,2,1}','obj.solution_x_eigvecasy{1,2,1}');
+obj.isInitsLegit=[1,1,1,1,1,1,1];
+obj.eps_adjusted=[.1,.1,.1,.1,.1,.1,.1];
+obj.plot_results2();
+%%
+obj.save_obj();
+obj.maxTime = 1000;
+obj.solverTimeStep = .5;
+obj.solve(2,1,1,2);
+obj.solve_eigvec_pert_max_hub(1);
+obj.solve_eigvec_pert_max_hub(2);
+% obj.solve(3,1,1,2);
+
+%%
+for i=1:5
+    sol_t = obj.solution_t_eigvecana{i};
+    sol_x = obj.solution_x_eigvecana{i};
+    obj.save_var(sol_t,obj.resultsPath,'obj_properties',['sol_t_ana_v' num2str(i)]);
+    obj.save_var(sol_x,obj.resultsPath,'obj_properties',['sol_x_ana_v' num2str(i)]);
+end
+for i=1:5
+    sol_t = obj.solution_t_eigvecasy{i};
+    sol_x = obj.solution_x_eigvecasy{i};
+    obj.save_var(sol_t,obj.resultsPath,'obj_properties',['sol_t_asy_v' num2str(i)]);
+    obj.save_var(sol_x,obj.resultsPath,'obj_properties',['sol_x_asy_v' num2str(i)]);
+end
