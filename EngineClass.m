@@ -6,6 +6,7 @@ classdef EngineClass <  handle
         scenarioName %String
         desc %String
         adjacencyMatrix %2D array
+        networkName
         initialValues %1D array same length as adjacency matrix
         maxTime %positive integer
         maxDerivative % positive double
@@ -14,7 +15,7 @@ classdef EngineClass <  handle
         f_M0 %function handle
         f_M1 %function handle
         f_M2 %function handle
-        f_R %function handle
+        f_R %function handlef
         f_dM0 %function handle, derivate of M0
         f_dM1 %derivative of M1
         f_dM2 %derivative of M2
@@ -141,6 +142,38 @@ classdef EngineClass <  handle
             obj.init_object();
             obj.save_obj();
         end
+        function obj = clean_up_obj(obj)
+            disp(obj.scenarioName);
+            x = General.getSize(obj);
+            disp(x);
+            propspath = fullfile(obj.resultsPath,'obj_properties');
+            obj.adjacencyMatrix = [];
+            General.save_var(obj.Dii_ana,propspath,'Dii_ana');obj.Dii_ana=[];
+            General.save_var(obj.Wij_ana,propspath,'Wij_ana');obj.Wij_ana=[];
+            General.save_var(obj.Dii_asy,propspath,'Dii_asy');obj.Dii_asy=[];
+            General.save_var(obj.Wij_asy,propspath,'Wij_asy');obj.Wij_asy=[];
+            General.save_var(obj.eigenvalues_ana,propspath,'eigenvalues_ana');obj.eigenvalues_ana=[];
+            General.save_var(obj.eigenvectors_ana,propspath,'eigenvectors_ana');obj.eigenvectors_ana=[];
+            General.save_var(obj.eigenvalues_asy,propspath,'eigenvalues_asy');obj.eigenvalues_asy=[];
+            General.save_var(obj.eigenvectors_asy,propspath,'eigenvectors_asy');obj.eigenvectors_asy=[];
+            General.save_var(obj.eigenvalues_asy_permuted,propspath,'eigenvalues_asy_permuted');obj.eigenvalues_asy_permuted=[];
+            General.save_var(obj.eigenvectors_asy_permuted,propspath,'eigenvectors_asy_permuted');obj.eigenvectors_asy_permuted=[];
+            obj.ki_nn = [];
+            General.save_var(obj.eigvec_angle_comparison_mat_ana2asy,propspath,'eigvec_angle_comparison_mat_ana2asy');obj.eigvec_angle_comparison_mat_ana2asy=[];
+            General.save_var(obj.eigvec_angle_comparison_mat_ana2asy_permuted,propspath,'eigvec_angle_comparison_mat_ana2asy_permuted');obj.eigvec_angle_comparison_mat_ana2asy_permuted=[];
+            General.save_var(obj.eigvec_dist_comparison_mat_ana2asy,propspath,'eigvec_dist_comparison_mat_ana2asy');obj.eigvec_dist_comparison_mat_ana2asy=[];
+            General.save_var(obj.eigvec_dist_comparison_mat_ana2asy_permuted,propspath,'eigvec_dist_comparison_mat_ana2asy_permuted');obj.eigvec_dist_comparison_mat_ana2asy_permuted=[];
+            General.save_var(obj.eigvec_dot_comparison_mat_ana2asy,propspath,'eigvec_dot_comparison_mat_ana2asy');obj.eigvec_dot_comparison_mat_ana2asy=[];
+            General.save_var(obj.eigvec_dot_comparison_mat_ana2asy_permuted,propspath,'eigvec_dot_comparison_mat_ana2asy_permuted');obj.eigvec_dot_comparison_mat_ana2asy_permuted=[];
+            General.save_var(obj.permutation_eigvec_ana2asy,propspath,'permutation_eigvec_ana2asy');obj.permutation_eigvec_ana2asy=[];
+            obj.eigvec_dot_comparison_mat_ana2ana = [];
+            obj.eigvec_dot_comparison_mat_asy_permuted2asy_permuted=[];
+            obj.eigvec_dot_comparison_mat_asy2asy=[];
+            
+            x = General.getSize(obj);
+            disp(x);
+            obj.save_obj();
+        end
         function obj = init_object(obj)
             obj.solution_x = obj.initialValues';
             % create header
@@ -182,6 +215,12 @@ classdef EngineClass <  handle
             disp('obj.binskinn = obj.set_bins_generic'); obj.binskinn = obj.set_bins_generic(obj.numbins,obj.ki_nn,tol,true(obj.N,1));
             disp('obj.ki_nnbinned = obj.set_binned_vals'); obj.ki_nnbinned = obj.set_binned_vals(obj.ki_nn,obj.binskinn);
             disp('obj.set_degree_weighted_average'); obj.set_degree_weighted_average();
+        end
+        function obj = set_graph_object(obj)
+            g = graph(obj.adjacencyMatrix);
+            d = distances(g);
+            obj.save_var(g,obj.resultsPath,'obj_properties','graph_object');
+            obj.save_var(d,obj.resultsPath,'obj_properties','shortest_distances');
         end
         function obj = set_degree_weighted_average(obj)
             obj.degree_weighted_average = sum(obj.degree_vector_weighted)/obj.N;
@@ -451,56 +490,52 @@ classdef EngineClass <  handle
             disp(['Final eps= ' num2str(eps_val)]);
             init_out = init;
         end
-%         function x_out = model_odefun(obj,x)
-%             x_out = obj.f_M0(x)+(obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x);
-%         end
-function obj = solve_eigvec_pert_max_hub(obj,hubtype)
-    mydata = load(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana_ordered_nodes.mat'),'var');eigenvectors_ana_ordered_nodes=mydata.var;
-    s = size(eigenvectors_ana_ordered_nodes,1);
-    switch hubtype
-        case 1 % hubs
-            f = @max;row = s;foldernamestr = 'eigvec_pert_max_hub';
-            hubs = eigenvectors_ana_ordered_nodes(row,:);
-        case 2 % antihubs
-            f = @min;row = 1;foldernamestr = 'eigvec_pert_min_hub';
-            hubs = max(abs(eigenvectors_ana_ordered_nodes));
-        otherwise
-    end
-    
-    [~,i] = f(abs(hubs));
-    eigvec_max_hub_ana = obj.eigenvectors_ana(:,i);
-    eigvec_max_hub_asy = obj.eigenvectors_asy_permuted(:,i);
-    stop_cond_str = 'max(abs(sol_x(end,:)-obj.steady_state))<obj.absTol*100';
-    init = obj.steady_state' + .1*eigvec_max_hub_ana;
-    if hubtype == 2
-        [sol_t_ana,sol_x_ana] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
-        obj.save_var(sol_t_ana,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_t_ana');
-        obj.save_var(sol_x_ana,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_x_ana');
-    end
-%     solution_max_hub_eigvec_ana_1.sol_t = sol_t;
-%     solution_max_hub_eigvec_ana_1.sol_x = sol_x;
-%     obj.save_var(solution_max_hub_eigvec_ana_1,obj.resultsPath,'obj_properties','solution_max_hub_eigvec_ana_1');
-    init = obj.steady_state' + .1*eigvec_max_hub_asy;
-    if hubtype == 2
-        [sol_t_asy,sol_x_asy] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
-        obj.save_var(sol_t_asy,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_t_asy');
-        obj.save_var(sol_x_asy,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_x_asy');
-    end
-%     solution_max_hub_eigvec_asy_1.sol_t = sol_t;
-%     solution_max_hub_eigvec_asy_1.sol_x = sol_x;
-%     obj.save_var(solution_max_hub_eigvec_asy_1,obj.resultsPath,'obj_properties','solution_max_hub_eigvec_asy_1');
-    [~,i] = f(obj.degree_vector_weighted);
-    pert_max_hub = zeros(obj.N,1);pert_max_hub(i) = 1;
-    init = obj.steady_state' + .1*pert_max_hub;
-    if hubtype == 1
-        [sol_t_hub,sol_x_hub] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
-        obj.save_var(sol_t_hub,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_t_hub');
-        obj.save_var(sol_x_hub,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_x_hub');
-    end
-%     solution_pert_max_hub_1.sol_t = sol_t;
-%     solution_pert_max_hub_1.sol_x = sol_x;
-%     obj.save_var(solution_pert_max_hub_1,obj.resultsPath,'obj_properties','solution_pert_max_hub_1');
-end
+        function obj = solve_eigvec_pert_max_hub(obj,hubtype)
+            mydata = load(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana_ordered_nodes.mat'),'var');eigenvectors_ana_ordered_nodes=mydata.var;
+            s = size(eigenvectors_ana_ordered_nodes,1);
+            switch hubtype
+                case 1 % hubs
+                    f = @max;row = s;foldernamestr = 'eigvec_pert_max_hub';
+                    hubs = eigenvectors_ana_ordered_nodes(row,:);
+                case 2 % antihubs
+                    f = @min;row = 1;foldernamestr = 'eigvec_pert_min_hub';
+                    hubs = max(abs(eigenvectors_ana_ordered_nodes));
+                otherwise
+            end
+            [~,i] = f(abs(hubs));
+            eigvec_max_hub_ana = obj.eigenvectors_ana(:,i);
+            eigvec_max_hub_asy = obj.eigenvectors_asy_permuted(:,i);
+            stop_cond_str = 'false';
+            init = obj.steady_state' + .1*eigvec_max_hub_ana;
+            if i>obj.numeigenplots
+                [sol_t_ana,sol_x_ana] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
+                obj.save_var(sol_t_ana,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_t_ana');
+                obj.save_var(sol_x_ana,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_x_ana');
+            end
+            %     solution_max_hub_eigvec_ana_1.sol_t = sol_t;
+            %     solution_max_hub_eigvec_ana_1.sol_x = sol_x;
+            %     obj.save_var(solution_max_hub_eigvec_ana_1,obj.resultsPath,'obj_properties','solution_max_hub_eigvec_ana_1');
+            init = obj.steady_state' + .1*eigvec_max_hub_asy;
+            if i>obj.numeigenplots
+                [sol_t_asy,sol_x_asy] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
+                obj.save_var(sol_t_asy,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_t_asy');
+                obj.save_var(sol_x_asy,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_x_asy');
+            end
+            %     solution_max_hub_eigvec_asy_1.sol_t = sol_t;
+            %     solution_max_hub_eigvec_asy_1.sol_x = sol_x;
+            %     obj.save_var(solution_max_hub_eigvec_asy_1,obj.resultsPath,'obj_properties','solution_max_hub_eigvec_asy_1');
+            [~,i] = f(obj.degree_vector_weighted);
+            pert_max_hub = zeros(obj.N,1);pert_max_hub(i) = 1;
+            init = obj.steady_state' + .1*pert_max_hub;
+            if hubtype == 1
+                [sol_t_hub,sol_x_hub] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
+                obj.save_var(sol_t_hub,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_t_hub');
+                obj.save_var(sol_x_hub,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_x_hub');
+            end
+        end
+        function obj = solve_eigvec_pert_max_hub_1(obj)
+            obj.solve_eigvec_pert_max_hub(1);
+        end
         function [sol_t, sol_x] = single_solve(obj,opts,difEqSolver,init,timeStep,maxTime,stop_cond_str)
             t = 0;sol_t = [0];sol_x = [init'];
             setBreak1 = false;setBreak2 = false; % stop while loop?
@@ -695,7 +730,7 @@ end
                     isOnlyPositive = false;
                 end
                 obj.set_perturbations(isOnlyPositive);
-                obj.set_eigvec_comparison_mats2();
+%                 obj.set_eigvec_comparison_mats2();
             elseif pertType==2
                 obj.split_solution_eigvec();
             end
@@ -2968,23 +3003,30 @@ end
             legend(legendStr);
             obj.save_fig(f,name);
         end
-        %% fig19* **fig20*
+        %% fig19* **fig20* fig21*
         function obj = plot_localization(obj)
             namepre = 'fig19-';
             figdesc = {'Perturbation Weighted Std',...                
                 'Perturbation Weighted Mean',...                
                 'Perturbation node max mass'};
-            figdesc2 = {'$\hat{\sigma} = \left[(\sum_i \hat{pert_i} (k_i - \hat{\mu})^2)/S\right]^{1/2}$, $\hat{pert_i} = \mid pert_i \mid/S$, $S = \sum_i \mid pert_i \mid$',...
-                '$\hat{\mu} = \sum_i \mid pert_i \mid k_i / \sum_i \mid pert_i \mid$',...
-                ''};
-            ylabs = {'$\hat{\sigma}$','$\hat{\mu}$','$\mid pert_{i,max}\mid /\sum_i \mid pert_i \mid$'};
-            numfigs = length(figdesc);
-            for i1 = 1:numfigs
-                name = [namepre num2str(i1)];
-                f{i1} = figure('Name',name,'NumberTitle','off');
-                ax{i1} = gca;hold on;
-                xlabel('t');ylabel(ylabs{i1},'interpreter','latex');
-                title({[name ' ' obj.scenarioName];obj.desc;figdesc{i1};figdesc2{i1}},'interpreter','latex');
+            
+            ylabs = {'$\hat{\sigma}_k$','$\hat{\mu}_k$','$\mid pert_{i,max}\mid /\sum_i \mid pert_i \mid$';...
+                '$\hat{\sigma}_d$','$\hat{\mu}_d$',''};
+            numfigs = length(figdesc);namesuf1 = {'-k','-d'};
+            for i2 = 1:size(ylabs,1)
+                kd = {'k','d'};
+                figdesc2 = {['$\hat{\sigma} = \left[(\sum_i \hat{pert_i} (' kd{i2} '_i - \hat{\mu})^2)/S\right]^{1/2}$, $\hat{pert_i} = \mid pert_i \mid/S$, $S = \sum_i \mid pert_i \mid$'],...
+                    ['$\hat{\mu} = \sum_i \mid pert_i \mid ' kd{i2} '_i / \sum_i \mid pert_i \mid$'],...
+                    ''};
+                for i1 = 1:size(ylabs,2)
+                    if ~isempty(ylabs{i2,i1})
+                        name = [namepre num2str(i1) namesuf1{i2}];
+                        f{i2,i1} = figure('Name',name,'NumberTitle','off');
+                        ax{i2,i1} = gca;hold on;
+                        xlabel('t');ylabel(ylabs{i2,i1},'interpreter','latex');
+                        title({[name ' ' obj.scenarioName];obj.desc;figdesc{i1};figdesc2{i1}},'interpreter','latex');
+                    end
+                end
             end
             step = 1;
             foldernamestrs = {'eigvec_pert_max_hub','eigvec_pert_min_hub'};
@@ -3008,65 +3050,168 @@ end
                 fullfile(obj.resultsPath,'obj_properties','eigvec_pert_min_hub','sol_x_ana'),...
                 fullfile(obj.resultsPath,'obj_properties','sol_x_ana_v1')
                 };
-            descInd = 1;
-            for i4 = 1:length(mypathst)
-                try
-                    mydata = load(mypathst{i4});sol_t = mydata.var(1:step:end);
-                    mydata = load(mypathsx{i4});sol_x = mydata.var(1:step:end,:);
-                    clear mydata;
-                    pert_x = (obj.steady_state' - sol_x')';clear sol_x;
-                    num_quants = 1;
-                    [B,I] = sort(obj.degree_vector_weighted);
-                    pert_x_ordered = pert_x(:,I);clear pert_x;
-                    sum_pert_x_ordered = sum(abs(pert_x_ordered),2);
-                    pert_x_ordered_proportions = abs(pert_x_ordered)./sum_pert_x_ordered;clear pert_x_ordered sum_pert_x_ordered;
-                    pert_x_ordered_quants = num_quants*pert_x_ordered_proportions;clear pert_x_ordered_proportions;
-                    B_mat = B.*ones(size(pert_x_ordered_quants'));
-                    means = dot(B_mat,pert_x_ordered_quants')/num_quants;clear B_mat;
-                    prevar1 = B - means; %B is the ordered degree vector, should be a column,
-                    % means should be a row vector
-                    prevar2 = prevar1.^2; clear prevar1;
-                    prevar3 = pert_x_ordered_quants' .* prevar2; clear prevar2
-                    prevar4 = sum(prevar3,1); clear prevar3;
-                    var = sqrt(prevar4 / num_quants); clear prevar4;
-                    plot(ax{1},sol_t,var);
-                    plot(ax{2},sol_t,means);
-                    plot(ax{3},sol_t,max(pert_x_ordered_quants'));
-                    legendStr{legendInd} = desc1{descInd};legendInd = legendInd+1;
-                    %%% fig20-*
-                    name = ['fig20-' num2str(fig20ind)];
-                    f20 = figure('Name',name,'NumberTitle','off');
-                    xlabel('i');x = 1:6000;
-                    semilogy(x,pert_x_ordered_quants(1,:),'*-');hold on;
-                    tind = find(sol_t >= 46, 1);
-                    semilogy(x,pert_x_ordered_quants(tind,:),'*-');
-                    semilogy(x,pert_x_ordered_quants(end,:),'*-');
-                    title({[name ' ' obj.scenarioName];obj.desc;desc1{descInd}},'interpreter','latex');
-                    fig20ind = fig20ind+1;xlabel('i');
-                    ylabel('$\mid pert_i\mid/\sum_i \mid pert_i \mid$','Interpreter','latex');
-                    legend('t = 0',['t = ' num2str(sol_t(tind))],'t = end');obj.save_fig(f20,name);
-                    %%% fig21-*
-                    name = ['fig21-' num2str(fig21ind)];
-                    f21 = figure('Name',name,'NumberTitle','off');
-                    image(abs(pert_x_ordered_quants(:,end:-1:1)'),'CDatamapping','scaled');
-                    colorbar;set(gca,'ColorScale','log');
-                    inds = 100:100:length(sol_t);
-                    xticks(inds);xticklabels(strsplit(num2str(round(sol_t(inds)'))));
-                    n = size(pert_x_ordered_quants,2);
-                    inds = find(mod(1:n,500)==1); yticks(inds);
-                    inds = find(mod(1:n,500)==0);inds=inds(end:-1:1);yticklabels(strsplit(num2str(inds)));
-                    xlabel('t');ylabel('i (6000 = biggest hub)');
-                    title({[name ' ' obj.scenarioName];obj.desc;desc1{descInd};'$\mid pert_i\mid/\sum_i \mid pert_i \mid$'},'interpreter','latex');
-                    descInd=descInd+1;obj.save_fig(f21,name);fig21ind = fig21ind+1;
-                catch exception
-                    disp(exception.message);
+            mydata = load(fullfile('networks',[obj.networkName 'shortest_distances']));
+            shortest_distances = mydata.var;clear mydata;
+            descInd = length(desc1);ylabs2 = {'i (6000 = biggest hub)','i (6000 = farthest node from initial pert mass concentration'};
+            for i2 = 1:length(ylabs2)
+                for i4 = 1:length(mypathst)
+%                     try
+                        mydata = load(mypathst{i4});sol_t = mydata.var(1:step:end);
+                        mydata = load(mypathsx{i4});sol_x = mydata.var(1:step:end,:);
+                        clear mydata;
+                        num_quants = 1;
+                        pert_x = (obj.steady_state' - sol_x')';clear sol_x;
+                         if i2 == 1 % weiging by degree
+                            weights = obj.degree_vector_weighted;
+                         elseif i2 == 2 %weighing by distance from initial mass concentration node
+                            pert_x0 = pert_x(1,:);
+                            [~,i] = max(abs(pert_x0));
+                            weights = shortest_distances(i,:)';
+                         end
+                        [means, vars, pert_x_ordered_quants] = EngineClass.compute_wmeans_wvars(abs(pert_x'), weights);
+                        pert_x_ordered_quants = pert_x_ordered_quants';
+%                         [bdegree,Idegree] = sort(obj.degree_vector_weighted);
+%                         sd = shortest_distances(i,:)';
+%                         [bdistance,Idistance] = sort(sd);
+%                         spread_space = {bdegree,bdistance};
+%                         spread_space_ind = {Idegree,Idistance};
+%                         B = spread_space{i2};I = spread_space_ind{i2};
+%                         pert_x_ordered = pert_x(:,I);clear pert_x;
+%                         sum_pert_x_ordered = sum(abs(pert_x_ordered),2);
+%                         pert_x_ordered_proportions = abs(pert_x_ordered)./sum_pert_x_ordered;clear pert_x_ordered sum_pert_x_ordered;
+%                         pert_x_ordered_quants = num_quants*pert_x_ordered_proportions;clear pert_x_ordered_proportions;
+%                         
+%                         B_mat = B.*ones(size(pert_x_ordered_quants'));
+%                         means = dot(B_mat,pert_x_ordered_quants')/num_quants;clear B_mat;
+%                         prevar1 = B - means; %B is the ordered degree vector, should be a column,
+%                         % means should be a row vector
+%                         prevar2 = prevar1.^2; clear prevar1;
+%                         prevar3 = pert_x_ordered_quants' .* prevar2; clear prevar2
+%                         prevar4 = sum(prevar3,1); clear prevar3;
+%                         var = sqrt(prevar4 / num_quants); clear prevar4;
+                        plot(ax{i2,1},sol_t,vars);
+                        plot(ax{i2,2},sol_t,means);
+                        if ~isempty(ylabs{i2,3})
+                            plot(ax{i2,3},sol_t,max(pert_x_ordered_quants,[],2));
+                        end
+                        descInd1 = mod(descInd,length(desc1))+1;
+                        if legendInd <= length(desc1)
+                            legendStr{legendInd} = desc1{descInd1};legendInd = legendInd+1;
+                        end
+                        %%% fig20-*
+                        name = ['fig20-' num2str(i4) namesuf1{i2}];
+                        f20 = figure('Name',name,'NumberTitle','off');
+                        xlabel(ylabs2{i2});x = 1:6000;
+                        semilogy(x,pert_x_ordered_quants(1,:),'*-');hold on;
+                        tind = find(sol_t >= 46, 1);
+                        semilogy(x,pert_x_ordered_quants(tind,:),'*-');
+                        semilogy(x,pert_x_ordered_quants(end,:),'*-');
+                        title({[name ' ' obj.scenarioName];obj.desc;desc1{descInd1}},'interpreter','latex');
+                        fig20ind = fig20ind+1;xlabel('i');
+                        ylabel('$\mid pert_i\mid/\sum_i \mid pert_i \mid$','Interpreter','latex');
+                        legend('t = 0',['t = ' num2str(sol_t(tind))],'t = end');obj.save_fig(f20,name);
+                        %%% fig21-*
+                        name = ['fig21-' num2str(i4) namesuf1{i2}];
+                        f21 = figure('Name',name,'NumberTitle','off');
+                        image(abs(pert_x_ordered_quants(:,end:-1:1)'),'CDatamapping','scaled');
+                        colorbar;set(gca,'ColorScale','log');
+                        inds = 100:100:length(sol_t);
+                        xticks(inds);xticklabels(strsplit(num2str(round(sol_t(inds)'))));
+                        n = size(pert_x_ordered_quants,2);
+                        inds = find(mod(1:n,500)==1); yticks(inds);
+                        inds = find(mod(1:n,500)==0);inds=inds(end:-1:1);yticklabels(strsplit(num2str(inds)));
+                        xlabel('t');ylabel(ylabs2{i2});
+                        title({[name ' ' obj.scenarioName];obj.desc;desc1{descInd1};'$\mid pert_i\mid/\sum_i \mid pert_i \mid$'},'interpreter','latex');
+                        descInd=descInd+1;obj.save_fig(f21,name);fig21ind = fig21ind+1;
+                        
+%                     catch exception
+%                         disp(exception.message);
+%                     end
                 end
             end
-            
-            for i1=1:numfigs
-                legend(ax{i1},legendStr,'interpreter','latex');
-                name = [namepre num2str(i1)];obj.save_fig(f{i1},name);                
+            for i2 = 1:size(ylabs,1)
+                for i1 = 1:size(ylabs,2)
+                    if ~isempty(ylabs{i2,i1})
+                        legend(ax{i2,i1},legendStr,'interpreter','latex');
+                        name = [namepre num2str(i1) namesuf1{i2}];obj.save_fig(f{i2,i1},name);
+                    end
+                end
             end
+        end
+        %% fig 22*
+        function obj = plot_localization2(obj)
+            networkPath = fullfile('networks',obj.networkName);
+            num_nodes = 300;
+            num_times = 3;
+            k = General.load_var(fullfile(networkPath,'degree_vector'));
+            A = General.load_var(fullfile(networkPath,'adjacency_matrix'));
+            dist = General.load_var(fullfile(networkPath,'shortest_distances'));
+            [~,start_node] = max(k);
+            dist_start_node = dist(start_node,:);
+            [dist_start_node_sorted,inds] = sort(dist_start_node);
+            inds_top_num_nodes = inds(1:num_nodes);
+            A_num_nodes = A(inds_top_num_nodes,inds_top_num_nodes);
+            k_num_nodes = k(inds_top_num_nodes);
+            k_max = max(k_num_nodes);
+            k_min = min(k_num_nodes)-1;
+            k_range = k_max-k_min;
+            G = graph(A_num_nodes);
+            max_marker_size = 20;
+            
+            sol_path_t = fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_t_hub');
+            sol_path_x = fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_x_hub');
+            sol_t = General.load_var(sol_path_t);
+            sol_x = General.load_var(sol_path_x);
+            ss = obj.steady_state;
+            pert_x = (sol_x' - ss')';
+            [means, vars, pert_x_ordered_quants] = EngineClass.compute_wmeans_wvars(abs(pert_x'), dist_start_node');
+            TF = find(islocalmax(vars) | islocalmin(vars));            
+            num_rows = size(pert_x,1);
+            step = floor(num_rows/(num_times-1));
+%             pert_inds = 1:step:num_rows;
+            pert_inds = [1 floor(TF(1)/2) TF];
+            if abs(vars(TF(end)) - vars(end)) > .1
+                pert_inds = [pert_inds num_rows];
+            end
+            l = length(pert_inds);
+            num_tiles_rows = floor(sqrt(l));
+            num_tiles_cols = ceil(l/num_tiles_rows);
+            name = 'fig22-a';
+            f = figure('Name',name,'NumberTitle','off');
+            t = tiledlayout(num_tiles_rows,num_tiles_cols);
+            desc1 = 'Perturbation mass concentration diffusion';
+            for i1 = 1:l
+                nexttile;
+                p=plot(G,'LineWidth',.1,'LineStyle','-','Marker','o','layout','force');
+                for i = 1:num_nodes
+                    k_i = k_num_nodes(i);
+                    markerSize = (k_i-k_min)/k_range*max_marker_size+4;
+                    highlight(p,i,'MarkerSize',markerSize);
+                end
+                pert_x1 = pert_x(pert_inds(i1),:);
+                pert_x1_num_nodes = pert_x1(1,inds_top_num_nodes);
+                pert_x1_max = max(pert_x1_num_nodes);
+                pert_x1_min = min(pert_x1_num_nodes);
+                pert_x1_range = pert_x1_max - pert_x1_min;
+                pert_x1_min = pert_x1_min - .1*pert_x1_range;
+                pert_x1_range = pert_x1_max - pert_x1_min;
+                
+                for i = 1:num_nodes
+                    pert_x1_i = pert_x1_num_nodes(i);
+                    marker_color = (pert_x1_i - pert_x1_min)/pert_x1_range;
+                    highlight(p,i,'NodeColor',[1 1-marker_color 1-marker_color]);
+                end
+
+                    title(['t = ' num2str(sol_t(pert_inds(i1)))]);
+
+            end
+            title(t,{[name ' ' obj.scenarioName];obj.desc;desc1});
+            obj.save_fig(f,name);
+        end
+        %%
+        function obj = set_networkNameSF1(obj)
+            obj.networkName = 'SF1';
+            obj.plot_localization2();
         end
         %%
         function decayTimes = find_decay_times(~,pert,sol_t)
@@ -3109,17 +3254,18 @@ end
         function xout = test_fun(a,b)
             xout = a+b;
         end
-        function [wmeans, wvars] = compute_wmeans_wvars(columns, weights)
+        function [wmeans, wvars, columns_prop_ordered] = compute_wmeans_wvars(columns, weights)
             % columns is a matrix, we find the weighted mean and variance
             % of each column, according to the weight vector weights. Don't
             % forget to take absolute value of columns before calling
             % function if want mass distribution.
-            weights_mat = weights + zeros(size(columns));
-            d = columns.*weights_mat;clear weights_mat;
+            [weights_ordered, weights_ordered_ind] = sort(weights);
+            weights_mat = weights_ordered + zeros(size(columns));
             s = sum(columns);
-            ws = sum(d);clear d;
-            wmeans = ws./s;clear ws;
-            wvars = sum((columns.*(weights-wmeans)).^2)./s;            
+            columns_prop_ordered = columns(weights_ordered_ind,:)./s;
+            d = columns_prop_ordered.*weights_mat;clear weights_mat;            
+            wmeans = sum(d);clear d;
+            wvars = sqrt(sum(columns_prop_ordered.*(weights_ordered-wmeans).^2));            
         end
         function J = compute_J(Dii,Wij,C_D,C_W)
             J = C_W*(Wij - diag(diag(Wij))) + C_D*(diag(Dii));

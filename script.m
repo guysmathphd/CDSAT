@@ -952,7 +952,7 @@ REG.plot_results(true);
 REG.plot_steady_vs_degree();
 REG.save_obj();
 %%
-obj.solve(1,1,1,1);
+obj.solve(1,1,1,2);
 obj.solve_eigvec_pert_max_hub(2);
 obj.save_obj();
 nt = length(obj.solution_t);
@@ -1004,3 +1004,31 @@ for i=1:5
     obj.save_var(sol_t,obj.resultsPath,'obj_properties',['sol_t_asy_v' num2str(i)]);
     obj.save_var(sol_x,obj.resultsPath,'obj_properties',['sol_x_asy_v' num2str(i)]);
 end
+%% EngineSet2 test27
+
+name = 'test27set2';
+folderNames = {'test23SIS16-8','test16REG1','test24ECO1','test25BIO1','test26REG2'};
+legendNames = {'SIS','Regulatory a = 1','Ecological','Biochemical','Regulatory a = .5'};
+obj = EngineSet2(folderNames,name);
+obj.batchFunction(@solve_eigvec_pert_max_hub_1,[3 4]);
+% obj.batchFunction(@set_graph_object,1:4);
+obj.plotLocalization1();
+
+%%
+obj.initialValues = obj.steady_state';
+obj.solve(1,1,1,2);
+%%
+alpha = -1:.01:1;
+[X,Y] = meshgrid(alpha);
+gamma = (((Y-X).^2).*X + 1 + X - Y)/(Y - X);
+% surf(X,Y,gamma);
+% surf(X,Y,sign(gamma));
+figure;image(sign(gamma),'CDatamapping','scaled');colorbar;
+%%
+x = .1:.1:2;
+y1 = 1./x;
+y2 = 1./x - 1;
+y3 = x;
+y4 = 1 - x + x.^2 - x.^3 + x.^4 - x.^5 + x.^6 - x.^7;
+y5 = 1./(x+1);
+figure;plot(x,y1,x,y2,x,y3,x,y4,x,y5);axis equal;legend;
