@@ -98,7 +98,7 @@ classdef EngineClass <  handle
         perturbation_factor = .1;
         pert_map_struct
         pert_map_struct_v2asy
-        init_condition
+        init_condition_str
         stop_condition_2
         opts
         epsFactor = 0.9;
@@ -435,9 +435,9 @@ classdef EngineClass <  handle
             %%%%%% Adjust Epsilons
             epsVals = obj.eps;
             ss = obj.steady_state;
-            init_condition = @(init) ~(any(init < 0 | init > 1,'all'));
+            init_condition_str = '~(any(init < 0 | init > 1,''all''))';
             [obj.pert_map_struct.new_epsilons, obj.pert_map_struct.inits, obj.pert_map_struct.is_inits_legit] = check_epsilons(obj,epsVals,perts,ss',obj.epsThreshold,...
-                obj.epsFactor,init_condition);
+                obj.epsFactor,init_condition_str);
             %%%%%%%%%%%%%%
             stop_cond = @(t,x) (size(t,1)>100 && max(abs(x(end,:) - x(end-100,:)))<obj.absTol);
             inits = obj.pert_map_struct.inits;is_inits_legit=obj.pert_map_struct.is_inits_legit;
@@ -445,7 +445,7 @@ classdef EngineClass <  handle
                 obj.solverTimeStep,obj.maxTime,stop_cond);
         end
         function [new_epsilons, inits_out, is_inits_legit] = check_epsilons(obj,eps_vals,perts,ss,epsThreshold,...
-                epsFactor,init_condition)
+                epsFactor,init_condition_str)
             n1 = size(eps_vals,2);
             n2 = size(perts,2);
             new_epsilons = zeros(n1,n2);
@@ -456,7 +456,7 @@ classdef EngineClass <  handle
                 for pert_ind = 1:n2
                     pert = perts(:,pert_ind);
                     [new_epsilon, init_out, is_init_legit] = obj.check_epsilon(eps_val, pert, ss, epsThreshold,...
-                        epsFactor, init_condition);
+                        epsFactor, init_condition_str);
                     new_epsilons(eps_ind,pert_ind) = new_epsilon;
                     inits_out{eps_ind}(:,pert_ind) = init_out;
                     is_inits_legit(eps_ind,pert_ind) = is_init_legit;
@@ -464,7 +464,7 @@ classdef EngineClass <  handle
             end
         end
         function [new_epsilon, init_out, is_init_legit] = check_epsilon(~,eps_val, pert, ss, epsThreshold,...
-                epsFactor, init_condition)
+                epsFactor, init_condition_str)
             is_init_legit = false;            
             while ~is_init_legit
                 disp(['eps = ' num2str(eps_val)]);
@@ -474,7 +474,8 @@ classdef EngineClass <  handle
                 end
                 eps_pert = eps_val * pert;
                 init = ss + eps_pert;
-                if ~init_condition(init)
+                init_condition = eval(init_condition_str);
+                if ~init_condition
                     disp('Adjusting Epsilon');
                     if eps_val > 0
                         eps_val = -1*eps_val;
@@ -490,6 +491,24 @@ classdef EngineClass <  handle
             disp(['Final eps= ' num2str(eps_val)]);
             init_out = init;
         end
+        function obj = solve_degree_weighted_perts(obj)
+            powers = [1,3,10];
+            path = fullfile(obj.resultsPath,'obj_properties','sol_pert_k_power');
+            for i = 1:length(powers)
+                power = powers(i);
+                pertname = ['pert_k_power_' num2str(power)];
+                pert = General.load_var(fullfile('networks',obj.networkName,'perts',pertname));
+                eps_val = .1;ss = obj.steady_state;epsFactor = 0.9;
+                [new_epsilon, init_out, is_init_legit] = obj.check_epsilon(eps_val, pert, ss', obj.epsThreshold,...
+                epsFactor, obj.init_condition_str);
+                init = init_out;% obj.steady_state' + .1*pert;
+                stop_cond_str = 'stepEndTime >= 100*half_life';
+                [sol_t,sol_x] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
+                General.save_var(sol_t,path,['sol_t_' pertname]);
+                General.save_var(sol_x,path,['sol_x_' pertname]);
+            end
+        end
+        
         function obj = solve_eigvec_pert_max_hub(obj,hubtype)
             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana_ordered_nodes.mat'),'var');eigenvectors_ana_ordered_nodes=mydata.var;
             s = size(eigenvectors_ana_ordered_nodes,1);
@@ -497,15 +516,15 @@ classdef EngineClass <  handle
                 case 1 % hubs
                     f = @max;row = s;foldernamestr = 'eigvec_pert_max_hub';
                     hubs = eigenvectors_ana_ordered_nodes(row,:);
-                case 2 % antihubs
+                case 2 % antihubs - actually this is the eigenvector with the least mass at any particular node
                     f = @min;row = 1;foldernamestr = 'eigvec_pert_min_hub';
                     hubs = max(abs(eigenvectors_ana_ordered_nodes));
                 otherwise
             end
             [~,i] = f(abs(hubs));
-            eigvec_max_hub_ana = obj.eigenvectors_ana(:,i);
-            eigvec_max_hub_asy = obj.eigenvectors_asy_permuted(:,i);
-            stop_cond_str = 'false';
+            eigenvectors_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana'));  eigvec_max_hub_ana = eigenvectors_ana(:,i);
+            eigenvectors_asy_permuted = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_asy_permuted')); eigvec_max_hub_asy= eigenvectors_asy_permuted(:,i);
+            stop_cond_str = 'stepEndTime >= 100*half_life';
             init = obj.steady_state' + .1*eigvec_max_hub_ana;
             if i>obj.numeigenplots
                 [sol_t_ana,sol_x_ana] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
@@ -533,12 +552,52 @@ classdef EngineClass <  handle
                 obj.save_var(sol_x_hub,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,'sol_x_hub');
             end
         end
+        function obj = solve_single_node_pert(obj,node_id)
+            pert = zeros(obj.N,1);pert(node_id) = 1;
+            stop_cond_str = 'stepEndTime >= 100*half_life';
+            eps_val = 1;ss = obj.steady_state;epsFactor = 0.9;
+            [new_epsilon, init_out, is_init_legit] = obj.check_epsilon(eps_val, pert, ss', obj.epsThreshold,...
+                epsFactor, obj.init_condition_str);
+            foldernamestr = 'single_node_pert_sol';
+            [sol_t,sol_x] = obj.single_solve(obj.opts,obj.difEqSolver,init_out,obj.solverTimeStep,obj.maxTime,stop_cond_str);
+            obj.save_var(sol_t,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,['sol_t_' num2str(node_id)]);
+            obj.save_var(sol_x,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,['sol_x_' num2str(node_id)]);
+        end
+        function obj = solve_single_node_perts_batch(obj)
+            [~,i] = sort(obj.degree_vector_weighted,'descend');
+            node_ids = i(1:10);node_ids(end+1) = floor(obj.N/2);
+            for node_id = node_ids'
+                obj.solve_single_node_pert(node_id);
+            end
+        end
+        function obj = rename_files(obj)
+            p = fullfile(obj.resultsPath, 'obj_properties','single_node_pert_sol');
+            contents = dir(p);
+            for j = 1:length(contents)
+                content = contents(j);
+                fname = content.name;
+                if length(fname) > 2
+                    i = find(fname == 'k');
+                    newname = [fname(1:i-2) '.mat'];
+                    fp = fullfile(p,fname);
+                    fpnew = fullfile(p,newname);
+                    status = movefile(fp,fpnew);
+                    if status~=1
+                        disp(['status = ' num2str(status) 'for fp = ' fp]);
+                    end
+                end
+            end
+        end
         function obj = solve_eigvec_pert_max_hub_1(obj)
             obj.solve_eigvec_pert_max_hub(1);
         end
         function [sol_t, sol_x] = single_solve(obj,opts,difEqSolver,init,timeStep,maxTime,stop_cond_str)
             t = 0;sol_t = [0];sol_x = [init'];
+            pert0 = obj.steady_state - init';
             setBreak1 = false;setBreak2 = false; % stop while loop?
+            obj.adjacencyMatrix = General.load_var(fullfile('networks',obj.networkName,'adjacency_matrix'));   
+            first_appendall = true;
+            half_life = maxTime;
             while ~setBreak1 && ~setBreak2
                 % check if this step passes maxTime and set stepEndTime
                 if t + timeStep >= maxTime
@@ -552,8 +611,17 @@ classdef EngineClass <  handle
                 [step_sol_t,step_sol_x] = difEqSolver(odefun,[t stepEndTime],init,opts);
                 t = stepEndTime; init = step_sol_x(end,:);
                 % append results to solution_t and solution_x
-                sol_t(end+1,:)=step_sol_t(end,:);
-                sol_x(end+1,:)=step_sol_x(end,:);
+                disp(['pertnorm = ' num2str(norm(obj.steady_state - step_sol_x(end,:)))]);
+                appendall = first_appendall && (norm(obj.steady_state - step_sol_x(end,:)) < .5*norm(pert0));
+                if ~appendall
+                    sol_t(end+1,:)=step_sol_t(end,:);
+                    sol_x(end+1,:)=step_sol_x(end,:);
+                else
+                    sol_t = [sol_t;step_sol_t];
+                    sol_x = [sol_x;step_sol_x];
+                    half_life = step_sol_t(end);
+                    first_appendall = false;
+                end
                 eval(['setBreak2 = ' stop_cond_str]);
                 if setBreak2
                     disp('setBreak2 = true');
@@ -617,16 +685,16 @@ classdef EngineClass <  handle
             %%%%%% Adjust Epsilons
             switch isAdjustEpsilonType
                 case 0 %no condition
-                    init_condition = @(init) (true);
+                    init_condition_str = 'true';
                 case 1 %SIS
-                    init_condition = @(init) ~(any(init < 0 | init > 1,'all'));
+                    init_condition_str = '~(any(init < 0 | init > 1,''all''))';
                 case 2 %REG
-                    init_condition = @(init) ~(any(init < 0));
+                    init_condition_str = '~(any(init < 0))';
                 otherwise
             end                
             epsFactor = .9;
             [new_epsilons, inits_out, is_inits_legit] = check_epsilons(obj,eps_vals,perts,ss',obj.epsThreshold,...
-                epsFactor,init_condition);
+                epsFactor,init_condition_str);
             obj.eps_adjusted = new_epsilons;
             inits = inits_out;
             obj.isInitsLegit = is_inits_legit;
@@ -1842,6 +1910,8 @@ classdef EngineClass <  handle
             catch exception
                 disp(['plot_eigenvalues: load eigvals_asy_v5.mat exception: ' exception.message]);
             end
+            obj.eigenvalues_asy = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvalues_asy'));
+            obj.eigenvalues_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvalues_ana'));
             suf1 = {'-Real', '-Complex','-abs'};
             desc1 = {' real part', ' complex valued', ' absolute value'};
             xlabs = {'$i$', '$Re(\lambda_i)$', '$i$'};
@@ -1877,6 +1947,28 @@ classdef EngineClass <  handle
                 legend(legendStr);
                 obj.save_fig(f,name);
             end
+        end
+        %% fig5b-*
+        function plot_eigenvalues2(obj)
+            obj.eigenvalues_asy_permuted = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvalues_asy_permuted'));
+            obj.eigenvalues_asy = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvalues_asy'));
+            obj.eigenvalues_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvalues_ana'));
+            if obj.mu < 0
+                dir = 'descend';
+            else
+                dir = 'ascend';
+            end
+            [deg_sorted,~] = sort(obj.degree_vector_weighted,dir);
+            name = 'fig5b'; f = figure('Name',name,'NumberTitle','off');
+            loglog(deg_sorted,abs(obj.eigenvalues_ana),'-*');hold on;
+            loglog(deg_sorted,abs(obj.eigenvalues_asy),'-^');hold on;
+            loglog(deg_sorted,abs(obj.eigenvalues_asy_permuted),'-v');hold on;
+            loglog(deg_sorted,deg_sorted.^obj.mu,'-s');
+            xlabel('$k_i$','Interpreter','latex');ylabel('$\mid\lambda_{k_i}\mid$','Interpreter','latex');
+            figdesc = 'Comparison of eigenvalues and $k_i^\mu$';
+            title({[name ' ' obj.scenarioName];obj.desc;figdesc},'interpreter','latex');
+            legend('$\lambda_{i,Re}$ sorted','$\lambda_{i,Th}$ sorted','$\lambda_{i,Th Permuted}$ sorted','$k_i^\mu$','interpreter','latex');
+            obj.save_fig(f,name);
         end
         function plot_eigenvectors(obj,usePermuted)
             %n = obj.numeigenplots2;
@@ -2951,8 +3043,12 @@ classdef EngineClass <  handle
         end
         %%
         function obj = plot_jacobian2(obj)
-            Jana = obj.Wij_ana + diag(obj.Dii_ana);
-            Jasy = obj.Wij_asy + diag(obj.Dii_asy);
+            Wij_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','Wij_ana'));
+            Wij_asy = General.load_var(fullfile(obj.resultsPath,'obj_properties','Wij_asy'));
+            Dii_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','Dii_ana'));
+            Dii_asy = General.load_var(fullfile(obj.resultsPath,'obj_properties','Dii_asy'));
+            Jana = Wij_ana + diag(Dii_ana);
+            Jasy = Wij_asy + diag(Dii_asy);
             jacobians = {Jana,Jasy};
             namepre = 'fig15-';
             path = obj.resultsPath;
@@ -3140,73 +3236,195 @@ classdef EngineClass <  handle
         end
         %% fig 22*
         function obj = plot_localization2(obj)
+            [ids_sorted_by_deg,B] = obj.get_ids_sorted_by_degs();
+            ids = [ids_sorted_by_deg(1),ids_sorted_by_deg(end)];
             networkPath = fullfile('networks',obj.networkName);
             num_nodes = 300;
             num_times = 3;
             k = General.load_var(fullfile(networkPath,'degree_vector'));
             A = General.load_var(fullfile(networkPath,'adjacency_matrix'));
             dist = General.load_var(fullfile(networkPath,'shortest_distances'));
-            [~,start_node] = max(k);
-            dist_start_node = dist(start_node,:);
-            [dist_start_node_sorted,inds] = sort(dist_start_node);
-            inds_top_num_nodes = inds(1:num_nodes);
-            A_num_nodes = A(inds_top_num_nodes,inds_top_num_nodes);
-            k_num_nodes = k(inds_top_num_nodes);
-            k_max = max(k_num_nodes);
-            k_min = min(k_num_nodes)-1;
-            k_range = k_max-k_min;
-            G = graph(A_num_nodes);
-            max_marker_size = 20;
+%             [~,start_node] = max(k);
             
-            sol_path_t = fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_t_hub');
-            sol_path_x = fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_x_hub');
-            sol_t = General.load_var(sol_path_t);
-            sol_x = General.load_var(sol_path_x);
-            ss = obj.steady_state;
-            pert_x = (sol_x' - ss')';
-            [means, vars, pert_x_ordered_quants] = EngineClass.compute_wmeans_wvars(abs(pert_x'), dist_start_node');
-            TF = find(islocalmax(vars) | islocalmin(vars));            
-            num_rows = size(pert_x,1);
-            step = floor(num_rows/(num_times-1));
-%             pert_inds = 1:step:num_rows;
-            pert_inds = [1 floor(TF(1)/2) TF];
-            if abs(vars(TF(end)) - vars(end)) > .1
-                pert_inds = [pert_inds num_rows];
-            end
-            l = length(pert_inds);
-            num_tiles_rows = floor(sqrt(l));
-            num_tiles_cols = ceil(l/num_tiles_rows);
-            name = 'fig22-a';
-            f = figure('Name',name,'NumberTitle','off');
-            t = tiledlayout(num_tiles_rows,num_tiles_cols);
-            desc1 = 'Perturbation mass concentration diffusion';
-            for i1 = 1:l
-                nexttile;
-                p=plot(G,'LineWidth',.1,'LineStyle','-','Marker','o','layout','force');
-                for i = 1:num_nodes
-                    k_i = k_num_nodes(i);
-                    markerSize = (k_i-k_min)/k_range*max_marker_size+4;
-                    highlight(p,i,'MarkerSize',markerSize);
+            
+%             sol_path_t = fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_t_hub');
+%             sol_path_x = fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_x_hub');
+%             sol_t = General.load_var(sol_path_t);
+%             sol_x = General.load_var(sol_path_x);
+%             ss = obj.steady_state;
+%             pert_x = (sol_x' - ss')';
+%             [means, vars, pert_x_ordered_quants] = EngineClass.compute_wmeans_wvars(abs(pert_x'), dist_start_node');
+%             TF = find(islocalmax(vars) | islocalmin(vars));            
+%             num_rows = size(pert_x,1);
+%             step = floor(num_rows/(num_times-1));
+% %             pert_inds = 1:step:num_rows;
+%             pert_inds = [1 floor(TF(1)/2) TF];
+%             if abs(vars(TF(end)) - vars(end)) > .1
+%                 pert_inds = [pert_inds num_rows];
+%             end
+%             l = length(pert_inds);
+%             num_tiles_rows = floor(sqrt(l));
+%             num_tiles_cols = ceil(l/num_tiles_rows);
+            
+            num_tiles_rows = 2;num_tiles_cols = 2;pert_norm_hat_snapshots = [1,.5,.1,.02];
+            for id = ids       
+                name = ['fig22a-id-' num2str(id)];
+                f = figure('Name',name,'NumberTitle','off');
+                t = tiledlayout(num_tiles_rows,num_tiles_cols);
+                start_node = id;
+                dist_start_node = dist(start_node,:);
+                [dist_start_node_sorted,inds] = sort(dist_start_node);
+                inds_top_num_nodes = inds(1:num_nodes);
+                A_num_nodes = A(inds_top_num_nodes,inds_top_num_nodes);
+                k_num_nodes = k(inds_top_num_nodes);
+                k_max = max(k_num_nodes);
+                k_min = min(k_num_nodes)-1;
+                k_range = k_max-k_min;
+                G = graph(A_num_nodes);
+                max_marker_size = 20;
+                desc1 = ['Perturbation mass concentration diffusion, $k_i = ' num2str(obj.degree_vector_weighted(id)) '$'];
+                [~,~,pert_x,~,pert_x_norm_hat] = obj.get_pert(id);
+                for i1 = pert_norm_hat_snapshots
+                    nexttile;
+                    p=plot(G,'LineWidth',.1,'LineStyle','-','Marker','o','layout','force');
+                    for i = 1:num_nodes
+                        k_i = k_num_nodes(i);
+                        markerSize = (k_i-k_min)/k_range*max_marker_size+4;
+                        highlight(p,i,'MarkerSize',markerSize);
+                    end
+                    ind = find(pert_x_norm_hat<=i1,1);
+                    pert_x1 = abs(pert_x(ind,:));
+                    pert_x1_num_nodes = pert_x1(1,inds_top_num_nodes);
+                    pert_x1_max = max(pert_x1_num_nodes);
+                    pert_x1_min = min(pert_x1_num_nodes);
+                    pert_x1_range = pert_x1_max - pert_x1_min;
+                    pert_x1_min = pert_x1_min - .1*pert_x1_range;
+                    pert_x1_range = pert_x1_max - pert_x1_min;
+                    
+                    for i = 1:num_nodes
+                        pert_x1_i = pert_x1_num_nodes(i);
+                        marker_color = (pert_x1_i - pert_x1_min)/pert_x1_range;
+                        highlight(p,i,'NodeColor',[1 1-marker_color 1-marker_color]);
+                    end
+                    
+                    title(['$\mid pert \mid = ' num2str(i1) '*\mid pert_0 \mid$'],'Interpreter','latex');                    
                 end
-                pert_x1 = pert_x(pert_inds(i1),:);
-                pert_x1_num_nodes = pert_x1(1,inds_top_num_nodes);
-                pert_x1_max = max(pert_x1_num_nodes);
-                pert_x1_min = min(pert_x1_num_nodes);
-                pert_x1_range = pert_x1_max - pert_x1_min;
-                pert_x1_min = pert_x1_min - .1*pert_x1_range;
-                pert_x1_range = pert_x1_max - pert_x1_min;
-                
-                for i = 1:num_nodes
-                    pert_x1_i = pert_x1_num_nodes(i);
-                    marker_color = (pert_x1_i - pert_x1_min)/pert_x1_range;
-                    highlight(p,i,'NodeColor',[1 1-marker_color 1-marker_color]);
-                end
-
-                    title(['t = ' num2str(sol_t(pert_inds(i1)))]);
-
+                title(t,{[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
+                obj.save_fig(f,name);
             end
-            title(t,{[name ' ' obj.scenarioName];obj.desc;desc1});
-            obj.save_fig(f,name);
+        end
+        %% fig23*
+        function obj = plot_localization3(obj)
+            powers = [1 3 10];
+            name = 'fig23-1-t'; fname{1} = name;%pert_norm vs t
+            f{1} = figure('Name',name,'NumberTitle','off');
+            hax{1} = axes;hold on;xlabel('t','Interpreter','latex');ylabel('$\mid pert \mid$','Interpreter','latex');
+            desc1 = 'Perturbation norm vs t'; 
+            title({[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
+            name = 'fig23-1-tau'; fname{2} = name;%pert_norm vs tau
+            f{2} = figure('Name',name,'NumberTitle','off');
+            hax{2} = axes;hold on;xlabel('$\tau$','Interpreter','latex');ylabel('$\mid pert \mid$','Interpreter','latex');
+            desc1 = 'Perturbation norm vs $\tau$ ($\tau$ = half-life)';
+            title({[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
+            name = 'fig23-2-t'; fname{3} = name;%pert_pert0_dot_normed vs t
+            f{3} = figure('Name',name,'NumberTitle','off');
+            hax{3} = axes;hold on;xlabel('t','Interpreter','latex');ylabel('$\widehat{pert} \cdot \widehat{pert_0}$','Interpreter','latex');
+            desc1 = 'Perturbation shape compared to initial perturbation vs t';
+            title({[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
+            name = 'fig23-2-tau'; fname{4} = name; %pert_pert0_dot_normed vs tau
+            f{4} = figure('Name',name,'NumberTitle','off');
+            hax{4} = axes;hold on;xlabel('$\tau$','Interpreter','latex');ylabel('$\widehat{pert} \cdot \widehat{pert_0}$','Interpreter','latex');
+            desc1 = 'Perturbation shape compared to initial perturbation vs $\tau$ ($\tau$ = half-life)';
+            title({[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
+            name = 'fig23-3'; fname{5} = name; %half-lives vs t
+            f{5} = figure('Name',name,'NumberTitle','off');
+            hax{5} = axes; hold on; xlabel('t','Interpreter','latex');ylabel('Half-life','Interpreter','latex');
+            desc1 = 'Perturbation half-life vs t';
+            title({[name '' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
+            legendInd = 1;legendStr = cell(1,length(powers));
+            for i = powers
+                fnamet = ['sol_t_pert_k_power_' num2str(i)];path = fullfile(obj.resultsPath,'obj_properties','sol_pert_k_power',fnamet);
+                sol_t = General.load_var(path);
+                fnamex = ['sol_x_pert_k_power_' num2str(i)];path = fullfile(obj.resultsPath,'obj_properties','sol_pert_k_power',fnamex);
+                sol_x = General.load_var(path);
+                [pert_norm, pert_pert0_dot_normed, half_life, sol_tau,ind1,ind2] = EngineClass.compute_pert_props(sol_t,sol_x,obj.steady_state);
+                plot(hax{1},sol_t,pert_norm);legend;
+                plot(hax{2},sol_tau,pert_norm);legend;
+                plot(hax{3},sol_t,pert_pert0_dot_normed);legend;
+                plot(hax{4},sol_tau,pert_pert0_dot_normed);legend;
+                plot(hax{5},sol_t(ind1:ind2),half_life);
+                legendStr{legendInd} = ['$pert_0 \sim k_i^{' num2str(i) '}$'];legendInd = legendInd+1;
+            end
+            
+            for i = 1:length(f)
+                legend(hax{i},legendStr,'interpreter','latex');
+                EngineClass.save_fig_static(f{i},fname{i},obj.resultsPath);
+            end
+        end
+        %% Helper function
+        function [ids_sorted_by_deg,B] = get_ids_sorted_by_degs(obj)
+            p = fullfile(obj.resultsPath,'obj_properties','single_node_pert_sol');
+            files = dir(p);
+            %names = cell(1,length(files)-2);
+            ids = zeros(1,length(files)/2 - 1);ind = 1;
+            for i = 1:length(files)
+                file = files(i);
+                if file.name(1) ~= '.' && file.name(5) == 't'
+%                     names{i} = files.name;
+                    ind1 = find(file.name == '.');
+                    ids(ind) = str2double(file.name(7:ind1-1));
+                    ind = ind+1;
+                end
+            end
+            ids = sort(ids);
+            degs = obj.degree_vector_weighted(ids);
+            [B,I] = sort(degs,'descend');
+            ids_sorted_by_deg = ids(I);
+        end
+        function [sol_t,sol_x,pert_x,pert_x_0,pert_x_norm_hat] = get_pert(obj,id)
+            p = fullfile(obj.resultsPath,'obj_properties','single_node_pert_sol');
+            sol_t = General.load_var(fullfile(p,['sol_t_' num2str(id)]));
+            sol_x = General.load_var(fullfile(p,['sol_x_' num2str(id)]));
+            pert_x = (sol_x' - obj.steady_state')';
+            pert_x_0 = pert_x(1,:);
+            pert_x_norm = vecnorm(pert_x');
+            pert_x_norm_hat = pert_x_norm./norm(pert_x_0);
+            ind = find(pert_x_norm_hat < .02,1);
+            sol_t = sol_t(1:ind);
+            sol_x = sol_x(1:ind,:);
+            pert_x = pert_x(1:ind,:);
+            pert_x_norm_hat = pert_x_norm_hat(1:ind);
+        end
+        %% fig24*
+        function obj = plot_single_node_pert(obj)
+            [ids_sorted_by_deg,B] = obj.get_ids_sorted_by_degs();
+            %%%
+            name = 'fig24a';fname{1} = name;%pert_norm/pert0_norm vs t
+            f{1} = figure('Name',name,'NumberTitle','off');
+            hax{1} = axes;hold on;xlabel('t','Interpreter','latex');ylabel('$\mid pert \mid / \mid pert_0 \mid$','Interpreter','latex');
+            desc1 = 'Perturbation norm (relative to $pert_0$) vs $t$, $pert_0 = \delta(i)$'; 
+            title({[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
+
+            name = 'fig24b';fname{2} = name;%tau vs k_i
+            f{2} = figure('Name',name,'NumberTitle','off');
+            hax{2} = axes;hold on;xlabel('$k_i$','Interpreter','latex');ylabel('$\tau$','Interpreter','latex');
+            desc1 = '$\tau = $ time when $\mid pert \mid = .02*\mid pert_0 \mid$'; 
+            title({[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');            
+            
+            taus = zeros(length(ids_sorted_by_deg,1));legendInd = 1;legendStr = cell(1,length(ids));
+            for i = 1:length(ids_sorted_by_deg)
+                id = ids_sorted_by_deg(i);
+                [sol_t,~,~,~,pert_x_norm_hat] = obj.get_pert(id);
+                taus(i) = sol_t(ind);
+                plot(hax{1},sol_t,pert_x_norm_hat);legendStr{legendInd} = ['$k_i = ' num2str(B(i)) '$'];
+                legendInd = legendInd+1;
+            end
+            legend(hax{1},legendStr,'interpreter','latex');
+            plot(hax{2},B,taus,'o');
+            
+            for i = 1:length(f)
+                EngineClass.save_fig_static(f{i},fname{i},obj.resultsPath);
+            end
         end
         %%
         function obj = set_networkNameSF1(obj)
@@ -3253,6 +3471,27 @@ classdef EngineClass <  handle
         end
         function xout = test_fun(a,b)
             xout = a+b;
+        end
+        function [pert_norm, pert_pert0_dot_normed, half_life, sol_tau,ind_1,ind_2] = compute_pert_props(sol_t,sol_x,ss)
+            pert = (sol_x' - ss')';
+            pert0 = pert(1,:);
+            pert_norm = vecnorm(pert');
+            pert_normed = (pert'./pert_norm)';
+            pert0_normed = pert_normed(1,:);
+            pert0_normed_mat = pert0_normed' + zeros(size(pert'));
+            pert_pert0_dot_normed = dot(pert_normed',pert0_normed_mat);
+            ind1 = find(diff(pert_norm)<=0);half_life = [];ind_1 = ind1(1);
+            for i = ind1
+                ind2 = find(pert_norm < .5*pert_norm(i),1);
+                if ~isempty(ind2)
+                    half_life(end+1) = sol_t(ind2) - sol_t(i);
+                    ind_2prev=i;
+                else
+                    ind_2 = ind_2prev;
+                    break
+                end
+            end
+            sol_tau = sol_t/half_life(1);
         end
         function [wmeans, wvars, columns_prop_ordered] = compute_wmeans_wvars(columns, weights)
             % columns is a matrix, we find the weighted mean and variance
@@ -3474,8 +3713,8 @@ classdef EngineClass <  handle
         end
         function [] = plot_image_static(M,name,namef,path,mytitle,xlabel,ylabel)
             f = figure('Name',namef,'NumberTitle','off');
-            image(log10(abs(M)),'CDatamapping','scaled');
-            colorbar;
+            image(abs(M),'CDatamapping','scaled');
+            colorbar;set(gca,'ColorScale','log');
             title(mytitle);
             xlabel(xlabel);
             ylabel(ylabel);

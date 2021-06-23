@@ -18,8 +18,10 @@ classdef Network
             end
             General.save_var(adjacencyMatrix,obj.path,'adjacency_matrix');
             obj.set_graph_props();
+            General.save_obj(obj,obj.path,name);
         end
         obj = set_graph_props(obj);
+        obj = set_degree_perts(obj);
         
         function outputArg = method1(obj,inputArg)
             %METHOD1 Summary of this method goes here

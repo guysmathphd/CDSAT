@@ -16,6 +16,7 @@ classdef General
         save_var(var,path,name)
         var = load_var(path)
         [ bytes ] = getSize( variable )
+        save_obj(obj,path,name)
     end
 end
 

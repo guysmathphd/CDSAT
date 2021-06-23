@@ -9,6 +9,8 @@ myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','max
 myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet'};
 %%
 myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2'};
+%%
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition_str','stop_condition_2'};
 %% 
 % A simple system with two independent nodes whose solution is x = Cexp(-t)
 A = eye(2);
@@ -1032,3 +1034,19 @@ y3 = x;
 y4 = 1 - x + x.^2 - x.^3 + x.^4 - x.^5 + x.^6 - x.^7;
 y5 = 1./(x+1);
 figure;plot(x,y1,x,y2,x,y3,x,y4,x,y5);axis equal;legend;
+%%
+SF1 = Network('SF1',A);
+SF1.set_degree_perts();
+%%
+obj.networkName = 'SF1';
+obj.solve_degree_weighted_perts();
+%%
+load('C:\49_CDSAT\tests\test27set2\test27set2Obj.mat');
+ obj.batchFunction(@plot_localization3,[1:5]);
+% obj.batchFunction(@solve_degree_weighted_perts,[1:5]);
+obj.batchFunction(@solve_eigvec_pert_max_hub_1,[2 5]);
+ obj.batchFunction(@plot_localization2,[1:5]);
+ obj.batchFunction(@plot_eigenvalues2,[1:5]);
+ obj.batchFunction(@solve_single_node_perts_batch,[1:5]);
+ obj.batchFunction(@rename_files,[1:5]);
+ obj.batchFunction(@plot_single_node_pert,[1:5]);
