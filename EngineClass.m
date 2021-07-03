@@ -3239,7 +3239,7 @@ classdef EngineClass <  handle
             [ids_sorted_by_deg,B] = obj.get_ids_sorted_by_degs();
             ids = [ids_sorted_by_deg(1),ids_sorted_by_deg(end)];
             networkPath = fullfile('networks',obj.networkName);
-            num_nodes = 300;
+            num_nodes = 100;
             num_times = 3;
             k = General.load_var(fullfile(networkPath,'degree_vector'));
             A = General.load_var(fullfile(networkPath,'adjacency_matrix'));
@@ -3267,27 +3267,47 @@ classdef EngineClass <  handle
 %             num_tiles_cols = ceil(l/num_tiles_rows);
             
             num_tiles_rows = 2;num_tiles_cols = 2;pert_norm_hat_snapshots = [1,.5,.1,.02];
-            for id = ids       
+            threshold = 1e-5;
+            we = {'none','inverse'};inds_top_num_nodes = [];
+            for i2 = 1:length(ids)
+                id = ids(i2);
+                [~,~,pert_x,~,pert_x_norm_hat] = obj.get_pert(id);
+                start_node = id;                
+                for i = pert_norm_hat_snapshots
+                    ind = find(pert_x_norm_hat<=i,1);
+                    pert_x1 = abs(pert_x(ind,:));
+                    [B,inds_cur] = sort(pert_x1,'descend');
+                    stop = find(B<threshold, 1);
+                    if isempty(stop)
+                        stop = num_nodes+1;
+                    end
+                    stop = min(stop-1,num_nodes);
+                    inds_top_num_nodes = union(inds_top_num_nodes,inds_cur(1:stop));
+                end
+            end
+            for i2 = 1:length(ids)
+                id = ids(i2);
+                [~,~,pert_x,~,pert_x_norm_hat] = obj.get_pert(id);
                 name = ['fig22a-id-' num2str(id)];
                 f = figure('Name',name,'NumberTitle','off');
                 t = tiledlayout(num_tiles_rows,num_tiles_cols);
-                start_node = id;
-                dist_start_node = dist(start_node,:);
-                [dist_start_node_sorted,inds] = sort(dist_start_node);
-                inds_top_num_nodes = inds(1:num_nodes);
+%                 dist_start_node = dist(start_node,:);
+%                 [dist_start_node_sorted,inds] = sort(dist_start_node);
+%                 inds_top_num_nodes = inds(1:num_nodes);
                 A_num_nodes = A(inds_top_num_nodes,inds_top_num_nodes);
                 k_num_nodes = k(inds_top_num_nodes);
                 k_max = max(k_num_nodes);
-                k_min = min(k_num_nodes)-1;
+                k_min = min(max(k_num_nodes)-1,0);
                 k_range = k_max-k_min;
                 G = graph(A_num_nodes);
-                max_marker_size = 20;
+                max_marker_size = 16;
                 desc1 = ['Perturbation mass concentration diffusion, $k_i = ' num2str(obj.degree_vector_weighted(id)) '$'];
-                [~,~,pert_x,~,pert_x_norm_hat] = obj.get_pert(id);
+                
                 for i1 = pert_norm_hat_snapshots
                     nexttile;
-                    p=plot(G,'LineWidth',.1,'LineStyle','-','Marker','o','layout','force');
-                    for i = 1:num_nodes
+                    p=plot(G,'LineWidth',.1,'LineStyle','-','Marker','o','layout','force','WeightEffect','direct','NodeLabel',{});%'Center',find(inds_top_num_nodes==id,1), 'WeightEffect','inverse'
+%                         p=plot(G,'LineWidth',.1,'LineStyle','-','Marker','o','layout','subspace','NodeLabel',{});
+                    for i = 1:length(inds_top_num_nodes)
                         k_i = k_num_nodes(i);
                         markerSize = (k_i-k_min)/k_range*max_marker_size+4;
                         highlight(p,i,'MarkerSize',markerSize);
@@ -3295,15 +3315,19 @@ classdef EngineClass <  handle
                     ind = find(pert_x_norm_hat<=i1,1);
                     pert_x1 = abs(pert_x(ind,:));
                     pert_x1_num_nodes = pert_x1(1,inds_top_num_nodes);
+                    norm_pert_x1_num_nodes = norm(pert_x1_num_nodes);
+                    pert_x1_num_nodes = pert_x1_num_nodes/norm_pert_x1_num_nodes;
                     pert_x1_max = max(pert_x1_num_nodes);
                     pert_x1_min = min(pert_x1_num_nodes);
                     pert_x1_range = pert_x1_max - pert_x1_min;
-                    pert_x1_min = pert_x1_min - .1*pert_x1_range;
+                    pert_x1_min = pert_x1_min - threshold^2*pert_x1_range;
                     pert_x1_range = pert_x1_max - pert_x1_min;
                     
-                    for i = 1:num_nodes
+                    for i = 1:length(inds_top_num_nodes)
                         pert_x1_i = pert_x1_num_nodes(i);
-                        marker_color = (pert_x1_i - pert_x1_min)/pert_x1_range;
+                        marker_color1 = (pert_x1_i - pert_x1_min)/pert_x1_range;
+                        marker_color = 1/(1 - log10(marker_color1));
+%                         marker_color = log10(pert_x1_i * pert_x1_max / pert_x1_min) / (log10(pert_x1_max) - log10(pert_x1_min));
                         highlight(p,i,'NodeColor',[1 1-marker_color 1-marker_color]);
                     end
                     
@@ -3445,6 +3469,9 @@ classdef EngineClass <  handle
             end
         end
         function obj = save_fig(obj,f,name)
+            if ~isfolder(fullfile(obj.resultsPath,'figs'))
+                mkdir(fullfile(obj.resultsPath,'figs'));
+            end
             try
                 saveas(f,fullfile(obj.resultsPath,'figs',name),'fig');
             catch exception

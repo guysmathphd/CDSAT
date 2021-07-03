@@ -1045,7 +1045,7 @@ load('C:\49_CDSAT\tests\test27set2\test27set2Obj.mat');
  obj.batchFunction(@plot_localization3,[1:5]);
 % obj.batchFunction(@solve_degree_weighted_perts,[1:5]);
 obj.batchFunction(@solve_eigvec_pert_max_hub_1,[2 5]);
- obj.batchFunction(@plot_localization2,[1:5]);
+ obj.batchFunction(@plot_localization2,[5:5]);
  obj.batchFunction(@plot_eigenvalues2,[1:5]);
  obj.batchFunction(@solve_single_node_perts_batch,[1:5]);
  obj.batchFunction(@rename_files,[1:5]);
