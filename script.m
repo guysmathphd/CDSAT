@@ -1050,3 +1050,11 @@ obj.batchFunction(@solve_eigvec_pert_max_hub_1,[2 5]);
  obj.batchFunction(@solve_single_node_perts_batch,[1:5]);
  obj.batchFunction(@rename_files,[1:5]);
  obj.batchFunction(@plot_single_node_pert,[1:5]);
+ obj.batchFunction(@find_eigvec_power_law,[1,3,4,5]);
+ obj.batchFunction(@plot_eigvecs_power_law,[1,3,4,5]);
+ %%
+SF1 = load('C:\49_CDSAT\networks\SF1\SF1Obj.mat').obj;
+SF1.N = 6000;
+General.save_obj(SF1,SF1.path,'SF1Obj');
+SF1.set_random_samples();
+%%

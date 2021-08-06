@@ -225,39 +225,7 @@ classdef EngineClass <  handle
         function obj = set_degree_weighted_average(obj)
             obj.degree_weighted_average = sum(obj.degree_vector_weighted)/obj.N;
         end
-        function ind_bins_var = set_bins_generic(~,numbins,values_vec,tol,cond_vec)
-            ind_bins_var = cell(numbins,1);
-%             ind_bins_var = {};
-            values_vec = values_vec(cond_vec);
-            max_val = max(values_vec);
-            min_val = min(values_vec);
-            maxmin_val = max_val/min_val;
-            c = maxmin_val ^ (1/numbins);
-            n0 = log(min_val)/log(c);
-            nn = log(max_val)/log(c);
-            ns = n0:n0+numbins;
-            s=0;
-            for k = 2:numbins+1
-                if k==2
-                    ind = find(values_vec>=c^ns(k-1)-tol & values_vec<=c^ns(k));
-                else
-                    ind = find(values_vec>c^ns(k-1) & values_vec<=c^ns(k)+tol);
-                end
-%                 if ~isempty(ind)
-                    ind_bins_var{k-1,1} = ind;
-                    s = s + size(ind,1);
-%                 end
-            end
-            %Check bins
-            num_vals = size(values_vec,1);
-            if s == num_vals
-                disp('Bins check passed')
-            else
-                disp('Bins check failed')
-                disp(['s=' num2str(s)])
-                disp(['num_vals = ' num2str(num_vals)])
-            end
-        end
+        
         function [vals_binned,vals_binned_mins,vals_binned_maxs] = set_binned_vals(~,values_vec,bins)
             n = size(bins,1);m=size(values_vec,2);
             vals_binned = zeros(n,m);vals_binned_mins = zeros(n,m);vals_binned_maxs = zeros(n,m);
@@ -349,6 +317,33 @@ classdef EngineClass <  handle
 %             numvec = 5;
 %             obj.perturbations{2}(:,1) = sum(obj.eigenvectors_ana(:,1:numvec),2);
 %             obj.perturbations{3}(:,1) = sum(obj.eigenvectors_asy_permuted(:,1:numvec),2);
+        end
+        function obj = set_random_sparse_perturbation(obj)
+            num_nodes = [1 10 100 1000];
+            networkPath = fullfile('networks',obj.networkName,'random_samples');
+            mypath = fullfile(obj.resultsPath,'obj_properties','random_sample_perts');
+            for n = num_nodes
+                nodes = General.load_var(fullfile(networkPath,['n_' num2str(n)]));
+                pert = zeros(obj.N,1);
+                for i = nodes
+                    pert(i) = (rand*2-1)*.1*obj.steady_state(i);
+                end
+                General.save_var(pert,mypath,['n_' num2str(n)]);
+            end
+        end
+        function obj = solve_random_sparse_perts(obj)
+            num_nodes = [1 10 100 1000];
+            mypath = fullfile(obj.resultsPath,'obj_properties','random_sample_perts');
+            stop_cond_str = 'stepEndTime >= 100*half_life';
+            eps_val = 1;ss = obj.steady_state;
+            for n = num_nodes
+                pert = General.load_var(fullfile(mypath,['n_' num2str(n)]));
+                [~, init_out, ~] = obj.check_epsilon(eps_val, pert, ss', obj.epsThreshold,...
+                obj.epsFactor, obj.init_condition_str);
+                [sol_t,sol_x] = obj.single_solve(obj.opts,obj.difEqSolver,init_out,obj.solverTimeStep,obj.maxTime,stop_cond_str);
+                General.save_var(sol_t,mypath,['sol_t_n_' num2str(n)]);
+                General.save_var(sol_x,mypath,['sol_x_n_' num2str(n)]);
+            end       
         end
         function X = set_pert_eigvec_1(obj,eigenvectors)
             n = obj.numeigenplots;
@@ -1208,6 +1203,32 @@ classdef EngineClass <  handle
         function obj = set_eig_asy_permuted(obj)
             obj.eigenvalues_asy_permuted = obj.eigenvalues_asy(obj.permutation_eigvec_ana2asy);
             obj.eigenvectors_asy_permuted = obj.eigenvectors_asy(:,obj.permutation_eigvec_ana2asy);
+        end
+        function find_eigvec_power_law(obj)
+            percentiles = [100, 50, 10, 5, 1];
+            propspath = fullfile(obj.resultsPath,'obj_properties');
+            eigvecs_ana_ordered_nodes = General.load_var(fullfile(propspath,'eigenvectors_ana_ordered_nodes'));
+            k = General.load_var(fullfile('networks',obj.networkName,'degree_vector'));
+            [k_sorted,~] = sort(k);
+            log_k = log10(k_sorted);
+            num_vecs = size(eigvecs_ana_ordered_nodes,2);
+            for percentile = percentiles
+                disp(['percentile = ' num2str(percentile)]);
+                num_nodes = round(num_vecs*percentile/100);
+                ps = zeros(num_vecs,2);yfits = zeros(num_nodes,num_vecs);
+                rsqs = zeros(num_vecs,1);
+                for i1=1:num_vecs
+                    log_cur_vec = log10(abs(eigvecs_ana_ordered_nodes(end-num_nodes+1:end,i1)));
+                    [p_0, p_1, yfit, rsq] = General.lin_reg(log_k(1:num_nodes),log_cur_vec);
+                    ps(i1,:) = [p_0,p_1];
+                    yfits(:,i1) = yfit;
+                    rsqs(i1,1) = rsq;
+                end
+                propspath = fullfile(obj.resultsPath,'obj_properties','eigvec_power_law',[num2str(percentile) 'percent']);
+                General.save_var(ps,propspath,'ps');
+                %             General.save_var(yfits,propspath,'yfits');
+                General.save_var(rsqs,propspath,'rsqs');
+            end
         end
         function obj = set_weighted_dot_products(obj)
             s = size(obj.eigenvectors_ana,2);
@@ -3450,6 +3471,96 @@ classdef EngineClass <  handle
                 EngineClass.save_fig_static(f{i},fname{i},obj.resultsPath);
             end
         end
+        %% fig25*
+        function obj = plot_eigvecs_power_law(obj)
+            percentiles = [100, 50, 10, 5, 1];
+            %%%
+            name{1} = 'fig25a';f{1} = figure('Name',name{1},'NumberTitle','off');
+            desc1 = 'Linear regression $\theta$ values, $v_i = C(k)k_i^\theta$';
+            hax{1} = axes; hold on; xlabel('$j$ ($j^{th}$ eigenvector)','Interpreter','latex'); ylabel('$\theta$','Interpreter','latex');
+            title({[name{1} ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
+            
+            name{2} = 'fig25b';f{2} = figure('Name',name{2},'NumberTitle','off');
+            desc1 = 'Linear regression $R^2$ values, $v_i = C(k)k_i^\theta$';
+            hax{2} = axes; hold on; xlabel('$j$ ($j^{th}$ eigenvector)','Interpreter','latex'); ylabel('$R^2$','Interpreter','latex');
+            title({[name{2} ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
+            legendStr = {};
+            for percentile = percentiles
+                cur_path = fullfile(obj.resultsPath,'obj_properties','eigvec_power_law',[num2str(percentile) 'percent']);
+                ps = General.load_var(fullfile(cur_path,'ps'));
+                plot(hax{1},ps(:,1));
+                rsqs = General.load_var(fullfile(cur_path,'rsqs'));
+                plot(hax{2},rsqs);
+                legendStr{end+1} = ['Top ' num2str(percentile) '% of nodes by degree'];
+            end
+            for i = 1:length(f)
+                legend(hax{i},legendStr);
+                General.save_fig(f{i},name{i},fullfile(obj.resultsPath,'figs'));
+            end
+        end
+        %% fig26*
+        function obj = plot_concentration(obj)
+            num_nodes = [1 10 100 1000];
+            netPath = fullfile('networks',obj.networkName,'random_samples');
+            solPath = fullfile(obj.resultsPath,'obj_properties','random_sample_perts');
+            name{1} = 'fig26a';f{1} = figure('Name',name{1},'NumberTitle','off');
+            desc = 'Random Perturbation concentration vs time';hax{1} = axes;hold on;
+            xlabel('t'); ylabel('C(t)');title({[name{1} ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            name{2} = 'fig26b';f{2} = figure('Name',name{2},'NumberTitle','off');
+            desc = 'Random Perturbation conservation vs time';hax{2} = axes;hold on;
+            xlabel('t'); ylabel('K(t)');title({[name{2} ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            name{3} = 'fig26c';f{3} = figure('Name',name{3},'NumberTitle','off');
+            desc = 'Hub Perturbation concentration vs time';hax{3} = axes;hold on;
+            xlabel('t');ylabel('C(t)');title({[name{3} ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            name{4} = 'fig26d';f{4} = figure('Name',name{4},'NumberTitle','off');
+            desc = 'Hub Perturbation conservation vs time';hax{4} = axes;hold on;
+            xlabel('t');ylabel('K(t)');title({[name{4} ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            legendStr = {};
+            [~,J] = sort(obj.degree_vector_weighted,'descend');
+            for n = num_nodes
+                I = General.load_var(fullfile(netPath,['n_' num2str(n)]));
+                pert_0 = General.load_var(fullfile(solPath,['n_' num2str(n)]));
+                sol_t = General.load_var(fullfile(solPath,['sol_t_n_' num2str(n)]));
+                sol_x = General.load_var(fullfile(solPath,['sol_x_n_' num2str(n)]));
+%                 pert_0 = sol_x(1,:);
+                r = size(sol_x,1);concentration = zeros(r,1);conservation = zeros(r,1);
+                for i = 1:r
+                    pert_t = sol_x(i,:) - obj.steady_state;
+                    concentration(i,1) = EngineClass.compute_concentration(pert_t,I);
+                    conservation(i,1) = EngineClass.compute_conservation(pert_t,pert_0);
+                end
+                plot(hax{1},sol_t,concentration);
+                plot(hax{2},sol_t,conservation);
+                legendStr{end+1} = ['$\mid I \mid$ = ' num2str(n)];
+            end
+            for i = 1:2
+                legend(hax{i},legendStr,'interpreter','latex');
+                General.save_fig(f{i},name{i},fullfile(obj.resultsPath,'figs'));
+            end
+            [K,J] = sort(obj.degree_vector_weighted,'descend');
+            solPath = fullfile(obj.resultsPath,'obj_properties','single_node_pert_sol');
+            legendStr = {};ind=1;
+            for j = J(1:4)'
+                k = K(ind);
+                sol_t = General.load_var(fullfile(solPath,['sol_t_' num2str(j)]));
+                sol_x = General.load_var(fullfile(solPath,['sol_x_' num2str(j)]));
+                pert_0 = sol_x(1,:) - obj.steady_state;
+                r = size(sol_x,1);concentration = zeros(r,1);conservation = zeros(r,1);
+                for i = 1:r
+                    pert_t = sol_x(i,:) - obj.steady_state;
+                    concentration(i,1) = EngineClass.compute_concentration(pert_t,j);
+                    conservation(i,1) = EngineClass.compute_conservation(pert_t,pert_0);
+                end
+                plot(hax{3},sol_t,concentration);
+                plot(hax{4},sol_t,conservation);
+                legendStr{end+1} = ['Hub ' num2str(ind) ', i = ' num2str(j) ', k_i = ' num2str(k)];
+                ind = ind+1;
+            end
+            for i = 3:4
+                legend(hax{i},legendStr);
+                General.save_fig(f{i},name{i},fullfile(obj.resultsPath,'figs'));
+            end
+        end
         %%
         function obj = set_networkNameSF1(obj)
             obj.networkName = 'SF1';
@@ -3499,6 +3610,53 @@ classdef EngineClass <  handle
         function xout = test_fun(a,b)
             xout = a+b;
         end
+        function [ind_bins_var,bins_edges,ind_bins_var_sizes] = set_bins_generic(numbins,values_vec,tol,cond_vec)
+            ind_bins_var = cell(numbins,1);
+            bins_edges = [];
+            ind_bins_var_sizes = [];
+%             ind_bins_var = {};
+            values_vec = values_vec(cond_vec);
+            max_val = max(values_vec);
+            min_val = min(values_vec);
+            zero_inds = [];
+            if min_val==0
+                zero_inds = find(values_vec == 0);
+                values_vec_no_zeros = values_vec;
+                values_vec_no_zeros(zero_inds) = [];
+                min_val = min(values_vec_no_zeros);
+            end
+            maxmin_val = max_val/min_val;
+            c = maxmin_val ^ (1/numbins);
+            n0 = log(min_val)/log(c);
+            nn = log(max_val)/log(c);
+            ns = n0:n0+numbins;
+            s=0;
+            for k = 2:numbins+1
+                if k==2
+                    ind = find(values_vec>=c^ns(k-1)-tol & values_vec<=c^ns(k));
+                    ind = [zero_inds; ind];ind = sort(ind);
+                    bins_edges(1) = c^ns(k-1);
+                else
+                    ind = find(values_vec>c^ns(k-1) & values_vec<=c^ns(k)+tol);
+                    bins_edges(end+1) = c^ns(k-1);
+                end
+%                 if ~isempty(ind)
+                    ind_bins_var{k-1,1} = ind;
+                    ind_bins_var_sizes(end+1) = size(ind,1);
+                    s = s + size(ind,1);
+%                 end
+            end
+            bins_edges(end+1) = c^ns(k);
+            %Check bins
+            num_vals = size(values_vec,1);
+            if s == num_vals
+                disp('Bins check passed')
+            else
+                disp('Bins check failed')
+                disp(['s=' num2str(s)])
+                disp(['num_vals = ' num2str(num_vals)])
+            end
+        end
         function [pert_norm, pert_pert0_dot_normed, half_life, sol_tau,ind_1,ind_2] = compute_pert_props(sol_t,sol_x,ss)
             pert = (sol_x' - ss')';
             pert0 = pert(1,:);
@@ -3519,6 +3677,12 @@ classdef EngineClass <  handle
                 end
             end
             sol_tau = sol_t/half_life(1);
+        end
+        function concentration = compute_concentration(pert_t,I)
+            concentration = sum(abs(pert_t(I)))/sum(abs(pert_t));
+        end
+        function conservation = compute_conservation(pert_t,pert_0)
+            conservation = abs(dot(pert_t/norm(pert_t),pert_0/norm(pert_0)));
         end
         function [wmeans, wvars, columns_prop_ordered] = compute_wmeans_wvars(columns, weights)
             % columns is a matrix, we find the weighted mean and variance
@@ -3583,6 +3747,21 @@ classdef EngineClass <  handle
             sz = [bin_size,numbins];
             ind_bins_var = reshape(I,sz);
             binned_vals = reshape(B,sz);            
+        end
+        function [ind_bins_var,bins_edges,ind_bins_var_sizes] = set_bins_nonlog(num_bins,values_vec)
+            ind_bins_var = cell(num_bins,1);bins_edges = [];ind_bins_var_sizes = [];
+            minval = min(values_vec); maxval = max(values_vec);
+            range = maxval - minval;  step = range/num_bins;
+            bins_edges(end+1) = minval;
+            for k = 1:num_bins
+                if k == 1
+                    ind = find(values_vec >= minval + step*(k-1) & values_vec <= minval + step*k);
+                else
+                    ind = find(values_vec > minval + step*(k-1) & values_vec <= minval + step*k);
+                end
+                ind_bins_var{k,1} = ind;
+                bins_edges(end+1) = minval + step*k;ind_bins_var_sizes(end+1,1) = length(ind);
+            end                
         end
         function [ordered_eigs] = reorder_eigvecs_nodes(eigvec_set, new_ordering)
             ordered_eigs = eigvec_set(new_ordering,:);

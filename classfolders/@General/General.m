@@ -17,6 +17,8 @@ classdef General
         var = load_var(path)
         [ bytes ] = getSize( variable )
         save_obj(obj,path,name)
+        save_fig(f,name,path)
+        [p_0, p_1, yfit, rsq] = lin_reg(x_vals,y_vals)
     end
 end
 

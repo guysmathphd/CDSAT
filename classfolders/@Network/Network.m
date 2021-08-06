@@ -5,6 +5,7 @@ classdef Network
     properties
         name
         path
+        N
     end
     
     methods
@@ -17,11 +18,13 @@ classdef Network
                 mkdir(obj.path);
             end
             General.save_var(adjacencyMatrix,obj.path,'adjacency_matrix');
-            obj.set_graph_props();
+            obj = obj.set_graph_props();
             General.save_obj(obj,obj.path,name);
         end
         obj = set_graph_props(obj);
         obj = set_degree_perts(obj);
+        obj = plotNet01(obj);
+        obj = set_random_samples(obj);
         
         function outputArg = method1(obj,inputArg)
             %METHOD1 Summary of this method goes here
