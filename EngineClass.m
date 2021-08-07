@@ -548,15 +548,23 @@ classdef EngineClass <  handle
             end
         end
         function obj = solve_single_node_pert(obj,node_id)
-            pert = zeros(obj.N,1);pert(node_id) = 1;
+            pert = zeros(obj.N,1);pert(node_id) = 1/sqrt(length(node_id));
             stop_cond_str = 'stepEndTime >= 100*half_life';
             eps_val = 1;ss = obj.steady_state;epsFactor = 0.9;
             [new_epsilon, init_out, is_init_legit] = obj.check_epsilon(eps_val, pert, ss', obj.epsThreshold,...
                 epsFactor, obj.init_condition_str);
             foldernamestr = 'single_node_pert_sol';
             [sol_t,sol_x] = obj.single_solve(obj.opts,obj.difEqSolver,init_out,obj.solverTimeStep,obj.maxTime,stop_cond_str);
-            obj.save_var(sol_t,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,['sol_t_' num2str(node_id)]);
-            obj.save_var(sol_x,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,['sol_x_' num2str(node_id)]);
+            obj.save_var(sol_t,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,['sol_t_' EngineClass.array2str(node_id)]);
+            obj.save_var(sol_x,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,['sol_x_' EngineClass.array2str(node_id)]);
+        end
+        function obj = solve_single_node_sum_perts_batch(obj)
+            [~,I] = sort(obj.degree_vector_weighted,'descend');
+            node_ids = I(1);
+            for i = 2:10
+                node_ids(1,end+1) = I(i);
+                obj.solve_single_node_pert(node_ids);
+            end
         end
         function obj = solve_single_node_perts_batch(obj)
             [~,i] = sort(obj.degree_vector_weighted,'descend');
@@ -3515,6 +3523,12 @@ classdef EngineClass <  handle
             name{4} = 'fig26d';f{4} = figure('Name',name{4},'NumberTitle','off');
             desc = 'Hub Perturbation conservation vs time';hax{4} = axes;hold on;
             xlabel('t');ylabel('K(t)');title({[name{4} ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            name{5} = 'fig26e';f{5} = figure('Name',name{5},'NumberTitle','off');
+            desc = 'Hubs Perturbation concentration vs time';hax{5} = axes;hold on;
+            xlabel('t');ylabel('C(t)');title({[name{5} ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            name{6} = 'fig26f';f{6} = figure('Name',name{6},'NumberTitle','off');
+            desc = 'Hubs Perturbation conservation vs time';hax{6} = axes;hold on;
+            xlabel('t');ylabel('K(t)');title({[name{6} ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
             legendStr = {};
             [~,J] = sort(obj.degree_vector_weighted,'descend');
             for n = num_nodes
@@ -3557,6 +3571,26 @@ classdef EngineClass <  handle
                 ind = ind+1;
             end
             for i = 3:4
+                legend(hax{i},legendStr);
+                General.save_fig(f{i},name{i},fullfile(obj.resultsPath,'figs'));
+            end
+            legendStr = {};ind=1;
+            for j = 2:4
+                nodes = J(1:j)';
+                sol_t = General.load_var(fullfile(solPath,['sol_t_' EngineClass.array2str(nodes)]));
+                sol_x = General.load_var(fullfile(solPath,['sol_x_' EngineClass.array2str(nodes)]));
+                pert_0 = sol_x(1,:) - obj.steady_state;
+                r = size(sol_x,1);concentration = zeros(r,1);conservation = zeros(r,1);
+                for i = 1:r
+                    pert_t = sol_x(i,:) - obj.steady_state;
+                    concentration(i,1) = EngineClass.compute_concentration(pert_t,nodes);
+                    conservation(i,1) = EngineClass.compute_conservation(pert_t,pert_0);
+                end
+                plot(hax{5},sol_t,concentration);
+                plot(hax{6},sol_t,conservation);
+                legendStr{end+1} = ['Nodes ' num2str(nodes)];
+            end
+            for i = 5:6
                 legend(hax{i},legendStr);
                 General.save_fig(f{i},name{i},fullfile(obj.resultsPath,'figs'));
             end
@@ -3609,6 +3643,13 @@ classdef EngineClass <  handle
         end
         function xout = test_fun(a,b)
             xout = a+b;
+        end
+        function str = array2str(arr)
+            str = '';
+            for n = arr
+                str = [str num2str(n) '_'];
+            end
+            str = str(1:end-1);
         end
         function [ind_bins_var,bins_edges,ind_bins_var_sizes] = set_bins_generic(numbins,values_vec,tol,cond_vec)
             ind_bins_var = cell(numbins,1);
