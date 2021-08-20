@@ -1,6 +1,9 @@
 function obj = set_graph_props(obj)
 A = General.load_var(fullfile(obj.path,'adjacency_matrix'));
 k = sum(A,2);
+k_sorted = sort(k);
+[U,~,ic] = unique(k_sorted);
+tally = accumarray(ic,1);
 N = size(A,1);
 obj.N = N;
 if ~isequal(A,A')
@@ -25,7 +28,8 @@ d = distances(G);
 k_inn = (A*k)./k;
 d_i_avg = mean(d,2);
 d_avg = mean(d,'all');
-
+Pk = tally/sum(tally);
+General.save_var(Pk,obj.path,'Pk');
 if ~(any(A~=0 & A~=1,'all'))
     S = 2*sum(A,1)/(N-1);
     General.save_var(S,obj.path,'density');
@@ -46,6 +50,7 @@ closeness_i = (sum(d,2)/N).^(-1);
 General.save_var(G,obj.path,'graph_object');
 General.save_var(d,obj.path,'shortest_distances');
 General.save_var(k,obj.path,'degree_vector');
+General.save_var(U,obj.path,'k_sorted_unique');
 General.save_var(k_inn,obj.path,'nearest_neighbor_degree_vector');
 General.save_var(d_i_avg,obj.path,'shortest_distance_i_avg');
 General.save_var(d_avg,obj.path,'shortest_distances_avg');
