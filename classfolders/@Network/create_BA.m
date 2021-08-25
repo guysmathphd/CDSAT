@@ -1,11 +1,15 @@
 function obj = create_BA(obj)
 m = obj.BA_m;
-num_nodes = 5000;
+obj.desc = ['Barabasi-Albert N = ' num2str(obj.N)];
+num_nodes = obj.N;
 tmax = num_nodes - m;
-A = zeros(5000);
+A = zeros(obj.N);
 a = ones(m) - eye(m);
 A(1:m,1:m) = a;
 for t = 1:tmax
+    if mod(t,100) == 0
+        disp(['t = ' num2str(t)]);
+    end
     k = sum(A,2);
     cur_i = m + t;
     num_links = 0;
@@ -28,5 +32,6 @@ for t = 1:tmax
     end
 end
 obj.N = size(A,2);
+obj.desc = ['Barabasi-Albert N = ' num2str(obj.N)];
 General.save_var(A,obj.path,'adjacency_matrix');
 end
