@@ -19,6 +19,7 @@ classdef General
         save_obj(obj,path,name)
         save_fig(f,name,path)
         [p_0, p_1, yfit, rsq] = lin_reg(x_vals,y_vals)
+        batchFunction(set_obj,function_handle,inds)
     end
 end
 

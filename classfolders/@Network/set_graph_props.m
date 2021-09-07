@@ -4,12 +4,20 @@ k = sum(A,2);
 k_sorted = sort(k);
 [U,~,ic] = unique(k_sorted);
 tally = accumarray(ic,1);
+Pk = tally/sum(tally);
+General.save_var(Pk,obj.path,'Pk');
 N = size(A,1);
 obj.N = N;
 if ~isequal(A,A')
     G = digraph(A);
     k_in = sum(A,1);
     General.save_var(k_in,obj.path,'degree_vector_in');
+    k_in_sorted = sort(k_in);
+    [U_in,~,ic] = unique(k_sorted);
+    tally = accumarray(ic,1);
+    Pk_in = tally/sum(tally);
+    General.save_var(Pk_in,obj.path,'Pk_in');
+    General.save_var(U_in,obj.path,'k_in_sorted_unique');
     num_triangles_max = k.*k_in;
     L = sum(k) + sum(k_in);
     General.save_var(L,obj.path,'L_directed');
@@ -28,8 +36,7 @@ d = distances(G);
 k_inn = (A*k)./k;
 d_i_avg = mean(d,2);
 d_avg = mean(d,'all');
-Pk = tally/sum(tally);
-General.save_var(Pk,obj.path,'Pk');
+
 if ~(any(A~=0 & A~=1,'all'))
     S = 2*sum(A,1)/(N-1);
     General.save_var(S,obj.path,'density');
