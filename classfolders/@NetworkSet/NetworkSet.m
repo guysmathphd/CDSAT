@@ -12,6 +12,7 @@ classdef NetworkSet
         path
         figs_path
         legendNames
+        Paths
     end
     
     methods
@@ -32,9 +33,9 @@ classdef NetworkSet
             end
             obj.numNetworks = length(folderNames);
             for i = 1:obj.numNetworks
-                obj.networkPaths{i} = fullfile('networks',obj.folderNames{i},[obj.folderNames{i} 'Obj']);
+                obj.Paths{i} = fullfile('networks',obj.folderNames{i},[obj.folderNames{i} 'Obj']);
             end
-            obj.save_obj();
+            General.save_obj(obj,obj.path,obj.name);
             
         end
         

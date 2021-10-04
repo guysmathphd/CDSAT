@@ -60,8 +60,10 @@ for i2 = 1:length(namesuf1)
     name = ['net02b' '-' namesuf1{i2}];
     figdesc = 'Degree distribution Density Binned';
     f = figure('Name',name,'NumberTitle','off');
-    loglog(bins_edges(2:end),P_k,'-o');
-    legend('Empirical');
+    x = bins_edges(2:end);
+    loglog(x,P_k,'-o');hold on;
+    loglog(x,x.^(-1));
+    legend('Empirical', 'P(k) ~ k^{-1}');
     xlabel(namesuf1{i2});
     ylabel(['$P(' namesuf1{i2} ') = N_n/\mid B_n \mid$'],'Interpreter','latex');
     title({[name ' ' obj.name ' ' obj.desc];figdesc});

@@ -12,15 +12,18 @@ classdef Network
         source_data_name
         source_data_path
         weight_type
+        average_weight_denominator_type
     end
     
     methods
-        function obj = Network(name,adjacencyMatrix,type,ER_p_BA_m,source_data_name,weight_type)
+        function obj = Network(name,adjacencyMatrix,type,ER_p_BA_m,...
+                source_data_name,weight_type,average_weight_denominator_type)
             %UNTITLED Construct an instance of this class
             %   Detailed explanation goes here
             obj.name = name;
             obj.source_data_name = source_data_name;
             obj.weight_type = weight_type;
+            obj.average_weight_denominator_type = average_weight_denominator_type;
             obj.source_data_path = fullfile('source_data',source_data_name);
             obj.N = size(adjacencyMatrix,1);
             obj.path = fullfile('networks',name);
@@ -50,15 +53,22 @@ classdef Network
         obj = plot_Pk(obj);
         obj = plot_degree(obj);
         obj = plot_degree_vs_time(obj);
-        obj = write_gephi_edges_file(obj);
+        obj = plot_node_degrees_vs_time(obj);
+        obj = write_gephi_edges_file(obj,DT,filenamesufstr);
+        obj = write_gephi_nodes_file(obj);
         obj = calc_geo_distances(obj);
         obj = set_trip_data(obj);
         obj = clean_trip_data(obj);
+        obj = plot_degree2(obj);
+        obj = plot_node_degrees_vs_time2(obj);
         function outputArg = method1(obj,inputArg)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
             outputArg = obj.Property1 + inputArg;
         end
+    end
+    methods (Static)
+        [ff,P1,P1a] = myfft(all_times_sorted,total_weight);
     end
 end
 
