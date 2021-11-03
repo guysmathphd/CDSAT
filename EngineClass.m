@@ -28,6 +28,7 @@ classdef EngineClass <  handle
         M2_i_bigodot
         M2_k_bigodot
         perturbations
+        random_perturbations
         pert_eigvec_ana_1
         pert_eigvec_asy_1
         num_perturbations = 1;
@@ -78,7 +79,7 @@ classdef EngineClass <  handle
         errors2_v3
         eigvals_v3
         eigvecs_v3
-        numeigen=6000;
+        numeigen;
         numeigenplots = 5;
         numeigenplots2 = 200;
         eigvec_dist_comparison_mat_ana2asy
@@ -128,6 +129,7 @@ classdef EngineClass <  handle
         rho = 0
         eta = 0
         isEngineSet = false
+        init_condition
         % J_ana
         % J_asy
     end
@@ -141,6 +143,9 @@ classdef EngineClass <  handle
             end
             obj.init_object();
             obj.save_obj();
+        end
+        function set_num_random_perturbations(obj)
+            obj.num_perturbations = 5;
         end
         function obj = clean_up_obj(obj)
             disp(obj.scenarioName);
@@ -176,6 +181,7 @@ classdef EngineClass <  handle
         end
         function obj = init_object(obj)
             obj.solution_x = obj.initialValues';
+            obj.numeigen = size(obj.adjacencyMatrix,1);
             % create header
             obj.header = {'t'};
             for i = 1:length(obj.initialValues)
@@ -215,6 +221,13 @@ classdef EngineClass <  handle
             disp('obj.binskinn = obj.set_bins_generic'); obj.binskinn = obj.set_bins_generic(obj.numbins,obj.ki_nn,tol,true(obj.N,1));
             disp('obj.ki_nnbinned = obj.set_binned_vals'); obj.ki_nnbinned = obj.set_binned_vals(obj.ki_nn,obj.binskinn);
             disp('obj.set_degree_weighted_average'); obj.set_degree_weighted_average();
+        end
+        function obj = write_gephi_nodes_tables_for_article_fig1(obj)
+            sol_path = fullfile(obj.resultsPath,'obj_properties/','eigvec_pert_max_hub/');
+            sol_x_filename = 'sol_x_hub';sol_t_filename = 'sol_t_hub';
+            ss = obj.steady_state;
+            obj.write_gephi_nodes_table(sol_path,sol_x_filename,sol_t_filename,ss);
+            
         end
         function obj = set_graph_object(obj)
             g = graph(obj.adjacencyMatrix);
@@ -298,22 +311,63 @@ classdef EngineClass <  handle
             disp('set_dM2: obj.f_dM2 = ');
             disp(obj.f_dM2);
         end
-        function obj = set_perturbations(obj,isOnlyPositive)
+        function obj = write_gephi_nodes_table_sparse_perturbation(obj)
+            n = [1 10 100 1000];
+            mypath = fullfile(obj.resultsPath,'obj_properties','random_sample_perts');
+            
+            for i = n
+                if i<=obj.N
+                    sol_x_name = ['sol_x_n_' num2str(i)];
+                    x = General.load_var(fullfile(mypath,sol_x_name));
+                    p = (x' - obj.steady_state')';
+                    t = General.load_var(fullfile(mypath,['sol_t_n_' num2str(i)]));
+                    [norms, thetas] = EngineClass.calc_norms_thetas(p);
+                    General.save_var(norms,mypath,[sol_x_name '_norms']);
+                    General.save_var(thetas,mypath,[sol_x_name '_thetas']);
+                    [m1,i1] = max(thetas);
+                    p_normed = (p'./norms)';p_prop = (p'./sum(p'))';
+                    [m1,i1] = min(max(p_prop'));
+%                     i1 = find(max(p')<.01,1);
+                    %stopped here
+                    ts = [0 t(floor(i1/2)) t(i1)];
+                    for cur_t = ts
+                        filename = ['gephi_nodes_n_' num2str(i) 't_' num2str(cur_t)];
+                        EngineClass.create_gephi_nodes_table(p_prop,t,cur_t,mypath,filename);
+                    end
+                end
+            end
+        end
+        function set_random_perturbations_1(obj)
+            obj.set_num_random_perturbations();
+            if norm(obj.steady_state) < obj.absTol
+                isOnlyPositive = true;
+            else
+                isOnlyPositive = false;
+            end
+            obj.set_random_perturbations(isOnlyPositive);
+        end
+        function solve_random_perturbations(obj)
+            obj.solve(3,1,1,0);
+        end
+        function obj = set_random_perturbations(obj,isOnlyPositive)
             ss = obj.steady_state;
             k = obj.num_perturbations;
             n = size(ss,2);
             seed = obj.randSeed;
             rng(seed);
-            obj.perturbations = {};
-            obj.perturbations{1} = zeros(n,k);
+%             obj.perturbations = {};
+%             obj.perturbations{1} = zeros(n,k);
+            obj.random_perturbations = zeros(n,k);
             isSSzero = norm(ss)<obj.absTol;
             ss = ones(size(ss)).*max(isSSzero,ss);
             for j = 1:k
                 percent = rand(1,n)*obj.perturbation_factor;
                 sign = rand(1,n);
                 sign = (sign > (~isOnlyPositive/2))*2 - 1;
-                obj.perturbations{1}(:,j) = ss.*percent.*sign;
+%                 obj.perturbations{1}(:,j) = ss.*percent.*sign;
+                obj.random_perturbations(:,j) = ss.*percent.*sign;
             end
+            General.save_var(obj.random_perturbations,fullfile(obj.resultsPath,'obj_properties/'),'random_perturbations');
 %             numvec = 5;
 %             obj.perturbations{2}(:,1) = sum(obj.eigenvectors_ana(:,1:numvec),2);
 %             obj.perturbations{3}(:,1) = sum(obj.eigenvectors_asy_permuted(:,1:numvec),2);
@@ -323,12 +377,14 @@ classdef EngineClass <  handle
             networkPath = fullfile('networks',obj.networkName,'random_samples');
             mypath = fullfile(obj.resultsPath,'obj_properties','random_sample_perts');
             for n = num_nodes
-                nodes = General.load_var(fullfile(networkPath,['n_' num2str(n)]));
-                pert = zeros(obj.N,1);
-                for i = nodes
-                    pert(i) = (rand*2-1)*.1*obj.steady_state(i);
+                if n<=obj.N
+                    nodes = General.load_var(fullfile(networkPath,['n_' num2str(n)]));
+                    pert = zeros(obj.N,1);
+                    for i = nodes
+                        pert(i) = (rand*2-1)*.1*obj.steady_state(i);
+                    end
+                    General.save_var(pert,mypath,['n_' num2str(n)]);
                 end
-                General.save_var(pert,mypath,['n_' num2str(n)]);
             end
         end
         function obj = solve_random_sparse_perts(obj)
@@ -337,12 +393,14 @@ classdef EngineClass <  handle
             stop_cond_str = 'stepEndTime >= 100*half_life';
             eps_val = 1;ss = obj.steady_state;
             for n = num_nodes
-                pert = General.load_var(fullfile(mypath,['n_' num2str(n)]));
-                [~, init_out, ~] = obj.check_epsilon(eps_val, pert, ss', obj.epsThreshold,...
-                obj.epsFactor, obj.init_condition_str);
-                [sol_t,sol_x] = obj.single_solve(obj.opts,obj.difEqSolver,init_out,obj.solverTimeStep,obj.maxTime,stop_cond_str);
-                General.save_var(sol_t,mypath,['sol_t_n_' num2str(n)]);
-                General.save_var(sol_x,mypath,['sol_x_n_' num2str(n)]);
+                if n<=obj.N
+                    pert = General.load_var(fullfile(mypath,['n_' num2str(n)]));
+                    [~, init_out, ~] = obj.check_epsilon(eps_val, pert, ss', obj.epsThreshold,...
+                        obj.epsFactor, obj.init_condition_str);
+                    [sol_t,sol_x] = obj.single_solve(obj.opts,obj.difEqSolver,init_out,obj.solverTimeStep,obj.maxTime,stop_cond_str);
+                    General.save_var(sol_t,mypath,['sol_t_n_' num2str(n)]);
+                    General.save_var(sol_x,mypath,['sol_x_n_' num2str(n)]);
+                end
             end       
         end
         function X = set_pert_eigvec_1(obj,eigenvectors)
@@ -649,6 +707,7 @@ classdef EngineClass <  handle
             end
         end
         function obj = solve(obj,pertType,epsIndStart,pertIndStart,isAdjustEpsilonType)
+            obj.adjacencyMatrix = General.load_var(fullfile('networks',obj.networkName,'adjacency_matrix')); 
             %Solve the system
             tic;
             %nn=10;
@@ -674,10 +733,12 @@ classdef EngineClass <  handle
                     sol_x_var_str = 'obj.solution_x_eigvec';
                     stop_cond_str = 'max(abs(obj.solution_x_eigvec{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
                 case 3 % perturbations are random and small relative to steady state
-                    perts = obj.perturbations{1};
-                    sol_t_var_str = 'obj.solution_t_perturbations';
-                    sol_x_var_str = 'obj.solution_x_perturbations';
-                    stop_cond_str = 'max(abs(obj.solution_x_perturbations{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
+%                     perts = obj.perturbations{1};
+                    perts = General.load_var(fullfile(obj.resultsPath,'obj_properties','random_perturbations'));
+                    sol_t_var_str = 'solution_t_random_perturbations';
+                    sol_x_var_str = 'solution_x_random_perturbations';
+                    stop_cond_str = 'max(abs(solution_x_random_perturbations{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
+                    solution_folder_name = 'solution_random_perts';
                 otherwise
             end
             numperts = size(perts,2);
@@ -694,10 +755,11 @@ classdef EngineClass <  handle
                 case 2 %REG
                     init_condition_str = '~(any(init < 0))';
                 otherwise
-            end                
+            end    
+          
             epsFactor = .9;
             [new_epsilons, inits_out, is_inits_legit] = check_epsilons(obj,eps_vals,perts,ss',obj.epsThreshold,...
-                epsFactor,init_condition_str);
+                epsFactor,obj.init_condition_str);
             obj.eps_adjusted = new_epsilons;
             inits = inits_out;
             obj.isInitsLegit = is_inits_legit;
@@ -753,6 +815,11 @@ classdef EngineClass <  handle
                         disp(['epsInd = ' num2str(epsInd) ', pertInd = ' num2str(pertInd)]);
                         disp(['Did not solve, no valid inits' ]);
                     end
+                    eval(['sol_t_cur = ' sol_t_var_str '{1,pertInd,epsInd}']);
+                    eval(['sol_x_cur = ' sol_x_var_str '{1,pertInd,epsInd}']);
+                    General.save_var(sol_t_cur, fullfile(obj.resultsPath,'obj_properties',solution_folder_name),[sol_t_var_str '_' num2str(pertInd)]);
+                    General.save_var(sol_x_cur, fullfile(obj.resultsPath,'obj_properties',solution_folder_name),[sol_x_var_str '_' num2str(pertInd)]);
+                    
                 end
             end
             toc;
@@ -800,12 +867,12 @@ classdef EngineClass <  handle
                 else
                     isOnlyPositive = false;
                 end
-                obj.set_perturbations(isOnlyPositive);
+                obj.set_random_perturbations(isOnlyPositive);
 %                 obj.set_eigvec_comparison_mats2();
             elseif pertType==2
                 obj.split_solution_eigvec();
             end
-%             obj.save_obj();
+            obj.save_obj();
         end
         function [node_half_life_1, node_half_life_2, prec1, prec2] = find_node_half_life(obj,sol_t,sol_x,node_num)
             node_sol_x = sol_x(:,node_num);
@@ -1267,6 +1334,7 @@ classdef EngineClass <  handle
             %writetable(T,fullfile(obj.resultsPath,'output.csv'));
             save(fullfile(obj.resultsPath,'output.mat'),'T');
         end
+
         function obj = calculate_degree(obj)
             B = (obj.adjacencyMatrix>0);
             obj.degree_vector = sum(B,2);
@@ -2986,6 +3054,9 @@ classdef EngineClass <  handle
             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigenvectors_asy'),'var');
             tmp = mydata.var(I,obj.permutation_eigvec_ana2asy);evoasy = tmp(end:-1:1,:);
             evos = {evoana,evoasy};suf2 = {'-ana','-asy'};
+            obj.eigenvectors_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties/','eigenvectors_ana.mat'));
+            obj.eigenvectors_asy_permuted = General.load_var(fullfile(obj.resultsPath,'obj_properties/','eigenvectors_asy_permuted.mat'));
+            obj.eigenvalues_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties/','eigenvalues_ana.mat'));
             for i2 = 1:length(evos)
                 evo = evos{i2};
                 [ind_bins_var,binned_vals] = EngineClass.set_bins_percentiles(1,obj.degree_vector_weighted);
@@ -3175,12 +3246,12 @@ classdef EngineClass <  handle
                 fullfile(obj.resultsPath,'obj_properties','eigvec_pert_min_hub','sol_x_ana'),...
                 fullfile(obj.resultsPath,'obj_properties','sol_x_ana_v1')
                 };
-            mydata = load(fullfile('networks',[obj.networkName 'shortest_distances']));
+            mydata = load(fullfile('networks',obj.networkName, 'shortest_distances'));
             shortest_distances = mydata.var;clear mydata;
             descInd = length(desc1);ylabs2 = {'i (6000 = biggest hub)','i (6000 = farthest node from initial pert mass concentration'};
             for i2 = 1:length(ylabs2)
                 for i4 = 1:length(mypathst)
-%                     try
+                    try
                         mydata = load(mypathst{i4});sol_t = mydata.var(1:step:end);
                         mydata = load(mypathsx{i4});sol_x = mydata.var(1:step:end,:);
                         clear mydata;
@@ -3226,7 +3297,7 @@ classdef EngineClass <  handle
                         %%% fig20-*
                         name = ['fig20-' num2str(i4) namesuf1{i2}];
                         f20 = figure('Name',name,'NumberTitle','off');
-                        xlabel(ylabs2{i2});x = 1:6000;
+                        xlabel(ylabs2{i2});x = 1:obj.N;
                         semilogy(x,pert_x_ordered_quants(1,:),'*-');hold on;
                         tind = find(sol_t >= 46, 1);
                         semilogy(x,pert_x_ordered_quants(tind,:),'*-');
@@ -3249,9 +3320,10 @@ classdef EngineClass <  handle
                         title({[name ' ' obj.scenarioName];obj.desc;desc1{descInd1};'$\mid pert_i\mid/\sum_i \mid pert_i \mid$'},'interpreter','latex');
                         descInd=descInd+1;obj.save_fig(f21,name);fig21ind = fig21ind+1;
                         
-%                     catch exception
-%                         disp(exception.message);
-%                     end
+                    catch exception
+                        disp(exception.message);
+                        descInd=descInd+1;
+                    end
                 end
             end
             for i2 = 1:size(ylabs,1)
@@ -3627,9 +3699,44 @@ classdef EngineClass <  handle
             catch exception
                 disp(exception.message);
             end
+            try
+                saveas(f,fullfile(obj.resultsPath,'figs',name),'svg');
+            catch exception
+                disp(exception.message);
+            end
         end
         function obj = save_obj(obj)
             save(fullfile(obj.resultsPath,[obj.scenarioName 'Obj.mat']),'obj','-v7.3');
+        end
+        function write_gephi_nodes_table(obj,sol_path,sol_x_filename,sol_t_filename,steady_state)
+            x = General.load_var(fullfile(sol_path,sol_x_filename));
+            p = (x' - steady_state')';
+            t = General.load_var(fullfile(sol_path,sol_t_filename));
+            [norms, thetas] = EngineClass.calc_norms_thetas(p);
+            General.save_var(norms,sol_path,[sol_x_filename '_norms']);
+            General.save_var(thetas,sol_path,[sol_x_filename '_thetas']);
+            %             [m1,i1] = max(thetas);
+            p_normed = (p'./norms)';p_prop = (p'./sum(p'))';
+            [m1,i1] = min(max(p_prop'));
+            ts = [0 t(floor(i1/2)) t(i1)];
+            for cur_t = ts
+                filename = ['gephi_nodes_' sol_x_filename '_t_' num2str(floor(cur_t))];
+                EngineClass.create_gephi_nodes_table(p_prop,t,cur_t,sol_path,filename);
+                
+                name = ['fig27a-t-' num2str(floor(cur_t))];
+                figdesc = ['$\delta x(t)$ at $t = ' num2str(floor(cur_t)) '$'];
+                f = figure('Name',name,'NumberTitle','off');
+                ind = find(t>=cur_t,1);norm = norms(ind); theta = thetas(ind);
+                [x, y] = pol2cart(theta,norm);
+                c = compass(x,y);
+                c1 = c(1);
+                c1.LineWidth = 2;
+                c1.Color = 'r';
+                title({[name ' ' obj.scenarioName];obj.desc;figdesc},...
+                    'Interpreter','latex');
+                obj.save_fig(f,name);
+                
+            end
         end
 
     end
@@ -3644,6 +3751,12 @@ classdef EngineClass <  handle
         function xout = test_fun(a,b)
             xout = a+b;
         end
+        function [norms, thetas] = calc_norms_thetas(x)
+            norms = vecnorm(x');
+            x_normed = x'./norms;
+            x_normed_init = x_normed(:,1);
+            thetas = acos(dot(repmat(x_normed_init,1,size(x_normed,2)),x_normed));            
+        end
         function str = array2str(arr)
             str = '';
             for n = arr
@@ -3651,6 +3764,14 @@ classdef EngineClass <  handle
             end
             str = str(1:end-1);
         end
+        function create_gephi_nodes_table(solution_x,solution_t,time,filepath,filename)
+            nodes = (1:size(solution_x,2))';
+            ind = find(solution_t>=time,1);
+            values = (solution_x(ind,:))';
+            T = array2table([nodes,nodes,values],'VariableNames',{'ID','Label','value'});
+            writetable(T,fullfile(filepath,[filename '.csv']));            
+        end
+
         function [ind_bins_var,bins_edges,ind_bins_var_sizes] = set_bins_generic(numbins,values_vec,tol,cond_vec)
             ind_bins_var = cell(numbins,1);
             bins_edges = [];
@@ -3783,9 +3904,10 @@ classdef EngineClass <  handle
         end
         function [ind_bins_var,binned_vals] = set_bins_percentiles(numbins,values_vec)
             n = size(values_vec,1);
-            bin_size = n/numbins;            
+            bin_size = floor(n/numbins);            
             [B,I] = sort(values_vec);
-            sz = [bin_size,numbins];
+%             sz = [bin_size,numbins];
+            sz = [bin_size,n/bin_size];
             ind_bins_var = reshape(I,sz);
             binned_vals = reshape(B,sz);            
         end

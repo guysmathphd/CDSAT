@@ -1,5 +1,5 @@
 function obj = write_gephi_edges_file(obj,DT,filenamesufstr)
-
+% DT  is datetime
 Source = [];Target = []; Type = {}; Weight = [];
 if isempty(DT)
     A = General.load_var(fullfile(obj.path,'adjacency_matrix.mat'));

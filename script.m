@@ -1058,3 +1058,166 @@ SF1.N = 6000;
 General.save_obj(SF1,SF1.path,'SF1Obj');
 SF1.set_random_samples();
 %%
+obj = Network('ER-N-50',zeros(50),1,.25,'','','');
+%%
+    %% test26REG2 A = SF1 a=1/2
+name = 'test29REG2-ER-50';
+desc = 'REG2 a=1/2 A=ER N=50';
+seed = 1;
+rng(seed);
+A = General.load_var(fullfile('networks','ER-N-50','adjacency_matrix.mat'));
+x0 = rand(1,50)';
+maxT = 5000;
+maxDt = 0.01;
+timeStep = .2;
+m0 = @(x) (-x.^(1/2));
+m1 = @() (1);
+m2 = @(x) (x./(1+x));
+difEqSolver = @ode45;
+absTol = 1e-14;
+relTol = 1e-14;
+resultsPath = fullfile('tests',name,'results');
+mu = -1; nu = 0; rho = -4; eta = 0;
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2'};
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,15,6000,false,@(x) (true),[]};
+props = containers.Map(myKeys,myValues);
+REG = EngineClass(props);
+%display(SIS)
+disp('now solving');
+REG.solve(1,1,1,1);
+
+%%
+obj.solve(3,1,1,2)
+
+%%
+figure;
+xs = obj.solution_x_perturbations;
+ts = obj.solution_t_perturbations;
+n = size(xs,2);
+ss = obj.steady_state;
+time_scale = [];norm1s = [];
+for i = 1:n
+    x = xs{1,i};
+    t = ts{1,i};
+    p = (x' - ss')';
+    [norms, thetas] = EngineClass.calc_norms_thetas(p);
+    min_norm = min(norms);
+    polarplot(thetas,log10(norms/min_norm));hold on;
+    norm1s(end+1) = norms(1);
+    time_scale(end+1) = t(find(norms<norms(1)/2^10,1));
+end
+
+figure;
+plot(norm1s,time_scale,'*');
+
+%%
+obj.write_gephi_nodes_table_sparse_perturbation;
+net.write_gephi_edges_file([],'');
+
+%%
+    %% test26REG2 A = SF1 a=1/2
+name = 'test30REG1-ER-50';
+desc = 'REG2 a=1 A=ER N=50';
+seed = 1;
+rng(seed);
+A = General.load_var(fullfile('networks','ER-N-50','adjacency_matrix.mat'));
+x0 = rand(1,50)';
+maxT = 5000;
+maxDt = 0.01;
+timeStep = .2;
+m0 = @(x) (-x);
+m1 = @() (1);
+m2 = @(x) (x./(1+x));
+difEqSolver = @ode45;
+absTol = 1e-14;
+relTol = 1e-14;
+resultsPath = fullfile('tests',name,'results');
+% mu = -1; nu = 0; rho = -4; eta = 0;
+mu = 1; nu = -1; rho = 0; eta = 0;
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2'};
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,15,6000,false,@(x) (true),[]};
+props = containers.Map(myKeys,myValues);
+REG = EngineClass(props);
+%display(SIS)
+disp('now solving');
+REG.solve(1,1,1,1);
+%%
+REG.networkName = 'ER-N-50';
+REG.init_condition_str = '~(any(init < 0))';
+REG.set_random_sparse_perturbation();
+REG.solve_random_sparse_perts();
+REG.write_gephi_nodes_table_sparse_perturbation;
+%%
+REG2 = load('C:\49_CDSAT\tests\test29REG2-ER-50\results\test29REG2-ER-50Obj.mat');
+REG2 = REG2.obj;
+REG2.clean_up_obj();
+REG2.solve_eigvec_pert_max_hub_1();
+REG2ER.write_gephi_nodes_tables_for_article_fig1();
+%%
+sol_path = fullfile(REG2.resultsPath,'obj_properties/','eigvec_pert_max_hub/');
+sol_x_filename = 'sol_x_hub';sol_t_filename = 'sol_t_hub';
+steady_state = REG2.steady_state;
+EngineClass.write_gephi_nodes_table(sol_path,sol_x_filename,sol_t_filename,steady_state);
+
+
+%%
+sol_path1 = fullfile(REG.resultsPath,'obj_properties/','random_sample_perts/');
+norms1 = General.load_var(fullfile(sol_path1,['sol_x_n_1_norms']));
+thetas1 = General.load_var(fullfile(sol_path1,['sol_x_n_1_thetas']));
+t1 = General.load_var(fullfile(sol_path1,['sol_t_n_1']));
+sol_path2 = fullfile(REG2.resultsPath,'obj_properties/','eigvec_pert_max_hub/');
+norms2 = General.load_var(fullfile(sol_path2,['sol_x_hub_norms']));
+thetas2 = General.load_var(fullfile(sol_path2,['sol_x_hub_thetas']));
+t2 = General.load_var(fullfile(sol_path2,['sol_t_hub']));
+figure;
+plot(t1,norms1);hold on;
+plot(t2,norms2);title('$\mathbf{\| p(t) \|}$','Interpreter','latex');
+legend({'a','b'});
+figure;
+plot(t1,thetas1);hold on;
+plot(t2,thetas2);title('$\theta(t)$','Interpreter','latex');
+legend({'a','b'});
+%%
+REG1.solve_eigvec_pert_max_hub_1();
+REG1.write_gephi_nodes_tables_for_article_fig1();
+REG1.plot_localization();
+
+%%
+    %% test31SIS A = ER-50 f=1 g=1
+name = 'test31SIS-ER-50';
+desc = 'SIS f=1 g=1 A=ER N=50';
+seed = 1;
+rng(seed);
+A = General.load_var(fullfile('networks','ER-N-50','adjacency_matrix.mat'));
+x0 = rand(1,50)';
+maxT = 5000;
+maxDt = 0.01;
+timeStep = .2;
+m0 = @(x) (-x);
+m1 = @(x) (1-x);
+m2 = @(x) (x);
+difEqSolver = @ode45;
+absTol = 1e-14;
+relTol = 1e-14;
+resultsPath = fullfile('tests',name,'results');
+% mu = -1; nu = 0; rho = -4; eta = 0;
+mu = 1; nu = -1; rho = 0; eta = 0;
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2','networkName'};
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,15,6000,false,@(x) (true),[],'ER-N-50'};
+props = containers.Map(myKeys,myValues);
+SISER50 = EngineClass(props);
+%display(SIS)
+disp('now solving');
+SISER50.solve(1,1,1,1);
+SISER50.clean_up_obj();
+SISER50.solve_eigvec_pert_max_hub_1();
+SISER50.write_gephi_nodes_tables_for_article_fig1();
+SISER50.plot_localization();
+SISER50.plot_localization2();
+SISER50.plot_localization3();
+SISER50.plot_eigenvectors5();
+
+%%
+
+obj.batchFunction(@set_random_perturbations_1,1:5);
+obj.batchFunction(@solve_random_perturbations,1:5);
