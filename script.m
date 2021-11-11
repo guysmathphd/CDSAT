@@ -1221,3 +1221,16 @@ SISER50.plot_eigenvectors5();
 
 obj.batchFunction(@set_random_perturbations_1,1:5);
 obj.batchFunction(@solve_random_perturbations,1:5);
+
+%%
+EngineClass.write_norms_thetas_multi_sol(fullfile(obj.resultsPath,'obj_properties/','solution_random_perts/'));
+%%
+obj.batchFunction(@set_sys_half_life_amp,1:5);
+%%
+obj.batchFunction(@write_norms_thetas_multi_folders,1:5);
+%%
+obj.plot_pert_amp_phase_vs_t();
+%%
+obj.batchFunction(@plot_pert_amp_phase_vs_t,1:5);
+
+
