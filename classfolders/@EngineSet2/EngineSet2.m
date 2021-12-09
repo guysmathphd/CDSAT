@@ -39,6 +39,7 @@ classdef EngineSet2
         end
         obj = batchFunction(obj,function_handle,inds)
         obj = plotLocalization1(obj)
+        obj = plotTauVsQ(obj)
         obj = save_obj(obj)
         obj = save_fig(obj,f,name)
 

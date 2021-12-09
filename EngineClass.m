@@ -52,6 +52,7 @@ classdef EngineClass <  handle
         node_half_life
         node_half_lives_struct
         sys_half_life_amp
+        sys_half_life_amp_2
         N
         k_nn
         ki_nn
@@ -146,6 +147,7 @@ classdef EngineClass <  handle
         end
         function set_num_random_perturbations(obj)
             obj.num_perturbations = 5;
+            obj.save_obj();
         end
         function obj = clean_up_obj(obj)
             disp(obj.scenarioName);
@@ -250,6 +252,19 @@ classdef EngineClass <  handle
             obj.sys_half_life_amp = mean(half_lives);
             obj.save_obj();
         end
+        function set_sys_half_life_amp_2(obj)
+            mypath = fullfile(obj.resultsPath,'obj_properties','solution_random_perts_2');
+            half_lives = [];
+            for i1 = 1:5
+                At = General.load_var(fullfile(mypath,['solution_x_random_perturbations_' num2str(i1) '_norms_normed']));
+                sol_t = General.load_var(fullfile(mypath,['solution_t_random_perturbations_' num2str(i1)]));
+                At0 = At(1);
+                ind = find(At < (At0 + At(end))/2,1,'first');
+                half_lives(end+1) = sol_t(ind);
+            end
+            obj.sys_half_life_amp_2 = mean(half_lives);
+            obj.save_obj();
+        end
         function [vals_binned,vals_binned_mins,vals_binned_maxs] = set_binned_vals(~,values_vec,bins)
             n = size(bins,1);m=size(values_vec,2);
             vals_binned = zeros(n,m);vals_binned_mins = zeros(n,m);vals_binned_maxs = zeros(n,m);
@@ -350,29 +365,50 @@ classdef EngineClass <  handle
             end
         end
         function set_random_perturbations_1(obj)
-            obj.set_num_random_perturbations();
+            if obj.num_perturbations < 5
+                obj.set_num_random_perturbations();
+            end
             if norm(obj.steady_state) < obj.absTol
                 isOnlyPositive = true;
             else
                 isOnlyPositive = false;
             end
-            obj.set_random_perturbations(isOnlyPositive);
+            obj.set_random_perturbations(isOnlyPositive,0);
         end
         function solve_random_perturbations(obj)
-            obj.solve(3,1,1,0);
+%             obj.solve(3,1,1,0);
+            obj.solve(4,1,1,0);
         end
         function write_norms_thetas_multi_folders(obj)
             foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
                 'eigvec_pert_min_hub_1','eigvec_power_law',...
                 'random_sample_perts','single_node_pert_sol',...
-                'sol_pert_k_power','solution_random_perts'};
+                'sol_pert_k_power','solution_random_perts','solution_random_perts_2'};
             for foldername = foldernames
                 path = fullfile(obj.resultsPath,'obj_properties',foldername{1});
-                EngineClass.write_norms_thetas_multi_sol(path,obj.steady_state,obj.sys_half_life_amp,obj.mu,obj.degree_vector_weighted);
+                EngineClass.write_norms_thetas_multi_sol(path,obj.steady_state,obj.sys_half_life_amp,obj.mu,obj.degree_vector_weighted,'');
             end
         end
-        function obj = set_random_perturbations(obj,isOnlyPositive)
-            ss = obj.steady_state;
+        function write_norms_thetas_multi_folders_2(obj)
+            foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
+                'eigvec_pert_min_hub_1','eigvec_power_law',...
+                'random_sample_perts','single_node_pert_sol',...
+                'sol_pert_k_power','solution_random_perts','solution_random_perts_2'};
+            for foldername = foldernames
+                path = fullfile(obj.resultsPath,'obj_properties',foldername{1});
+                EngineClass.write_norms_thetas_multi_sol(path,obj.steady_state,obj.sys_half_life_amp_2,obj.mu,obj.degree_vector_weighted,'_2');
+            end
+        end
+        function obj = set_random_perturbations(obj,isOnlyPositive,isPercentOfSs)
+            if isPercentOfSs
+                ss = obj.steady_state;
+                pert_factor = obj.perturbation_factor;
+                filenamestr = 'random_perturbations';
+            else
+                ss = ones(size(obj.steady_state));
+                pert_factor = 1;
+                filenamestr = 'random_perturbations_2';
+            end
             k = obj.num_perturbations;
             n = size(ss,2);
             seed = obj.randSeed;
@@ -383,13 +419,13 @@ classdef EngineClass <  handle
             isSSzero = norm(ss)<obj.absTol;
             ss = ones(size(ss)).*max(isSSzero,ss);
             for j = 1:k
-                percent = rand(1,n)*obj.perturbation_factor;
+                percent = rand(1,n)*pert_factor;
                 sign = rand(1,n);
                 sign = (sign > (~isOnlyPositive/2))*2 - 1;
 %                 obj.perturbations{1}(:,j) = ss.*percent.*sign;
                 obj.random_perturbations(:,j) = ss.*percent.*sign;
             end
-            General.save_var(obj.random_perturbations,fullfile(obj.resultsPath,'obj_properties/'),'random_perturbations');
+            General.save_var(obj.random_perturbations,fullfile(obj.resultsPath,'obj_properties/'),filenamestr);
 %             numvec = 5;
 %             obj.perturbations{2}(:,1) = sum(obj.eigenvectors_ana(:,1:numvec),2);
 %             obj.perturbations{3}(:,1) = sum(obj.eigenvectors_asy_permuted(:,1:numvec),2);
@@ -646,6 +682,17 @@ classdef EngineClass <  handle
                 obj.solve_single_node_pert(node_ids);
             end
         end
+        function obj = solve_single_node_combs_perts_batch(obj)
+            [~,I] = sort(obj.degree_vector_weighted,'descend');
+            node_ids = I(1:5);
+            for j = 3:5
+                C = nchoosek(node_ids,j);
+                for i = 2:size(C,1)
+                    node_id = C(i,:);
+                    obj.solve_single_node_pert(node_id);
+                end
+            end
+        end
         function obj = solve_single_node_perts_batch(obj)
             [~,i] = sort(obj.degree_vector_weighted,'descend');
             node_ids = i(1:10);node_ids(end+1) = floor(obj.N/2);
@@ -743,24 +790,32 @@ classdef EngineClass <  handle
                     ss = 0;
                     eps_vals = 1;
                     perts = obj.initialValues;
-                    sol_t_var_str = 'obj.solution_t';
-                    sol_x_var_str = 'obj.solution_x';
+                    sol_t_var_str = 'sol_t';
+                    sol_x_var_str = 'sol_x';
                     stop_cond_str = 'size(obj.solution_t{1,pertInd,epsInd},1)>100 && max(abs(obj.solution_x{1,pertInd,epsInd}(end,:)-obj.solution_x{1,pertInd,epsInd}(end-100,:)))<obj.absTol';
+                    solution_folder_name = 'solution';
                 case 2 % perturbations are eigenvectors
 %                     perts = [obj.eigenvectors_ana(:,1:nn), obj.eigenvectors_asy_permuted(:,1:nn),...
 %                         sum(obj.eigenvectors_ana(:,1:nn),2),sum(obj.eigenvectors_asy_permuted(:,1:nn),2)...
                     %                         obj.pert_eigvec_ana_1,obj.pert_eigvec_asy_1];
                     perts = [obj.eigenvectors_ana(:,1:nn), obj.eigenvectors_asy_permuted(:,1:nn)];
-                    sol_t_var_str = 'obj.solution_t_eigvec';
-                    sol_x_var_str = 'obj.solution_x_eigvec';
+                    sol_t_var_str = 'sol_t_eigvec';
+                    sol_x_var_str = 'sol_x_eigvec';
                     stop_cond_str = 'max(abs(obj.solution_x_eigvec{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
+                    solution_folder_name = 'solution_eigvec_perts';
                 case 3 % perturbations are random and small relative to steady state
 %                     perts = obj.perturbations{1};
                     perts = General.load_var(fullfile(obj.resultsPath,'obj_properties','random_perturbations'));
-                    sol_t_var_str = 'solution_t_random_perturbations';
-                    sol_x_var_str = 'solution_x_random_perturbations';
+                    sol_t_var_str = 'sol_t_random_perturbations';
+                    sol_x_var_str = 'sol_x_random_perturbations';
                     stop_cond_str = 'max(abs(solution_x_random_perturbations{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
                     solution_folder_name = 'solution_random_perts';
+                case 4
+                    perts = General.load_var(fullfile(obj.resultsPath,'obj_properties','random_perturbations_2'));
+                    sol_t_var_str = 'sol_t_random_perturbations';
+                    sol_x_var_str = 'sol_x_random_perturbations';
+                    stop_cond_str = 'max(abs(solution_x_random_perturbations{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
+                    solution_folder_name = 'solution_random_perts_2';
                 otherwise
             end
             numperts = size(perts,2);
@@ -781,7 +836,7 @@ classdef EngineClass <  handle
           
             epsFactor = .9;
             [new_epsilons, inits_out, is_inits_legit] = check_epsilons(obj,eps_vals,perts,ss',obj.epsThreshold,...
-                epsFactor,obj.init_condition_str);
+                epsFactor,init_condition_str);
             obj.eps_adjusted = new_epsilons;
             inits = inits_out;
             obj.isInitsLegit = is_inits_legit;
@@ -837,8 +892,8 @@ classdef EngineClass <  handle
                         disp(['epsInd = ' num2str(epsInd) ', pertInd = ' num2str(pertInd)]);
                         disp(['Did not solve, no valid inits' ]);
                     end
-                    eval(['sol_t_cur = ' sol_t_var_str '{1,pertInd,epsInd}']);
-                    eval(['sol_x_cur = ' sol_x_var_str '{1,pertInd,epsInd}']);
+                    eval(['sol_t_cur = ' sol_t_var_str '{1,pertInd,epsInd};']);
+                    eval(['sol_x_cur = ' sol_x_var_str '{1,pertInd,epsInd};']);
                     General.save_var(sol_t_cur, fullfile(obj.resultsPath,'obj_properties',solution_folder_name),[sol_t_var_str '_' num2str(pertInd)]);
                     General.save_var(sol_x_cur, fullfile(obj.resultsPath,'obj_properties',solution_folder_name),[sol_x_var_str '_' num2str(pertInd)]);
                     
@@ -889,7 +944,8 @@ classdef EngineClass <  handle
                 else
                     isOnlyPositive = false;
                 end
-                obj.set_random_perturbations(isOnlyPositive);
+                obj.set_random_perturbations(isOnlyPositive,1);
+                obj.set_random_perturbations(isOnlyPositive,0);
 %                 obj.set_eigvec_comparison_mats2();
             elseif pertType==2
                 obj.split_solution_eigvec();
@@ -992,8 +1048,10 @@ classdef EngineClass <  handle
             end
         end
         function obj = set_steady_state(obj)
-            obj.steady_state = obj.solution_x(end,:);
+            sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties','solution','sol_x_1'));
+            obj.steady_state = sol_x(end,:);
             disp('set_steady_state(obj): obj.steady_state = ');
+            General.save_var(obj.steady_state,fullfile(obj.resultsPath,'obj_properties'),'steady_state');
             %disp(obj.steady_state);
         end
         function obj = set_M2_i_bigodot(obj)
@@ -1417,10 +1475,18 @@ classdef EngineClass <  handle
                 suffix = [];
             end
             if size(obj.solution_x,1) == 0
-                obj.load_solution('solution', 'solution_', '', true, 'obj.solution_t','obj.solution_x',isDilute);
+                if isfile(fullfile(obj.resultsPath,'obj_properties','solution','solution_x_1.mat'))
+                    obj.load_solution('solution', 'solution_', '', true, 'obj.solution_t','obj.solution_x',isDilute);
+                else
+                    obj.load_solution('solution','sol_', '', false, 'obj.solution_t','obj.solution_x',isDilute);
+                end
                 step = 1;
             end
+            if size(obj.steady_state,1) == 0
+                obj.steady_state = General.load_var(fullfile(obj.resultsPath,'obj_properites','steady_state'));
+            end
             ss = obj.steady_state';
+            
             t1 = obj.solution_t;ind_t1 = 1:step:length(t1);t1 = t1(ind_t1);
             x1 = obj.solution_x(ind_t1,:); p1 = (x1'-ss)';
             t2 = [];x2=[];p2=[];
@@ -3696,10 +3762,12 @@ classdef EngineClass <  handle
 %                 'random_sample_perts','single_node_pert_sol',...
 %                 'sol_pert_k_power','solution_random_perts'};
 %             foldernames = {'solution_random_perts'};
-            foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
-                'solution_random_perts'};
+%             foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
+%                 'solution_random_perts','solution_random_perts_2'};
+            foldernames = {'solution_random_perts','solution_random_perts_2','single_node_pert_sol'};
             colors = {'b','r','k','m','g','c'};
             markers = {'o','s','^','*','+','x','v','<','>','.','d','p','h','_','|'};
+            size = 6;
             name = 'fig28a'; fname{1} = name;desc = 'Perturbation Amplitude vs t'; %pert_norm vs t
             f{1} = figure('Name',name,'NumberTitle','off');hax{1} = axes; hold on;
             title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
@@ -3718,6 +3786,31 @@ classdef EngineClass <  handle
             f{4} = figure('Name',name,'NumberTitle','off');hax{4} = axes; hold on;
             title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
             xlabel('Q','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
+            
+            name = 'fig28e'; fname{5} = name;desc = '$\tau_{A_2}$ vs Q';%\tau_A_2 vs Q
+            f{5} = figure('Name',name,'NumberTitle','off');hax{5} = axes; hold on;
+            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            xlabel('Q','Interpreter','latex');ylabel('$\tau_{A_2}$','Interpreter','latex');
+            
+            name = 'fig28f'; fname{6} = name;desc = '$\tau_A$ vs Q2';%\tau_A vs Q2
+            f{6} = figure('Name',name,'NumberTitle','off');hax{6} = axes; hold on;
+            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            xlabel('Q2','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
+            
+            name = 'fig28g'; fname{7} = name;desc = '$\tau_A$ vs Q3';%\tau_A vs Q3
+            f{7} = figure('Name',name,'NumberTitle','off');hax{7} = axes; hold on;
+            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            xlabel('Q3','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
+            
+            name = 'fig28h'; fname{8} = name;desc = '$\tau_A$ vs Q4';%\tau_A vs Q4
+            f{8} = figure('Name',name,'NumberTitle','off');hax{8} = axes; hold on;
+            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            xlabel('Q4','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
+            
+            name = 'fig28i'; fname{9} = name;desc = '$\tau_A$ vs Q5';%\tau_A vs Q5
+            f{9} = figure('Name',name,'NumberTitle','off');hax{9} = axes; hold on;
+            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            xlabel('Q5','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
             
             legendStr = {};
             for j1 = 1:length(foldernames)
@@ -3739,18 +3832,32 @@ classdef EngineClass <  handle
                     ind4 = strfind(name,'_thetas');
                     if ~isempty(ind2) && isempty(ind3)
                         indsuf = ind2;                        
-                        legendStr{end+1} = name(ind1+1:indsuf-1);
+                        legendStr{end+1} = EngineClass.filename2legend(name(ind1+1:indsuf-1));
                         yvalues = General.load_var(fullfile(folderpath,name));
                         tvalues = General.load_var(fullfile(folderpath,[name(1:ind1-2) 't' name(ind1:indsuf-1)]));
-                        plot(hax{1},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind});%hold on;
+                        plot(hax{1},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',size);%hold on;
                         yvalues = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_norms_normed']));
-                        plot(hax{2},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind});%hold on;
+                        plot(hax{2},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',size);%hold on;
                         yvalues = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_thetas']));
-                        plot(hax{3},tvalues,rad2deg(abs(yvalues)),colors{j1},'LineStyle','-','Marker',markers{ind});%hold on;
+                        plot(hax{3},tvalues,rad2deg(abs(yvalues)),colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',size);%hold on;
                         Q = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q']));
                         tau_A = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A']));
-                        plot(hax{4},Q,tau_A,colors{j1},'Marker',markers{ind});
+                        plot(hax{4},Q,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                        tau_A_2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A_2']));
+                        plot(hax{5},Q,tau_A_2,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                        Q2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q2']));
+                        plot(hax{6},Q2,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                        Q3 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q3']));
+                        plot(hax{7},Q3,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                        Q4 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q4']));
+                        plot(hax{8},Q4,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                        Q5 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q5']));
+                        plot(hax{9},Q5,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
                         ind = ind+1;
+                        if ind > length(markers)
+                            ind = 1;
+                            size = size + 4;
+                        end
                     end                    
                 end
             end
@@ -3848,32 +3955,51 @@ classdef EngineClass <  handle
         function xout = test_fun(a,b)
             xout = a+b;
         end
-        function [norms, norms_normed, thetas,H_A,tau_A,Q] = calc_norms_thetas(x,ss,t,sys_half_life_amp,mu,k)
+        function [norms, norms_normed, thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5] = calc_norms_thetas(x,ss,t,sys_half_life_amp,mu,k)
+            % Calc pert:
+            x_sol = x;
             x = (x' - ss')';
+            x_pert = x;
+            % Calc pert/ss, or dlogx (dx/x)
+            x = (x'./ss')';
             norms = vecnorm(x');
             norms_normed = norms/norms(1);
             disp(['norms_normed(1) = ' num2str(norms_normed(1))]);
             ind = find(norms_normed <= norms_normed(1)/2,1,'first');
             H_A = t(ind);
             tau_A = H_A/sys_half_life_amp;
-            k_mu = k.^mu;
-            Q = dot(x(1,:)/norms(1),k_mu/norm(k_mu));
+            k_mu = k.^(-mu);
+            abs_x_pert_init = abs(x_pert(1,:));
+            x_pert_init = x_pert(1,:);
+            abs_x_init = abs(x(1,:));
+            x_init = x(1,:);
+%             Q = dot(abs_x_pert_init/norm(abs_x_pert_init),k_mu/norm(k_mu));
+            Q = dot(x_pert_init/norm(x_pert_init),k_mu/norm(k_mu));
+%             Q = dot(abs_x_init/norm(abs_x_init),k_mu/norm(k_mu));
+            Q2 = dot(x_pert_init/norm(x_pert_init,1),k_mu/norm(k_mu,1));
+            Q3 = dot(abs(x_pert_init)/norm(x_pert_init,1),abs(k_mu)/norm(k_mu,1));
+            Q4 = dot(abs(x_pert_init)/norm(x_pert_init,1),k_mu);
+            Q5 = dot(abs(x_pert_init)/norm(x_pert_init,1),k_mu/norm(k_mu));
             x_normed = x'./norms;
             x_normed_init = x_normed(:,1);
             thetas = acos(dot(repmat(x_normed_init,1,size(x_normed,2)),x_normed));            
         end
-        function write_norms_thetas_single_sol(path,x_filename,t_filename,ss,sys_half_life_amp,mu,k)
+        function write_norms_thetas_single_sol(path,x_filename,t_filename,ss,sys_half_life_amp,mu,k,sufstr)
             sol_x = General.load_var(fullfile(path,x_filename));
             sol_t = General.load_var(fullfile(path,t_filename));
-            [norms,norms_normed,thetas,H_A,tau_A,Q] = EngineClass.calc_norms_thetas(sol_x,ss,sol_t,sys_half_life_amp,mu,k);
+            [norms,norms_normed,thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5] = EngineClass.calc_norms_thetas(sol_x,ss,sol_t,sys_half_life_amp,mu,k);
             General.save_var(norms,path,[x_filename '_norms']);
             General.save_var(thetas,path,[x_filename '_thetas']); 
             General.save_var(norms_normed,path,[x_filename '_norms_normed']);
             General.save_var(H_A,path,[x_filename '_H_A']);
-            General.save_var(tau_A,path,[x_filename '_tau_A']);
+            General.save_var(tau_A,path,[x_filename '_tau_A' sufstr]);
             General.save_var(Q,path,[x_filename '_Q']);
+            General.save_var(Q2,path,[x_filename '_Q2']);
+            General.save_var(Q3,path,[x_filename '_Q3']);
+            General.save_var(Q4,path,[x_filename '_Q4']);
+            General.save_var(Q5,path,[x_filename '_Q5']);
         end
-        function write_norms_thetas_multi_sol(path,ss,sys_half_life_amp,mu,k)
+        function write_norms_thetas_multi_sol(path,ss,sys_half_life_amp,mu,k,sufstr)
             contents = dir(path);
             for j = 1:length(contents)
                 content = contents(j);
@@ -3881,7 +4007,7 @@ classdef EngineClass <  handle
                 if length(fname) > 2 && contains(fname,'_x_') && ~contains(fname,'_norms') && ~contains(fname,'_thetas') && ...
                         ~contains(fname,'_H_A') && ~contains(fname,'_Q') && ~contains(fname,'_tau_A')
                     tfname = strrep(fname,'x','t');
-                    EngineClass.write_norms_thetas_single_sol(path,fname,tfname,ss,sys_half_life_amp,mu,k);
+                    EngineClass.write_norms_thetas_single_sol(path,fname,tfname,ss,sys_half_life_amp,mu,k,sufstr);
                 end
             end
         end
@@ -3891,6 +4017,9 @@ classdef EngineClass <  handle
                 str = [str num2str(n) '_'];
             end
             str = str(1:end-1);
+        end
+        function str = filename2legend(str_inp)
+            str = strrep(str_inp,'_',',');
         end
         function create_gephi_nodes_table(solution_x,solution_t,time,filepath,filename)
             nodes = (1:size(solution_x,2))';

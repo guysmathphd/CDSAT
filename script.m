@@ -1223,14 +1223,77 @@ obj.batchFunction(@set_random_perturbations_1,1:5);
 obj.batchFunction(@solve_random_perturbations,1:5);
 
 %%
-EngineClass.write_norms_thetas_multi_sol(fullfile(obj.resultsPath,'obj_properties/','solution_random_perts/'));
+EngineClass.write_norms_thetas_multi_sol(fullfile(obj.resultsPath,'obj_properties/','solution_random_perts_2/'));
 %%
 obj.batchFunction(@set_sys_half_life_amp,1:5);
 %%
 obj.batchFunction(@write_norms_thetas_multi_folders,1:5);
+
 %%
+close all;
+obj.write_norms_thetas_multi_folders();
+obj.write_norms_thetas_multi_folders_2();
 obj.plot_pert_amp_phase_vs_t();
 %%
 obj.batchFunction(@plot_pert_amp_phase_vs_t,1:5);
+%%
+obj.plotTauVsQ();
+%%
+k = obj.degree_vector_weighted'; % 1:6000;
+ss = k.^2;
+r = rand(1,6000);
+perc = [1, .5, .1];
+k_normed = k/norm(k);
+for per = perc
+p = r.*ss*per;
+p_normed = p/norm(p);
 
+d1 = dot(p_normed,k_normed)
 
+end
+d2 = max(k_normed)
+%%
+dots1 = [];
+dots2 = [];
+n = 1:10:10000;
+for i=n
+    a = rand(1,i);
+    aa = a/norm(a);
+    b = rand(1,i);
+    bb = b/norm(b);
+    dots1(end+1) = dot(aa,bb);
+    k = obj.degree_vector;
+    kk = k/norm(k);
+    dots2(end+1) = dot(aa,kk);
+end
+figure;
+plot(n',[dots1',dots2],'.');
+    %% test32REG3 A = BA2 N=10000 a=1/2
+name = 'test32REG3-BA-2';
+desc = 'REG3 a=1/2 A=BA2 N=10000';
+seed = 1;
+rng(seed);
+A = General.load_var(fullfile('networks','BA2','adjacency_matrix.mat'));
+x0 = rand(1,10000)';
+maxT = 5000;
+maxDt = 0.01;
+timeStep = .2;
+m0 = @(x) (-x.^(1/2));
+m1 = @() (1);
+m2 = @(x) (x./(1+x));
+difEqSolver = @ode45;
+absTol = 1e-14;
+relTol = 1e-14;
+resultsPath = fullfile('tests',name,'results');
+mu = -1; nu = 0; rho = -4; eta = 0;
+% mu = 1; nu = -1; rho = 0; eta = 0;
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2'};
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,15,6000,false,@(x) (true),[]};
+props = containers.Map(myKeys,myValues);
+REG3 = EngineClass(props);
+%display(SIS)
+disp('now solving');
+%%
+REG3.solve(1,1,1,2);
+%%
+REG2.solve_single_node_combs_perts_batch();
