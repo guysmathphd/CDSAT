@@ -51,7 +51,7 @@ classdef EngineClass <  handle
         sys_relax_time
         node_half_life
         node_half_lives_struct
-        sys_half_life_amp
+        sys_half_life_amp = 1;
         sys_half_life_amp_2
         N
         k_nn
@@ -251,7 +251,8 @@ classdef EngineClass <  handle
             x = obj.degree_vector_weighted;x2 = (x.^obj.nu) * (x.^obj.rho)';x3 = x2(:);
             disp('obj.binsij = obj.set_bins_generic'); obj.binsij = obj.set_bins_generic(obj.numbins,x3,tol,obj.adjacencyMatrix>0);
             disp('obj.kijbinned = obj.set_binned_vals'); obj.kijbinned = obj.set_binned_vals(x2(obj.adjacencyMatrix>0),obj.binsij);
-            disp('obj.Wij_asybinned = obj.set_binned_vals'); obj.Wij_asybinned = obj.set_binned_vals(obj.Wij_asy(obj.adjacencyMatrix>0),obj.binsij);
+            Wij_asy = General.load_var(fullfile(obj.resultsPath,'obj_properties','Wij_asy'));
+            disp('obj.Wij_asybinned = obj.set_binned_vals'); obj.Wij_asybinned = obj.set_binned_vals(Wij_asy(obj.adjacencyMatrix>0),obj.binsij);
             disp('set_kinn'); obj.set_kinn();
             disp('obj.binskinn = obj.set_bins_generic'); obj.binskinn = obj.set_bins_generic(obj.numbins,obj.ki_nn,tol,true(obj.N,1));
             disp('obj.ki_nnbinned = obj.set_binned_vals'); obj.ki_nnbinned = obj.set_binned_vals(obj.ki_nn,obj.binskinn);
@@ -411,7 +412,7 @@ classdef EngineClass <  handle
         end
         function solve_random_perturbations(obj)
 %             obj.solve(3,1,1,0);
-            obj.solve(4,1,1,0,true);
+            obj.solve(4,1,1,0,true,false);
         end
         function write_norms_thetas_multi_folders(obj)
             foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
@@ -814,7 +815,7 @@ classdef EngineClass <  handle
                 end
             end
         end
-        function obj = solve(obj,pertType,epsIndStart,pertIndStart,isAdjustEpsilonType,isBreakAfterHalfLife)
+        function obj = solve(obj,pertType,epsIndStart,pertIndStart,isAdjustEpsilonType,isBreakAfterHalfLife,isResetXSol)
             obj.adjacencyMatrix = General.load_var(fullfile('networks',obj.networkName,'adjacency_matrix')); 
             %Solve the system
             tic;
@@ -907,7 +908,10 @@ classdef EngineClass <  handle
                         %%%%%%%%%%%%%%
                         setBreak1 = false;setBreak2 = false; % stop while loop?
                         first_appendall = true;
-                        pert0 = init-obj.steady_state;a=[];
+                        if pertType~=1
+                            pert0 = init-obj.steady_state;a=[];
+                        end
+                        aa=[];
                         while ~setBreak1 && ~setBreak2
                             % check if this step passes maxTime and set stepEndTime
 %                             if t + obj.solverTimeStep >= obj.maxTime
@@ -925,18 +929,23 @@ classdef EngineClass <  handle
                             % append results to solution_t and solution_x
 %                             eval([sol_t_var_str '{1,pertInd,epsInd}(end+1:end+length(sol_t)-1,1)=sol_t(2:end,:);']);
 %                             eval([sol_x_var_str '{1,pertInd,epsInd}(end+1:end+size(sol_x,1)-1,:)=sol_x(2:end,:);']);
-cur_sol_x = sol_x(end,:);
-cur_pert = obj.steady_state - cur_sol_x;
-cur_pert_prop = cur_pert./obj.steady_state;
 
-                            a(end+1) = norm(cur_pert_prop)/norm(pert0./obj.steady_state);
-                            disp(['a = ' num2str(a(end))]);
-                            if pertType ~= 1                            
+                            if pertType ~= 1
+                                cur_sol_x = sol_x(end,:);
+                                cur_pert = obj.steady_state - cur_sol_x;
+                                cur_pert_prop = cur_pert./obj.steady_state;
+                                a(end+1) = norm(cur_pert_prop)/norm(pert0./obj.steady_state);
+                                disp(['a = ' num2str(a(end))]);
                                 appendall = first_appendall && (a(end) < .5); %(norm(obj.steady_state - sol_x(end,:)) < .5*norm(pert0));
                             else
                                 appendall = false;
                             end
                             if ~appendall
+                                eval(['sol_x_num_rows = size(' sol_x_var_str '{1,pertInd,epsInd},1)']);
+                                if isResetXSol && sol_x_num_rows > 1000
+                                    eval([sol_t_var_str '{1,pertInd,epsInd}(1:end-101)=[];']);
+                                    eval([sol_x_var_str '{1,pertInd,epsInd}(1:end-101,:)=[];']);
+                                end
                                 eval([sol_t_var_str '{1,pertInd,epsInd}(end+1,1)=sol_t(end,:);']);
                                 eval([sol_x_var_str '{1,pertInd,epsInd}(end+1,:)=sol_x(end,:);']);
                             else
@@ -948,6 +957,8 @@ cur_pert_prop = cur_pert./obj.steady_state;
                                     disp('isBreakAfterHalfLife true, setBreak1 = true');
                                 end
                             end
+                            aa(end+1)=max(abs(sol_x_1{1,pertInd,epsInd}(end,:)-sol_x_1{1,pertInd,epsInd}(end-1,:)));
+                            plot(aa,'.');
                             eval(['setBreak2 = ' stop_cond_str ';']);
                             if setBreak2
                                 disp('setBreak2 = true');
@@ -981,7 +992,8 @@ cur_pert_prop = cur_pert./obj.steady_state;
                 obj.set_eig_ana();
                 obj.set_eig_ana_ordered_nodes();
                 obj.Dii_anabinned = obj.set_binned_vals(obj.Dii_ana,obj.bins);
-                obj.Wij_anabinned = obj.set_binned_vals(obj.Wij_ana(obj.adjacencyMatrix>0),obj.binsij);
+                Wij_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','Wij_ana'));
+                obj.Wij_anabinned = obj.set_binned_vals(Wij_ana(obj.adjacencyMatrix>0),obj.binsij);
 %                 obj.C_D_set = obj.find_constants_binned_sets(obj.Dii_anabinned,obj.Dii_asybinned);
 %                 obj.C_W_set = obj.find_constants_binned_sets(obj.Wij_anabinned,obj.Wij_asybinned);
 %                 [obj.C_D_v3, obj.guesses1_v3, obj.guesses2_v3, obj.errors1_v3, obj.errors2_v3, obj.eigvals_v3,obj.eigvecs_v3] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.1);
@@ -989,21 +1001,23 @@ cur_pert_prop = cur_pert./obj.steady_state;
                 obj.set_eigvec_comparison_mats(true,false);
                 obj.set_permutation_eigvec_ana2asy(0);
                 obj.set_eig_asy_permuted();
+                eig_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana'));
+                eig_asy_perm = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_asy_permuted'));
 %                 [eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_set, Wij_asy_set] = obj.set_eig_v2_sets(obj.Dii_asy, obj.Wij_asy, obj.C_D_set, obj.C_W_set, obj.numeigen,1);
                 for i = 1:obj.numeigenplots
-                    obj.binseigvecana{i,1} = obj.set_bins_generic(obj.numbins,abs(obj.eigenvectors_ana(:,i)),1e-13,true(obj.N,1));
-                    obj.binseigvecasy_permuted{i,1} = obj.set_bins_generic(obj.numbins,abs(obj.eigenvectors_asy_permuted(:,i)),1e-13,true(obj.N,1));
-                    obj.eigenvectors_ana_binned_self{i,1} = obj.set_binned_vals(abs(obj.eigenvectors_ana(:,i)),obj.binseigvecana{i,1});
-                    obj.eigenvectors_asy_permuted_binned_self{i,1} = obj.set_binned_vals(abs(obj.eigenvectors_asy_permuted(:,i)),obj.binseigvecasy_permuted{i,1});
+                    obj.binseigvecana{i,1} = obj.set_bins_generic(obj.numbins,abs(eig_ana(:,i)),1e-13,true(obj.N,1));
+                    obj.binseigvecasy_permuted{i,1} = obj.set_bins_generic(obj.numbins,abs(eig_asy_perm(:,i)),1e-13,true(obj.N,1));
+                    obj.eigenvectors_ana_binned_self{i,1} = obj.set_binned_vals(abs(eig_ana(:,i)),obj.binseigvecana{i,1});
+                    obj.eigenvectors_asy_permuted_binned_self{i,1} = obj.set_binned_vals(abs(eig_asy_perm(:,i)),obj.binseigvecasy_permuted{i,1});
                 end
-                obj.eigenvectors_ana_binned_k = obj.set_binned_vals(obj.eigenvectors_ana,obj.bins);
-                obj.eigenvectors_ana_binned_kinn = obj.set_binned_vals(obj.eigenvectors_ana,obj.binskinn);
-                obj.eigenvectors_asy_permuted_binned_k = obj.set_binned_vals(obj.eigenvectors_asy_permuted,obj.bins);
-                obj.eigenvectors_asy_permuted_binned_kinn = obj.set_binned_vals(obj.eigenvectors_asy_permuted,obj.binskinn);
+                obj.eigenvectors_ana_binned_k = obj.set_binned_vals(eig_ana,obj.bins);
+                obj.eigenvectors_ana_binned_kinn = obj.set_binned_vals(eig_ana,obj.binskinn);
+                obj.eigenvectors_asy_permuted_binned_k = obj.set_binned_vals(eig_asy_perm,obj.bins);
+                obj.eigenvectors_asy_permuted_binned_kinn = obj.set_binned_vals(eig_asy_perm,obj.binskinn);
                 obj.set_eigvec_comparison_mats(false,true);
                 obj.set_weighted_dot_products();
-                obj.pert_eigvec_ana_1 = obj.set_pert_eigvec_1(obj.eigenvectors_ana);
-                obj.pert_eigvec_asy_1 = obj.set_pert_eigvec_1(obj.eigenvectors_asy_permuted);
+                obj.pert_eigvec_ana_1 = obj.set_pert_eigvec_1(eig_ana);
+                obj.pert_eigvec_asy_1 = obj.set_pert_eigvec_1(eig_asy_perm);
                 if norm(obj.steady_state) < obj.absTol
                     isOnlyPositive = true;
                 else
@@ -1144,17 +1158,20 @@ cur_pert_prop = cur_pert./obj.steady_state;
         end
         function obj = set_Wij_ana(obj)
             x = obj.steady_state;
-            obj.Wij_ana = obj.adjacencyMatrix .* (double(obj.f_M1(x))'*...
+            Wij_ana = obj.adjacencyMatrix .* (double(obj.f_M1(x))'*...
                 double(obj.f_dM2(x)));
             disp('set_Wij_ana(obj): obj.Wij_ana = ');
+            General.save_var(Wij_ana,fullfile(obj.resultsPath,'obj_properties'),'Wij_ana');
             %disp(obj.Wij_ana);
         end
         function obj = set_J_ana(obj)
-            J_ana = EngineClass.compute_J(obj.Dii_ana,obj.Wij_ana,1,1);
+            Wij_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','Wij_ana'));
+            J_ana = EngineClass.compute_J(obj.Dii_ana,Wij_ana,1,1);
             obj.save_var(J_ana,obj.resultsPath,'obj_properties','J_ana');
         end
         function obj = set_J_asy(obj)
-            J_asy = EngineClass.compute_J(obj.Dii_asy,obj.Wij_asy,1,1);
+            Wij_asy = General.load_var(fullfile(obj.resultsPath,'obj_properties','Wij_asy'));
+            J_asy = EngineClass.compute_J(obj.Dii_asy,Wij_asy,1,1);
             obj.save_var(J_asy,obj.resultsPath,'obj_properties','J_asy');
         end       
         function obj = set_J_ana_degree_vector_weighted(obj)
@@ -1195,9 +1212,12 @@ cur_pert_prop = cur_pert./obj.steady_state;
             obj.Dii_asy = -obj.k_nn^obj.eta*obj.degree_vector_weighted.^obj.mu;
         end
         function obj = set_Wij_asy(obj)
-            obj.Wij_asy = obj.adjacencyMatrix .* (obj.degree_vector_weighted.^obj.nu * obj.degree_vector_weighted'.^obj.rho);
+            Wij_asy = obj.adjacencyMatrix .* (obj.degree_vector_weighted.^obj.nu * obj.degree_vector_weighted'.^obj.rho);
+            General.save_var(Wij_asy,fullfile(obj.resultsPath,'obj_properties'),'Wij_asy');
         end
         function [C_D, guesses1, guesses2, errors1, errors2, eigvals, eigvecs] = find_best_C_D(obj,real_eigval_1,guess_1_init,guess_2_init,req_acc)
+            Wij_ana = General.load_var(obj.resultsPath,'obj_properties','Wij_ana');
+            Wij_asy = General.load_var(obj.resultsPath,'obj_properties','Wij_asy');
             guess1 = guess_1_init;
             guess2 = guess_2_init;
             recalc1 = true;recalc2=true;
@@ -1209,10 +1229,10 @@ cur_pert_prop = cur_pert./obj.steady_state;
                 guesses2(end+1) = guess2;
                 disp(['guess1 = ' num2str(guess1) ', guess2 = ' num2str(guess2)]);
                 if recalc1
-                    [eigvals_1, eigvecs_1, ~, ~] = obj.set_eig(obj.Dii_asy, obj.Wij_asy, guess1, 1, numeigen, 1);
+                    [eigvals_1, eigvecs_1, ~, ~] = obj.set_eig(obj.Dii_asy, Wij_asy, guess1, 1, numeigen, 1);
                 end
                 if recalc2
-                    [eigvals_2, eigvecs_2, ~, ~] = obj.set_eig(obj.Dii_asy, obj.Wij_asy, guess2, 1, numeigen, 1);
+                    [eigvals_2, eigvecs_2, ~, ~] = obj.set_eig(obj.Dii_asy, Wij_asy, guess2, 1, numeigen, 1);
                 end
                 error1 = eigvals_1(1,1) - real_eigval_1;
                 error2 = eigvals_2(1,1) - real_eigval_1;
@@ -1274,22 +1294,26 @@ cur_pert_prop = cur_pert./obj.steady_state;
             disp('Done');
         end
         function obj = set_eig_ana(obj)
-            [obj.eigenvalues_ana, obj.eigenvectors_ana, ~, ~] = obj.set_eig(obj.Dii_ana,obj.Wij_ana,1,1,obj.numeigen,1);
+            Wij_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','Wij_ana'));
+            [obj.eigenvalues_ana, eigenvectors_ana, ~, ~] = obj.set_eig(obj.Dii_ana,Wij_ana,1,1,obj.numeigen,1);
             obj.save_var(obj.eigenvalues_ana,obj.resultsPath,'obj_properties','eigenvalues_ana');
-            obj.save_var(obj.eigenvectors_ana,obj.resultsPath,'obj_properties','eigenvectors_ana');
+            obj.save_var(eigenvectors_ana,obj.resultsPath,'obj_properties','eigenvectors_ana');
         end
         function obj = set_eig_ana_ordered_nodes(obj)
+            eigvec_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana'));
             [ind_bins_var,binned_vals] = EngineClass.set_bins_percentiles(1,obj.degree_vector_weighted);
-            [ordered_eigs] = EngineClass.reorder_eigvecs_nodes(obj.eigenvectors_ana, ind_bins_var);
+            [ordered_eigs] = EngineClass.reorder_eigvecs_nodes(eigvec_ana, ind_bins_var);
             obj.save_var(ordered_eigs,obj.resultsPath,'obj_properties','eigenvectors_ana_ordered_nodes');
         end
         function obj = set_eig_asy(obj)
-            [obj.eigenvalues_asy, obj.eigenvectors_asy, ~, ~] = obj.set_eig(obj.Dii_asy,obj.Wij_asy,1,1,obj.numeigen,1);
+            Wij_asy = General.load_var(fullfile(obj.resultsPath,'obj_properties','Wij_asy'));
+            [obj.eigenvalues_asy, eigenvectors_asy, ~, ~] = obj.set_eig(obj.Dii_asy,Wij_asy,1,1,obj.numeigen,1);
             obj.save_var(obj.eigenvalues_asy,obj.resultsPath,'obj_properties','eigenvalues_asy');
-            obj.save_var(obj.eigenvectors_asy,obj.resultsPath,'obj_properties','eigenvectors_asy');
+            obj.save_var(eigenvectors_asy,obj.resultsPath,'obj_properties','eigenvectors_asy');
         end
         function [eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_v2_set, Wij_asy_v2_set, Dii_asy_v2_binned_set, Wij_asy_v2_binned_set] = set_eig_v2_sets(obj, Dii_asy, Wij_asy, C_D_set, C_W_set, numeigen, iscalceigen)
             num_constants = size(C_D_set,1);
+            Wij_asy = General.load_var(obj.resultsPath,'obj_properties','Wij_asy');
             Dii_asy_v2_set = cell(num_constants,1);Wij_asy_v2_set = cell(num_constants,1);
             eigvals_asy_v2_set = cell(num_constants,1); eigvecs_asy_v2_set = cell(num_constants,1);
             Dii_asy_v2_binned_set = cell(num_constants,1);Wij_asy_v2_binned_set = cell(num_constants,1);
@@ -1297,7 +1321,7 @@ cur_pert_prop = cur_pert./obj.steady_state;
                 disp(['set_eig_v2: i = ' num2str(i)]);
                 C_D = C_D_set(num_constants - i + 1);
                 C_W = C_W_set(i);
-                [a,b,c,d] = obj.set_eig(obj.Dii_asy,obj.Wij_asy,C_D,C_W,numeigen, iscalceigen);
+                [a,b,c,d] = obj.set_eig(obj.Dii_asy,Wij_asy,C_D,C_W,numeigen, iscalceigen);
                 if iscalceigen
                     eigvals_asy_v2_set{i,1}=a; eigvecs_asy_v2_set{i,1}=b;
                 end
@@ -1372,23 +1396,23 @@ cur_pert_prop = cur_pert./obj.steady_state;
         end
         function obj = set_eigvec_comparison_mats(obj,computeRegular,computePermuted)
             if computeRegular
-                vasy = obj.eigenvectors_asy;                
+                vasy = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_asy'));
             elseif computePermuted
-                vasy = obj.eigenvectors_asy_permuted;
+                vasy = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_asy_permuted'));
             end
-            vana = obj.eigenvectors_ana;
+            vana = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana'));
             [dist, absdot, angles] = obj.compute_comparison_matrix(vana,vasy,false,'');
             
             if computeRegular
-                obj.eigvec_dist_comparison_mat_ana2asy = dist;
-                obj.eigvec_angle_comparison_mat_ana2asy = angles;
-                obj.eigvec_dot_comparison_mat_ana2asy = absdot;
-                EngineClass.save_var(obj.eigvec_dot_comparison_mat_ana2asy,obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy');
+%                 obj.eigvec_dist_comparison_mat_ana2asy = dist;
+%                 obj.eigvec_angle_comparison_mat_ana2asy = angles;
+%                 obj.eigvec_dot_comparison_mat_ana2asy = absdot;
+                EngineClass.save_var(absdot,obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy');
             elseif computePermuted
-                obj.eigvec_dist_comparison_mat_ana2asy_permuted = dist;
-                obj.eigvec_angle_comparison_mat_ana2asy_permuted = angles;
-                obj.eigvec_dot_comparison_mat_ana2asy_permuted = absdot;
-                EngineClass.save_var(obj.eigvec_dot_comparison_mat_ana2asy_permuted,obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy_permuted');
+%                 obj.eigvec_dist_comparison_mat_ana2asy_permuted = dist;
+%                 obj.eigvec_angle_comparison_mat_ana2asy_permuted = angles;
+%                 obj.eigvec_dot_comparison_mat_ana2asy_permuted = absdot;
+                EngineClass.save_var(absdot,obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy_permuted');
             end
             if ~isequal(real(angles),angles)
                 disp('Warning: eigvec_angle_comparison_mat has complex values');
@@ -1406,8 +1430,10 @@ cur_pert_prop = cur_pert./obj.steady_state;
             obj.eigvec_dot_comparison_mat_asy2asy = dotsasy1;            
         end
         function obj = set_permutation_eigvec_ana2asy(obj,thresh)
-            NN = obj.eigvec_angle_comparison_mat_ana2asy;
-            NN = abs(90 - NN);
+%             NN = obj.eigvec_angle_comparison_mat_ana2asy;
+NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy'));
+%             NN = abs(90 - NN);
+            NN = abs(0 - NN);
             [M,I] = max(NN,[],2);
             m = M < thresh;
             disp('set_permutation_eigvec_ana2asy: ');
@@ -1422,7 +1448,9 @@ cur_pert_prop = cur_pert./obj.steady_state;
         end
         function obj = set_eig_asy_permuted(obj)
             obj.eigenvalues_asy_permuted = obj.eigenvalues_asy(obj.permutation_eigvec_ana2asy);
-            obj.eigenvectors_asy_permuted = obj.eigenvectors_asy(:,obj.permutation_eigvec_ana2asy);
+            eig_asy = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_asy'));
+            eigenvectors_asy_permuted = eig_asy(:,obj.permutation_eigvec_ana2asy);
+            General.save_var(eigenvectors_asy_permuted,fullfile(obj.resultsPath,'obj_properties'),'eigenvectors_asy_permuted');
         end
         function find_eigvec_power_law(obj)
             percentiles = [100, 50, 10, 5, 1];
@@ -1451,22 +1479,24 @@ cur_pert_prop = cur_pert./obj.steady_state;
             end
         end
         function obj = set_weighted_dot_products(obj)
-            s = size(obj.eigenvectors_ana,2);
+            eigvec_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana'));
+            eigvec_asy_permuted = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_asy_permuted'));
+            s = size(eigvec_ana,2);
             step = s/100; disp('1');
-            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,obj.degree_vector_weighted,obj.kbinned_mins,true,[0:step:s]',true);
+            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(eigvec_ana,eigvec_asy_permuted,obj.degree_vector_weighted,obj.kbinned_mins,true,[0:step:s]',true);
             EngineClass.save_var(wdp,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_1');
             EngineClass.save_var(wdpm,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_1');
             disp('2');
-            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,obj.degree_vector_weighted,obj.kbinned_maxs,false,[0:step:s]',true);
+            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(eigvec_ana,eigvec_asy_permuted,obj.degree_vector_weighted,obj.kbinned_maxs,false,[0:step:s]',true);
             EngineClass.save_var(wdp,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_2');
             EngineClass.save_var(wdpm,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_2');
             disp('3');
             [ind_bins_var,binned_vals] = EngineClass.set_bins_percentiles(20,obj.degree_vector_weighted);
-            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,obj.degree_vector_weighted,binned_vals(1,:)',true,[0:step:s]',true);
+            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(eigvec_ana,eigvec_asy_permuted,obj.degree_vector_weighted,binned_vals(1,:)',true,[0:step:s]',true);
             EngineClass.save_var(wdp,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_3');
             EngineClass.save_var(wdpm,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_3');
             disp('4');
-            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(obj.eigenvectors_ana,obj.eigenvectors_asy_permuted,obj.degree_vector_weighted,binned_vals(1,:)',true,[0:step:s]',false);
+            [wdp,wdpm] = EngineClass.compute_weighted_dot_products(eigvec_ana,eigvec_asy_permuted,obj.degree_vector_weighted,binned_vals(1,:)',true,[0:step:s]',false);
             EngineClass.save_var(wdp,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_4');
             EngineClass.save_var(wdpm,obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_4');
             
@@ -2060,6 +2090,8 @@ cur_pert_prop = cur_pert./obj.steady_state;
             obj.save_fig(f,name);
         end
         function obj = plot_jacobian(obj)
+            Wij_ana = General.load_var(obj.resultsPath,'obj_properties','Wij_ana');
+            Wij_asy = General.load_var(obj.resultsPath,'obj_properties','Wij_asy');
             mydata = load(fullfile(obj.resultsPath,'obj_properties','Wij_asy_v2_set.mat'),'var');Wij_asy_v2_set=mydata.var;
             mydata = load(fullfile(obj.resultsPath,'obj_properties','Dii_asy_v2_set.mat'),'var');Dii_asy_v2_set=mydata.var;
             mydata = load(fullfile(obj.resultsPath,'obj_properties','Wij_asy_v2_binned_set.mat'),'var');Wij_asy_v2_binned_set=mydata.var;
@@ -2083,10 +2115,10 @@ cur_pert_prop = cur_pert./obj.steady_state;
             name = 'fig4b';
             f = figure('Name',name,'NumberTitle','off');
             x1 = x * x';
-            y = obj.Wij_ana;
+            y = Wij_ana;
             loglog(x1(:),y(:),'.','MarkerSize',12);
             hold on;
-            y1 = obj.Wij_asy;
+            y1 = Wij_asy;
             loglog(x1(:),y1(:),'^','MarkerSize',10);
             y2 = Wij_asy_v2_set{1,1};
             loglog(x1(:),y2(:),'v','MarkerSize',10);
@@ -3887,6 +3919,16 @@ cur_pert_prop = cur_pert./obj.steady_state;
             title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
             xlabel('$Q7 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 \max{(k)}}$','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
             
+            name = 'fig28l'; fname{12} = name;desc = '$\tau_A$ vs Q8';%\tau_A vs Q8
+            f{12} = figure('Name',name,'NumberTitle','off');hax{12} = axes; hold on;
+            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            xlabel('$Q8 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
+            
+            name = 'fig28m'; fname{13} = name;desc = '$\tau_A$ vs Q9';%\tau_A vs Q9
+            f{13} = figure('Name',name,'NumberTitle','off');hax{13} = axes; hold on;
+            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            xlabel('$Q9 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
+            
             legendStr = {};
             for j1 = 1:length(foldernames)
                 folder = foldernames{j1};%folder = foldernames
@@ -3932,6 +3974,8 @@ cur_pert_prop = cur_pert./obj.steady_state;
                         plot(hax{10},Q6,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
                         Q7 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q7']));
                         plot(hax{11},Q7,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                        Q8 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q8']));
+                        plot(hax{12},Q8,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
                         ind = ind+1;
                         if ind > length(markers)
                             ind = 1;
@@ -4072,7 +4116,7 @@ cur_pert_prop = cur_pert./obj.steady_state;
         function xout = test_fun(a,b)
             xout = a+b;
         end
-        function [norms, norms_normed, thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5,Q6,Q7] = calc_norms_thetas(x,ss,t,sys_half_life_amp,mu,k,xi)
+        function [norms, norms_normed, thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9] = calc_norms_thetas(x,ss,t,sys_half_life_amp,mu,k,xi)
             % Calc pert:
             x_sol = x;
             x = (x' - ss')';
@@ -4100,6 +4144,8 @@ cur_pert_prop = cur_pert./obj.steady_state;
             Q6 = dot(abs(x_pert_init)/norm(x_pert_init,1),abs(k_mu)/max(k_mu));
             k_alpha = k.^(-xi - mu);
             Q7 = dot(abs(x_init),k_alpha)/(norm(x_init,1)*max(k_alpha));
+            Q8 = dot(abs(x_init)/norm(x_init,1),k_alpha);
+            Q9 = dot(abs(x_init)/norm(x_init,1),k_mu.*ss');
             x_normed = x'./norms;
             x_normed_init = x_normed(:,1);
             thetas = acos(dot(repmat(x_normed_init,1,size(x_normed,2)),x_normed));            
@@ -4107,7 +4153,7 @@ cur_pert_prop = cur_pert./obj.steady_state;
         function write_norms_thetas_single_sol(path,x_filename,t_filename,ss,sys_half_life_amp,mu,k,sufstr,xi)
             sol_x = General.load_var(fullfile(path,x_filename));
             sol_t = General.load_var(fullfile(path,t_filename));
-            [norms,norms_normed,thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5,Q6,Q7] = EngineClass.calc_norms_thetas(sol_x,ss,sol_t,sys_half_life_amp,mu,k,xi);
+            [norms,norms_normed,thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9] = EngineClass.calc_norms_thetas(sol_x,ss,sol_t,sys_half_life_amp,mu,k,xi);
             General.save_var(norms,path,[x_filename '_norms']);
             General.save_var(thetas,path,[x_filename '_thetas']); 
             General.save_var(norms_normed,path,[x_filename '_norms_normed']);
@@ -4120,6 +4166,8 @@ cur_pert_prop = cur_pert./obj.steady_state;
             General.save_var(Q5,path,[x_filename '_Q5']);
             General.save_var(Q6,path,[x_filename '_Q6']);
             General.save_var(Q7,path,[x_filename '_Q7']);
+            General.save_var(Q8,path,[x_filename '_Q8']);
+            General.save_var(Q9,path,[x_filename '_Q9']);
         end
         
         function write_norms_thetas_multi_sol(path,ss,sys_half_life_amp,mu,k,sufstr,xi)

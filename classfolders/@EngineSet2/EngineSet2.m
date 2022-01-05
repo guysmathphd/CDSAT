@@ -1,4 +1,4 @@
-classdef EngineSet2
+classdef EngineSet2 < handle
     %UNTITLED2 Summary of this class goes here
     %   Detailed explanation goes here
     
@@ -42,6 +42,7 @@ classdef EngineSet2
         obj = plotTauVsQ(obj)
         obj = save_obj(obj)
         obj = save_fig(obj,f,name)
+        obj = addengine(obj,foldernamestr,lengendnamestr)
 
         function outputArg = method1(obj,inputArg)
             %METHOD1 Summary of this method goes here

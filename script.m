@@ -1227,7 +1227,7 @@ EngineClass.write_norms_thetas_multi_sol(fullfile(obj.resultsPath,'obj_propertie
 %%
 obj.batchFunction(@set_sys_half_life_amp,1:6);
 %%
-obj.batchFunction(@write_norms_thetas_multi_folders,1:6);
+obj.batchFunction(@write_norms_thetas_multi_folders,6:7);
 %%
 set.batchFunction(@plot_pert_amp_phase_vs_t,1:6);
 %%
@@ -1315,7 +1315,8 @@ desc = 'REG4 a=1/2 A=BA1 N=5000';
 seed = 1;
 rng(seed);
 A = General.load_var(fullfile('networks','BA1','adjacency_matrix.mat'));
-x0 = rand(1,5000)';
+% x0 = rand(1,5000)';
+x0 = dif';
 maxT = 5000;
 maxDt = 0.01;
 timeStep = .2;
@@ -1326,15 +1327,93 @@ difEqSolver = @ode45;
 absTol = 1e-14;
 relTol = 1e-14;
 resultsPath = fullfile('tests',name,'results');
-mu = -1; nu = 0; rho = -4; eta = 0;
+mu = -1; nu = 0; rho = -4; eta = 0;xi=-4;
 % mu = 1; nu = -1; rho = 0; eta = 0;
-myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2','init_condition_str','networkName'};
-myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,15,6000,false,@(x) (true),[],'~(any(init < 0))','BA1'};
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2','init_condition_str','networkName','xi'};
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,15,6000,false,@(x) (true),[],'~(any(init < 0))','BA1',xi};
 props = containers.Map(myKeys,myValues);
 REG4 = EngineClass(props);
 %display(SIS)
 disp('now solving');
 %%
-REG4.solve(1,1,1,2,false);
-
+REG4.solve(1,1,1,2,false,true);
+%%
 obj.batchFunction(@solve_random_perturbations,6:6);
+
+%%
+    %% test34REG5 A = BA1 N=5000 a=1/4
+name = 'test34REG5-BA-1';
+desc = 'REG5 a=1/4 A=BA1 N=5000';
+seed = 1;
+rng(seed);
+A = General.load_var(fullfile('networks','BA1','adjacency_matrix.mat'));
+% x0 = rand(1,5000)';
+a = General.load_var(fullfile(REG5.resultsPath,'obj_properties','solution','sol_x_1_1'));
+x0 = a(end,:)';
+maxT = 5000;
+maxDt = 0.01;
+timeStep = .2;
+m0 = @(x) (-x.^(1/4));
+m1 = @() (1);
+m2 = @(x) (x./(1+x));
+difEqSolver = @ode45;
+absTol = 1e-14;
+relTol = 1e-14;
+resultsPath = fullfile('tests',name,'results');
+mu = -1; nu = 0; rho = -4; eta = 0; xi = -4;
+% mu = 1; nu = -1; rho = 0; eta = 0;
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2','init_condition_str','networkName','xi'};
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,15,6000,false,@(x) (true),[],'~(any(init < 0))','BA1',xi};
+props = containers.Map(myKeys,myValues);
+REG5 = EngineClass(props);
+%display(SIS)
+disp('now solving');
+%%
+% a = General.load_var(fullfile(REG5.resultsPath,'obj_properties','solution','sol_x_1_1'));
+REG5.initialValues = REG5.degree_vector_weighted.^4;
+
+REG5.solve(1,1,1,2,false,true);
+    %% test35SIS17 A = BA1 N=5000 f=1 g=1
+name = 'test35SIS17-BA-1';
+desc = 'SIS17 f=1 g=1 A=BA1 N=5000';
+seed = 1;
+rng(seed);
+A = General.load_var(fullfile('networks','BA1','adjacency_matrix.mat'));
+x0 = rand(1,5000)';
+maxT = 5000;
+maxDt = 0.01;
+timeStep = .2;
+m0 = @(x) (-x);
+m1 = @(x) (1-x);
+m2 = @(x) (x);
+difEqSolver = @ode45;
+absTol = 1e-14;
+relTol = 1e-14;
+resultsPath = fullfile('tests',name,'results');
+mu = 1; nu = -1; rho = 0; eta = 0; xi = 0;
+numbins=15;
+numeigen=5000;
+isEngineSet = false;
+init_condition = @(x) (true);
+stop_condition_2 = [];
+init_condition_str = '~(any(init < 0 | init > 1))';
+networkName = 'BA1';
+% mu = 1; nu = -1; rho = 0; eta = 0;
+myKeys = {'scenarioName','desc','adjacencyMatrix','initialValues','maxTime','maxDerivative','solverTimeStep','randSeed','f_M0','f_M1','f_M2','difEqSolver','absTol','relTol','resultsPath','mu','nu','rho','eta','numbins','numeigen','isEngineSet','init_condition','stop_condition_2','init_condition_str','networkName','xi'};
+myValues = {name,desc,A,x0,maxT,maxDt,timeStep,seed,m0,m1,m2,difEqSolver,absTol,relTol,resultsPath,mu,nu,rho,eta,numbins,numeigen,isEngineSet,init_condition,stop_condition_2,init_condition_str,networkName,xi};
+props = containers.Map(myKeys,myValues);
+SIS17 = EngineClass(props);
+%display(SIS)
+disp('now solving');
+%%
+SIS17.solve(1,1,1,2,false,true);
+%%
+SIS17.solve_random_perturbations();
+SIS17.write_norms_thetas_multi_folders();
+SIS17.set_sys_half_life_amp();
+SIS17.solve_single_node_combs_perts_batch();
+SIS17.write_norms_thetas_multi_folders();
+SIS17.plot_pert_amp_phase_vs_t();
+%%
+
+REG4.solve(1,1,1,2,false,true);
