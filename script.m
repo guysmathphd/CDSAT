@@ -1225,11 +1225,11 @@ obj.batchFunction(@solve_random_perturbations,1:6);
 %%
 EngineClass.write_norms_thetas_multi_sol(fullfile(obj.resultsPath,'obj_properties/','solution_random_perts_2/'));
 %%
-obj.batchFunction(@set_sys_half_life_amp,1:6);
+obj.batchFunction(@set_sys_half_life_amp,1:7);
 %%
-obj.batchFunction(@write_norms_thetas_multi_folders,6:7);
+obj.batchFunction(@write_norms_thetas_multi_folders,1:7);
 %%
-set.batchFunction(@plot_pert_amp_phase_vs_t,1:6);
+set.batchFunction(@plot_pert_amp_phase_vs_t,1:7);
 %%
 reg4.solve_single_node_combs_perts_batch();
 %%
@@ -1371,7 +1371,7 @@ disp('now solving');
 %%
 % a = General.load_var(fullfile(REG5.resultsPath,'obj_properties','solution','sol_x_1_1'));
 REG5.initialValues = REG5.degree_vector_weighted.^4;
-
+%%
 REG5.solve(1,1,1,2,false,true);
     %% test35SIS17 A = BA1 N=5000 f=1 g=1
 name = 'test35SIS17-BA-1';
@@ -1417,3 +1417,7 @@ SIS17.plot_pert_amp_phase_vs_t();
 %%
 
 REG4.solve(1,1,1,2,false,true);
+%%
+set.batchFunction(@set_random_perturbations_2,1:7);
+%%
+set.batchFunction(@solve_random_perturbations_2,1:7);

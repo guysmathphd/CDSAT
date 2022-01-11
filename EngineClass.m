@@ -274,17 +274,21 @@ classdef EngineClass <  handle
             obj.degree_weighted_average = sum(obj.degree_vector_weighted)/obj.N;
         end
         function set_sys_half_life_amp(obj)
-            mypath = fullfile(obj.resultsPath,'obj_properties','solution_random_perts');
-            half_lives = [];
-            for i1 = 1:5
-                At = General.load_var(fullfile(mypath,['sol_x_random_perturbations_' num2str(i1) '_norms_normed']));
-                sol_t = General.load_var(fullfile(mypath,['sol_t_random_perturbations_' num2str(i1)]));
-                At0 = At(1);
-%                 ind = find(At < (At0 + At(end))/2,1,'first');
-                ind = find(At<.5,1,'first');
-                half_lives(end+1) = sol_t(ind);
+            obj.sys_half_life_amp={};
+            sufs = {'','_2'};
+            for i2 = 1:length(sufs)
+                mypath = fullfile(obj.resultsPath,'obj_properties',['solution_random_perts' sufs{i2}]);
+                half_lives = [];
+                for i1 = 1:5
+                    At = General.load_var(fullfile(mypath,['sol_x_random_perturbations_' num2str(i1) '_norms_normed']));
+                    sol_t = General.load_var(fullfile(mypath,['sol_t_random_perturbations_' num2str(i1)]));
+                    At0 = At(1);
+                    %                 ind = find(At < (At0 + At(end))/2,1,'first');
+                    ind = find(At<.5,1,'first');
+                    half_lives(end+1) = sol_t(ind);
+                end
+                obj.sys_half_life_amp{i2} = mean(half_lives);
             end
-            obj.sys_half_life_amp = mean(half_lives);
             obj.save_obj();
         end
         function set_sys_half_life_amp_2(obj)
@@ -410,8 +414,22 @@ classdef EngineClass <  handle
             end
             obj.set_random_perturbations(isOnlyPositive,true);
         end
+        function set_random_perturbations_2(obj)
+            if obj.num_perturbations < 5
+                obj.set_num_random_perturbations();
+            end
+            if norm(obj.steady_state) < obj.absTol
+                isOnlyPositive = true;
+            else
+                isOnlyPositive = false;
+            end
+            obj.set_random_perturbations(isOnlyPositive,false);
+        end
         function solve_random_perturbations(obj)
-%             obj.solve(3,1,1,0);
+            obj.solve(3,1,1,0,true,false);
+%             obj.solve(4,1,1,0,true,false);
+        end
+        function solve_random_perturbations_2(obj)
             obj.solve(4,1,1,0,true,false);
         end
         function write_norms_thetas_multi_folders(obj)
@@ -441,7 +459,8 @@ classdef EngineClass <  handle
                 filenamestr = 'random_perturbations';
             else
                 ss = ones(size(obj.steady_state));
-                pert_factor = 1;
+%                 pert_factor = 1;
+                pert_factor = min(obj.steady_state);
                 filenamestr = 'random_perturbations_2';
             end
             k = obj.num_perturbations;
@@ -852,12 +871,12 @@ classdef EngineClass <  handle
                     sol_x_var_str = 'sol_x_random_perturbations';
                     stop_cond_str = 'max(abs(sol_x_random_perturbations{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
                     solution_folder_name = 'solution_random_perts';
-                case 4
-                    perts = General.load_var(fullfile(obj.resultsPath,'obj_properties','random_perturbations'));
+                case 4 % perturbations are random and small not relative to steady state
+                    perts = General.load_var(fullfile(obj.resultsPath,'obj_properties','random_perturbations_2'));
                     sol_t_var_str = 'sol_t_random_perturbations';
                     sol_x_var_str = 'sol_x_random_perturbations';
                     stop_cond_str = 'max(abs(sol_x_random_perturbations{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
-                    solution_folder_name = 'solution_random_perts';
+                    solution_folder_name = 'solution_random_perts_2';
                 otherwise
             end
             numperts = size(perts,2);
@@ -957,8 +976,10 @@ classdef EngineClass <  handle
                                     disp('isBreakAfterHalfLife true, setBreak1 = true');
                                 end
                             end
-                            aa(end+1)=max(abs(sol_x_1{1,pertInd,epsInd}(end,:)-sol_x_1{1,pertInd,epsInd}(end-1,:)));
-                            plot(aa,'.');
+                            if pertType == 1
+                                aa(end+1)=max(abs(sol_x_1{1,pertInd,epsInd}(end,:)-sol_x_1{1,pertInd,epsInd}(end-1,:)));
+                                plot(aa,'.');
+                            end
                             eval(['setBreak2 = ' stop_cond_str ';']);
                             if setBreak2
                                 disp('setBreak2 = true');
@@ -3865,70 +3886,73 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             colors = {'b','r','k','m','g','c'};
             markers = {'o','s','^','*','+','x','v','<','>','.','d','p','h','_','|'};
             size = 6;
-            name = 'fig28a'; fname{1} = name;desc = 'Perturbation Amplitude vs t'; %pert_norm vs t
-            f{1} = figure('Name',name,'NumberTitle','off');hax{1} = axes; hold on;
+            name = 'fig28a'; fname{1,1} = name;desc = 'Perturbation Amplitude vs t'; %pert_norm vs t
+            f{1,1} = figure('Name',name,'NumberTitle','off');hax{1,1} = axes; hold on;
             title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
             xlabel('t','Interpreter','latex');ylabel('$\|\delta(t)\|$','Interpreter','latex');
-            name = 'fig28b'; fname{2} = name;desc = 'Perturbation Amplitude normed vs t';%pert_norm_normed vs t
-            f{2} = figure('Name',name,'NumberTitle','off');hax{2} = axes; hold on;
+            name = 'fig28b'; fname{1,2} = name;desc = 'Perturbation Amplitude normed vs t';%pert_norm_normed vs t
+            f{1,2} = figure('Name',name,'NumberTitle','off');hax{1,2} = axes; hold on;
             title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
             xlabel('t','Interpreter','latex');ylabel('$A(t)$','Interpreter','latex'); %  = \dfrac{\mathbf{\|\delta x(t)\|}}{\mathbf{\|\delta x(0)\|}}$'
             
-            name = 'fig28c'; fname{3} = name;desc = 'Perturbation Phase [deg] vs t';%pert_phase vs t
-            f{3} = figure('Name',name,'NumberTitle','off');hax{3} = axes; hold on;
+            name = 'fig28c'; fname{1,3} = name;desc = 'Perturbation Phase [deg] vs t';%pert_phase vs t
+            f{1,3} = figure('Name',name,'NumberTitle','off');hax{1,3} = axes; hold on;
             title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
             xlabel('t','Interpreter','latex');ylabel('$\phi(t)$','Interpreter','latex');% = \arccos{\left( \mathbf{\widehat{\delta x(t)}}\cdot \widehat{\mathbf{\delta x(0)}}$'
             
-            name = 'fig28d'; fname{4} = name;desc = '$\tau_A$ vs Q';%\tau_A vs Q
-            f{4} = figure('Name',name,'NumberTitle','off');hax{4} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('Q','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
-            
-            name = 'fig28e'; fname{5} = name;desc = '$\tau_{A_2}$ vs Q';%\tau_A_2 vs Q
-            f{5} = figure('Name',name,'NumberTitle','off');hax{5} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('Q','Interpreter','latex');ylabel('$\tau_{A_2}$','Interpreter','latex');
-            
-            name = 'fig28f'; fname{6} = name;desc = '$\tau_A$ vs Q2';%\tau_A vs Q2
-            f{6} = figure('Name',name,'NumberTitle','off');hax{6} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('Q2','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
-            
-            name = 'fig28g'; fname{7} = name;desc = '$\tau_A$ vs Q3';%\tau_A vs Q3
-            f{7} = figure('Name',name,'NumberTitle','off');hax{7} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('Q3','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
-            
-            name = 'fig28h'; fname{8} = name;desc = '$\tau_A$ vs Q4';%\tau_A vs Q4
-            f{8} = figure('Name',name,'NumberTitle','off');hax{8} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('Q4','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
-            
-            name = 'fig28i'; fname{9} = name;desc = '$\tau_A$ vs Q5';%\tau_A vs Q5
-            f{9} = figure('Name',name,'NumberTitle','off');hax{9} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('Q5','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
-            
-            name = 'fig28j'; fname{10} = name;desc = '$\tau_A$ vs Q6';%\tau_A vs Q6
-            f{10} = figure('Name',name,'NumberTitle','off');hax{10} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('Q6','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
-            
-            name = 'fig28k'; fname{11} = name;desc = '$\tau_A$ vs Q7';%\tau_A vs Q7
-            f{11} = figure('Name',name,'NumberTitle','off');hax{11} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('$Q7 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 \max{(k)}}$','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
-            
-            name = 'fig28l'; fname{12} = name;desc = '$\tau_A$ vs Q8';%\tau_A vs Q8
-            f{12} = figure('Name',name,'NumberTitle','off');hax{12} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('$Q8 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
-            
-            name = 'fig28m'; fname{13} = name;desc = '$\tau_A$ vs Q9';%\tau_A vs Q9
-            f{13} = figure('Name',name,'NumberTitle','off');hax{13} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('$Q9 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel('$\tau_A$','Interpreter','latex');
-            
+            for i1 = 1:length(obj.sys_half_life_amp)
+                desc1 = ['$\tau_{A_' num2str(i1) '}$ vs Q'];ylab =['$\tau_{A_' num2str(i1) '}$'];
+                
+                name = ['fig28d-' num2str(i1)]; fname{i1,4} = name;desc = [desc1 '1'];%\tau_A vs Q1
+                f{i1,4} = figure('Name',name,'NumberTitle','off');hax{i1,4} = axes; hold on;
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel('Q','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+%                 
+%                 name = 'fig28e'; fname{5} = name;desc = '$\tau_{A_2}$ vs Q';%\tau_A_2 vs Q
+%                 f{5} = figure('Name',name,'NumberTitle','off');hax{5} = axes; hold on;
+%                 title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+%                 xlabel('Q','Interpreter','latex');ylabel('$\tau_{A_2}$','Interpreter','latex');
+                
+                name = ['fig28f-' num2str(i1)]; fname{i1,6} = name;desc = [desc1 '2'];%\tau_A vs Q2
+                f{i1,6} = figure('Name',name,'NumberTitle','off');hax{i1,6} = axes; hold on;
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel('Q2','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+                
+                name = ['fig28g-' num2str(i1)]; fname{i1,7} = name;desc = [desc1 '3'];%\tau_A vs Q3
+                f{i1,7} = figure('Name',name,'NumberTitle','off');hax{i1,7} = axes; hold on;
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel('Q3','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+                
+                name = ['fig28h-' num2str(i1)]; fname{i1,8} = name;desc = [desc1 '4'];%\tau_A vs Q4
+                f{i1,8} = figure('Name',name,'NumberTitle','off');hax{i1,8} = axes; hold on;
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel('Q4','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+                
+                name = ['fig28i-' num2str(i1)]; fname{i1,9} = name;desc = [desc1 '5'];%\tau_A vs Q5
+                f{i1,9} = figure('Name',name,'NumberTitle','off');hax{i1,9} = axes; hold on;
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel('Q5','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+                
+                name = ['fig28j-' num2str(i1)]; fname{i1,10} = name;desc = [desc1 '6'];%\tau_A vs Q6
+                f{i1,10} = figure('Name',name,'NumberTitle','off');hax{i1,10} = axes; hold on;
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel('Q6','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+                
+                name = ['fig28k-' num2str(i1)]; fname{i1,11} = name;desc = [desc1 '7'];%\tau_A vs Q7
+                f{i1,11} = figure('Name',name,'NumberTitle','off');hax{i1,11} = axes; hold on;
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel('$Q7 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 \max{(k)}}$','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+                
+                name = ['fig28l-' num2str(i1)]; fname{i1,12} = name;desc = [desc1 '8'];%\tau_A vs Q8
+                f{i1,12} = figure('Name',name,'NumberTitle','off');hax{i1,12} = axes; hold on;
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel('$Q8 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+                
+                name = ['fig28m-' num2str(i1)]; fname{i1,13} = name;desc = [desc1 '9'];%\tau_A vs Q9
+                f{i1,13} = figure('Name',name,'NumberTitle','off');hax{i1,13} = axes; hold on;
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel('$Q9 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+            end
             legendStr = {};
             for j1 = 1:length(foldernames)
                 folder = foldernames{j1};%folder = foldernames
@@ -3958,24 +3982,34 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                         yvalues = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_thetas']));
                         plot(hax{3},tvalues,rad2deg(abs(yvalues)),colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',size);%hold on;
                         Q = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q']));
+                        Q2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q2']));
+                        Q3 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q3']));
+                        Q4 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q4']));
+                        Q5 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q5']));
+                        Q6 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q6']));
+                        Q7 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q7']));
+                        Q8 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q8']));
                         tau_A = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A']));
-                        plot(hax{4},Q,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                        for i1 = 1:length(tau_a)
+                            tau = tau_A{i1};
+                            plot(hax{i1,4},Q,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
 %                         tau_A_2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A_2']));
 %                         plot(hax{5},Q,tau_A_2,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
-                        Q2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q2']));
-                        plot(hax{6},Q2,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
-                        Q3 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q3']));
-                        plot(hax{7},Q3,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
-                        Q4 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q4']));
-                        plot(hax{8},Q4,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
-                        Q5 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q5']));
-                        plot(hax{9},Q5,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
-                        Q6 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q6']));
-                        plot(hax{10},Q6,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
-                        Q7 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q7']));
-                        plot(hax{11},Q7,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
-                        Q8 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q8']));
-                        plot(hax{12},Q8,tau_A,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                        
+                            plot(hax{i1,6},Q2,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+
+                            plot(hax{i1,7},Q3,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+
+                            plot(hax{i1,8},Q4,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+
+                            plot(hax{i1,9},Q5,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+
+                            plot(hax{i1,10},Q6,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+
+                            plot(hax{i1,11},Q7,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+
+                            plot(hax{i1,12},Q8,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                        end
                         ind = ind+1;
                         if ind > length(markers)
                             ind = 1;
@@ -3984,9 +4018,13 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                     end                    
                 end
             end
-            for i3 = 1:length(f)
-                legend(hax{i3},legendStr);
-                General.save_fig(f{i3},fname{i3},fullfile(obj.resultsPath,'figs'));
+            for i3 = 1:size(f,1)
+                for i4 = 1:size(f,2)
+                    if ~isempty(f{i3,i4})
+                        legend(hax{i3,i4},legendStr);
+                        General.save_fig(f{i3,i4},fname{i3,i4},fullfile(obj.resultsPath,'figs'));
+                    end
+                end
             end
             
             
@@ -4128,7 +4166,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             disp(['norms_normed(1) = ' num2str(norms_normed(1))]);
             ind = find(norms_normed <= norms_normed(1)/2,1,'first');
             H_A = t(ind);
-            tau_A = H_A/sys_half_life_amp;
+            
             k_mu = k.^(-mu);
             abs_x_pert_init = abs(x_pert(1,:));
             x_pert_init = x_pert(1,:);
@@ -4148,7 +4186,10 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             Q9 = dot(abs(x_init)/norm(x_init,1),k_mu.*ss');
             x_normed = x'./norms;
             x_normed_init = x_normed(:,1);
-            thetas = acos(dot(repmat(x_normed_init,1,size(x_normed,2)),x_normed));            
+            thetas = acos(dot(repmat(x_normed_init,1,size(x_normed,2)),x_normed));   
+            for i1 = 1:length(sys_half_life_amp)
+                tau_A{i1} = H_A/sys_half_life_amp{i1};
+            end
         end
         function write_norms_thetas_single_sol(path,x_filename,t_filename,ss,sys_half_life_amp,mu,k,sufstr,xi)
             sol_x = General.load_var(fullfile(path,x_filename));
