@@ -3885,7 +3885,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             foldernames = {'solution_random_perts','solution_random_perts_2','single_node_pert_sol','solution_eigvec_perts'};
             colors = {'b','r','k','m','g','c'};
             markers = {'o','s','^','*','+','x','v','<','>','.','d','p','h','_','|'};
-            size = 6;
+            marksize = 6;
             name = 'fig28a'; fname{1,1} = name;desc = 'Perturbation Amplitude vs t'; %pert_norm vs t
             f{1,1} = figure('Name',name,'NumberTitle','off');hax{1,1} = axes; hold on;
             title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
@@ -3951,7 +3951,12 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 name = ['fig28m-' num2str(i1)]; fname{i1,13} = name;desc = [desc1 '9'];%\tau_A vs Q9
                 f{i1,13} = figure('Name',name,'NumberTitle','off');hax{i1,13} = axes; hold on;
                 title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('$Q9 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+                xlabel('$Q9 = \frac{\mathbf{\delta x(0)}\cdot k^{-\mu} \cdot \mathbf{ss}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+                
+                name = ['fig28n-' num2str(i1)]; fname{i1,14} = name;desc = [desc1 '10'];%\tau_A vs Q10
+                f{i1,14} = figure('Name',name,'NumberTitle','off');hax{i1,14} = axes; hold on;
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel('$Q10 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)}\cdot k^{-\xi} \|_1 }$','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
             end
             legendStr = {};
             for j1 = 1:length(foldernames)
@@ -3976,11 +3981,11 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                         legendStr{end+1} = EngineClass.filename2legend(name(ind1+1:indsuf-1));
                         yvalues = General.load_var(fullfile(folderpath,name));
                         tvalues = General.load_var(fullfile(folderpath,[name(1:ind1-2) 't' name(ind1:indsuf-1)]));
-                        plot(hax{1},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',size);%hold on;
+                        plot(hax{1,1},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',marksize);%hold on;
                         yvalues = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_norms_normed']));
-                        plot(hax{2},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',size);%hold on;
+                        plot(hax{1,2},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',marksize);%hold on;
                         yvalues = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_thetas']));
-                        plot(hax{3},tvalues,rad2deg(abs(yvalues)),colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',size);%hold on;
+                        plot(hax{1,3},tvalues,rad2deg(abs(yvalues)),colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',marksize);%hold on;
                         Q = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q']));
                         Q2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q2']));
                         Q3 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q3']));
@@ -3989,31 +3994,35 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                         Q6 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q6']));
                         Q7 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q7']));
                         Q8 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q8']));
+                        Q9 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q9']));
+                        Q10 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q10']));
                         tau_A = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A']));
-                        for i1 = 1:length(tau_a)
+                        for i1 = 1:length(tau_A)
                             tau = tau_A{i1};
-                            plot(hax{i1,4},Q,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                            plot(hax{i1,4},Q,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
 %                         tau_A_2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A_2']));
 %                         plot(hax{5},Q,tau_A_2,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
                         
-                            plot(hax{i1,6},Q2,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                            plot(hax{i1,6},Q2,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
 
-                            plot(hax{i1,7},Q3,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                            plot(hax{i1,7},Q3,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
 
-                            plot(hax{i1,8},Q4,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                            plot(hax{i1,8},Q4,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
 
-                            plot(hax{i1,9},Q5,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                            plot(hax{i1,9},Q5,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
 
-                            plot(hax{i1,10},Q6,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                            plot(hax{i1,10},Q6,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
 
-                            plot(hax{i1,11},Q7,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                            plot(hax{i1,11},Q7,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
 
-                            plot(hax{i1,12},Q8,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                            plot(hax{i1,12},Q8,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
+                            plot(hax{i1,13},Q9,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
+                            plot(hax{i1,14},Q10,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
                         end
                         ind = ind+1;
                         if ind > length(markers)
                             ind = 1;
-                            size = size + 4;
+                            marksize = marksize + 4;
                         end
                     end                    
                 end
@@ -4154,7 +4163,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
         function xout = test_fun(a,b)
             xout = a+b;
         end
-        function [norms, norms_normed, thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9] = calc_norms_thetas(x,ss,t,sys_half_life_amp,mu,k,xi)
+        function [norms, norms_normed, thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,Q10] = calc_norms_thetas(x,ss,t,sys_half_life_amp,mu,k,xi)
             % Calc pert:
             x_sol = x;
             x = (x' - ss')';
@@ -4184,6 +4193,8 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             Q7 = dot(abs(x_init),k_alpha)/(norm(x_init,1)*max(k_alpha));
             Q8 = dot(abs(x_init)/norm(x_init,1),k_alpha);
             Q9 = dot(abs(x_init)/norm(x_init,1),k_mu.*ss');
+            k_xi = k.^(-xi);
+            Q10 = dot(abs(x_init),k_alpha)/(dot(abs(x_init),k_xi));
             x_normed = x'./norms;
             x_normed_init = x_normed(:,1);
             thetas = acos(dot(repmat(x_normed_init,1,size(x_normed,2)),x_normed));   
@@ -4194,7 +4205,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
         function write_norms_thetas_single_sol(path,x_filename,t_filename,ss,sys_half_life_amp,mu,k,sufstr,xi)
             sol_x = General.load_var(fullfile(path,x_filename));
             sol_t = General.load_var(fullfile(path,t_filename));
-            [norms,norms_normed,thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9] = EngineClass.calc_norms_thetas(sol_x,ss,sol_t,sys_half_life_amp,mu,k,xi);
+            [norms,norms_normed,thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,Q10] = EngineClass.calc_norms_thetas(sol_x,ss,sol_t,sys_half_life_amp,mu,k,xi);
             General.save_var(norms,path,[x_filename '_norms']);
             General.save_var(thetas,path,[x_filename '_thetas']); 
             General.save_var(norms_normed,path,[x_filename '_norms_normed']);
@@ -4209,6 +4220,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             General.save_var(Q7,path,[x_filename '_Q7']);
             General.save_var(Q8,path,[x_filename '_Q8']);
             General.save_var(Q9,path,[x_filename '_Q9']);
+            General.save_var(Q10,path,[x_filename '_Q10']);
         end
         
         function write_norms_thetas_multi_sol(path,ss,sys_half_life_amp,mu,k,sufstr,xi)

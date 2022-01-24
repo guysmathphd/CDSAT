@@ -30,6 +30,10 @@ for j = 1:length(suf)
     name = ['set4e' suf{j} '-' suft]; fname{5} = name;desc = [desc1 ' vs Q9'];%\tau_A vs Q9
     f{5} = figure('Name',name,'NumberTitle','off');hax{5} = axes;% hold on;
     tit5 = {[name ' ' obj.name];desc};
+    
+    name = ['set4f' suf{j} '-' suft]; fname{6} = name;desc = [desc1 ' vs Q10'];%\tau_A vs Q10
+    f{6} = figure('Name',name,'NumberTitle','off');hax{6} = axes;% hold on;
+    tit6 = {[name ' ' obj.name];desc};
 
     legendObj = [];legendStr = {};
     
@@ -85,6 +89,11 @@ for j = 1:length(suf)
                     plotfun{j}(hax{5},Q9,tau_A,colors{i1},'Marker',markers{i1},'MarkerSize',size);hold(hax{5},'on');
                     title(hax{5},tit5,'interpreter','latex');
                     xlabel(hax{5},'$Q9 = \frac{\mathbf{\delta x(0)}\cdot k^{-\mu} \cdot \mathbf{ss}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel(hax{5},[desc1 suf{j}],'Interpreter','latex');
+                    
+                    Q10 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q10']));
+                    plotfun{j}(hax{6},Q10,tau_A,colors{i1},'Marker',markers{i1},'MarkerSize',size);hold(hax{6},'on');
+                    title(hax{6},tit6,'interpreter','latex');
+                    xlabel(hax{6},'$Q10 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \cdot k^{-\xi}\|_1 }$','Interpreter','latex');ylabel(hax{6},[desc1 suf{j}],'Interpreter','latex');
 
                     if ind == 1
                         legendObj(end+1) = p;

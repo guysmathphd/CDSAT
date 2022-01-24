@@ -1227,7 +1227,7 @@ EngineClass.write_norms_thetas_multi_sol(fullfile(obj.resultsPath,'obj_propertie
 %%
 obj.batchFunction(@set_sys_half_life_amp,1:7);
 %%
-obj.batchFunction(@write_norms_thetas_multi_folders,1:7);
+set.batchFunction(@write_norms_thetas_multi_folders,1:7);
 %%
 set.batchFunction(@plot_pert_amp_phase_vs_t,1:7);
 %%
@@ -1421,3 +1421,10 @@ REG4.solve(1,1,1,2,false,true);
 set.batchFunction(@set_random_perturbations_2,1:7);
 %%
 set.batchFunction(@solve_random_perturbations_2,1:7);
+%%
+d=[];
+b=eco.steady_state'.^(-eco.xi);
+for i=1:5
+    a=(abs(var(:,i)))./eco.steady_state';
+    d(end+1) = dot(a,b);
+end
