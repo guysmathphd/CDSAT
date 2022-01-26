@@ -52,7 +52,7 @@ classdef EngineClass <  handle
         node_half_life
         node_half_lives_struct
         sys_half_life_amp = 1;
-        sys_half_life_amp_2
+        
         N
         k_nn
         ki_nn
@@ -430,7 +430,7 @@ classdef EngineClass <  handle
 %             obj.solve(4,1,1,0,true,false);
         end
         function solve_random_perturbations_2(obj)
-            obj.solve(4,1,1,0,true,false);
+            obj.solve(4,1,1,0,false,false);
         end
         function write_norms_thetas_multi_folders(obj)
             foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
@@ -1580,6 +1580,33 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                     end
                     ind = ind + 1;                    
                 end
+            end
+        end
+        function write_gephi_nodes_tables_2(obj)
+            sol_x_rand_pert = General.load_var(fullfile(obj.resultsPath,'obj_properties','solution_random_perts_2','sol_x_random_perturbations_1'));
+            pert_x_rand_pert = abs((sol_x_rand_pert' - obj.steady_state')');
+            sol_t_rand_pert = General.load_var(fullfile(obj.resultsPath,'obj_properties','solution_random_perts_2','sol_t_random_perturbations_1'));
+            sol_x_hub_pert = General.load_var(fullfile(obj.resultsPath,'obj_properties','single_node_pert_sol','sol_x_1'));
+            pert_x_hub_pert = abs((sol_x_hub_pert' - obj.steady_state')');
+            sol_t_hub_pert = General.load_var(fullfile(obj.resultsPath,'obj_properties','single_node_pert_sol','sol_t_1'));
+            pert_x_rand_pert_max_t0 = max(pert_x_rand_pert(1,:));
+            pert_x_rand_pert(:,obj.N+1) = pert_x_rand_pert_max_t0;
+            pert_x_rand_pert_min_t0 = min(pert_x_rand_pert(1,:));
+            pert_x_rand_pert(:,obj.N+2) = pert_x_rand_pert_min_t0;
+            pert_x_hub_pert_max_t0 = max(pert_x_hub_pert(1,:));
+            pert_x_hub_pert(:,obj.N+1) = pert_x_hub_pert_max_t0;
+            pert_x_hub_pert_min_t0 = min(pert_x_hub_pert(1,:));
+            pert_x_hub_pert(:,obj.N+2) = pert_x_hub_pert_min_t0;
+            sys_half_life_2 = obj.sys_half_life_amp{2};
+            t0 = 0; t1 = sys_half_life_2; t2 = 2*sys_half_life_2;
+            ts = [t0 t1 t2];
+            tau = 0;
+            for t = ts
+                EngineClass.create_gephi_nodes_table(pert_x_rand_pert,sol_t_rand_pert,t,...
+                    fullfile(obj.resultsPath,'obj_properties','solution_random_perts_2'),['gephi_nodes_table_sol_x_random_perturbations_1_tau2_' num2str(tau)]);
+                EngineClass.create_gephi_nodes_table(pert_x_hub_pert,sol_t_hub_pert,t,...
+                    fullfile(obj.resultsPath,'obj_properties','single_node_pert_sol'),['gephi_nodes_table_sol_x_1_tau2_' num2str(tau)]);
+                tau = tau+1;
             end
         end
         function obj = plot_results(obj, isDilute)
@@ -4229,7 +4256,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 content = contents(j);
                 fname = content.name(1:end-4);
                 if length(fname) > 2 && contains(fname,'_x_') && ~contains(fname,'_norms') && ~contains(fname,'_thetas') && ...
-                        ~contains(fname,'_H_A') && ~contains(fname,'_Q') && ~contains(fname,'_tau_A')
+                        ~contains(fname,'_H_A') && ~contains(fname,'_Q') && ~contains(fname,'_tau_A') && ~contains(fname,'gephi')
                     tfname = strrep(fname,'x','t');
                     EngineClass.write_norms_thetas_single_sol(path,fname,tfname,ss,sys_half_life_amp,mu,k,sufstr,xi);
                 end
@@ -4252,7 +4279,6 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             T = array2table([nodes,nodes,values],'VariableNames',{'ID','Label','value'});
             writetable(T,fullfile(filepath,[filename '.csv']));            
         end
-
         function [ind_bins_var,bins_edges,ind_bins_var_sizes] = set_bins_generic(numbins,values_vec,tol,cond_vec)
             ind_bins_var = cell(numbins,1);
             bins_edges = [];
