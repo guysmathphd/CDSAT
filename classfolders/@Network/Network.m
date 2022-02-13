@@ -61,6 +61,9 @@ classdef Network
         obj = clean_trip_data(obj);
         obj = plot_degree2(obj);
         obj = plot_node_degrees_vs_time2(obj);
+        obj = calc_eigs(obj);
+        obj = write_gephi_nodes_table_PEV(obj);
+        obj = plot_eigvecs_mass(obj);
         function outputArg = method1(obj,inputArg)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here

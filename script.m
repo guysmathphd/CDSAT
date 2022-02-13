@@ -1434,3 +1434,9 @@ obj.write_gephi_edges_file([],'');
 obj.solve_random_perturbations_2();
 obj.write_gephi_nodes_tables_2();
 obj.plot_pert_amp_phase_vs_t();
+%%
+obj.calc_eigs();
+obj.write_gephi_nodes_table_PEV();
+obj.plot_eigvecs_mass();
+%%
+obj.batchFunction(@write_gephi_nodes_table_jacobian_PEV,1:7);

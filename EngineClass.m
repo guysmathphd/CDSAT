@@ -1609,6 +1609,14 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 tau = tau+1;
             end
         end
+        function obj = write_gephi_nodes_table_jacobian_PEV(obj)
+            J = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana'));
+            nodes = 1:obj.N; nodes=nodes';
+            eig1 = J(:,1);
+            values = abs(eig1)./sum(abs(eig1));
+            filepath = fullfile(obj.resultsPath,'obj_properties');filename = 'gephi_nodes_jacobian_PEV';
+            General.general_gephi_nodes_table(nodes,values,filepath,filename);
+        end
         function obj = plot_results(obj, isDilute)
             if isDilute
                 step = 100;
@@ -4276,8 +4284,9 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             nodes = (1:size(solution_x,2))';
             ind = find(solution_t>=time,1);
             values = (solution_x(ind,:))';
-            T = array2table([nodes,nodes,values],'VariableNames',{'ID','Label','value'});
-            writetable(T,fullfile(filepath,[filename '.csv']));            
+            General.general_gephi_nodes_table(nodes,values,filepath,filename);
+%             T = array2table([nodes,nodes,values],'VariableNames',{'ID','Label','value'});
+%             writetable(T,fullfile(filepath,[filename '.csv']));            
         end
         function [ind_bins_var,bins_edges,ind_bins_var_sizes] = set_bins_generic(numbins,values_vec,tol,cond_vec)
             ind_bins_var = cell(numbins,1);
@@ -4587,13 +4596,13 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 EngineClass.save_fig_static(f,namef,path);
             end
         end
-        function [] = plot_image_static(M,name,namef,path,mytitle,xlabel,ylabel)
-            f = figure('Name',namef,'NumberTitle','off');
+        function [] = plot_image_static(M,name,namef,path,mytitle,xlabelstr,ylabelstr)
+            f = figure('Name',name,'NumberTitle','off');
             image(abs(M),'CDatamapping','scaled');
             colorbar;set(gca,'ColorScale','log');
             title(mytitle);
-            xlabel(xlabel);
-            ylabel(ylabel);
+            xlabel(xlabelstr,'Interpreter','latex');
+            ylabel(ylabelstr);
             EngineClass.save_fig_static(f,namef,path);
         end
         function M2 = compute_M2(M,C_W,C_D)
