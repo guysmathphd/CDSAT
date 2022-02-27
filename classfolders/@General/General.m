@@ -20,7 +20,8 @@ classdef General
         save_fig(f,name,path)
         [p_0, p_1, yfit, rsq] = lin_reg(x_vals,y_vals)
         batchFunction(set_obj,function_handle,inds)
-        general_gephi_nodes_table(nodes,values,filepath,filename);
+        general_gephi_nodes_table(nodes,values,x,y,filepath,filename);
+        degree_radius_gephi_nodes_table(nodes,values,degree_vector,filepath,filename);
     end
 end
 

@@ -212,7 +212,7 @@ classdef EngineClass <  handle
             end
             fprintf(fileID,'%0s\n','end');
             fclose(fileID);
-%             odefun = @(tt,x) (obj.f_M0(x) + (obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x));
+            %             odefun = @(tt,x) (obj.f_M0(x) + (obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x));
         end
         function obj = init_object(obj)
             obj.solution_x = obj.initialValues';
@@ -393,7 +393,7 @@ classdef EngineClass <  handle
                     [m1,i1] = max(thetas);
                     p_normed = (p'./norms)';p_prop = (p'./sum(p'))';
                     [m1,i1] = min(max(p_prop'));
-%                     i1 = find(max(p')<.01,1);
+                    %                     i1 = find(max(p')<.01,1);
                     %stopped here
                     ts = [0 t(floor(i1/2)) t(i1)];
                     for cur_t = ts
@@ -426,8 +426,8 @@ classdef EngineClass <  handle
             obj.set_random_perturbations(isOnlyPositive,false);
         end
         function solve_random_perturbations(obj)
-            obj.solve(3,1,1,0,true,false);
-%             obj.solve(4,1,1,0,true,false);
+            obj.solve(3,1,1,0,false,false);
+            %             obj.solve(4,1,1,0,true,false);
         end
         function solve_random_perturbations_2(obj)
             obj.solve(4,1,1,0,false,false);
@@ -459,7 +459,7 @@ classdef EngineClass <  handle
                 filenamestr = 'random_perturbations';
             else
                 ss = ones(size(obj.steady_state));
-%                 pert_factor = 1;
+                %                 pert_factor = 1;
                 pert_factor = min(obj.steady_state);
                 filenamestr = 'random_perturbations_2';
             end
@@ -467,8 +467,8 @@ classdef EngineClass <  handle
             n = size(ss,2);
             seed = obj.randSeed;
             rng(seed);
-%             obj.perturbations = {};
-%             obj.perturbations{1} = zeros(n,k);
+            %             obj.perturbations = {};
+            %             obj.perturbations{1} = zeros(n,k);
             obj.random_perturbations = zeros(n,k);
             isSSzero = norm(ss)<obj.absTol;
             ss = ones(size(ss)).*max(isSSzero,ss);
@@ -476,13 +476,13 @@ classdef EngineClass <  handle
                 percent = rand(1,n)*pert_factor;
                 sign = rand(1,n);
                 sign = (sign > (~isOnlyPositive/2))*2 - 1;
-%                 obj.perturbations{1}(:,j) = ss.*percent.*sign;
+                %                 obj.perturbations{1}(:,j) = ss.*percent.*sign;
                 obj.random_perturbations(:,j) = ss.*percent.*sign;
             end
             General.save_var(obj.random_perturbations,fullfile(obj.resultsPath,'obj_properties/'),filenamestr);
-%             numvec = 5;
-%             obj.perturbations{2}(:,1) = sum(obj.eigenvectors_ana(:,1:numvec),2);
-%             obj.perturbations{3}(:,1) = sum(obj.eigenvectors_asy_permuted(:,1:numvec),2);
+            %             numvec = 5;
+            %             obj.perturbations{2}(:,1) = sum(obj.eigenvectors_ana(:,1:numvec),2);
+            %             obj.perturbations{3}(:,1) = sum(obj.eigenvectors_asy_permuted(:,1:numvec),2);
         end
         function obj = set_random_sparse_perturbation(obj)
             num_nodes = [1 10 100 1000];
@@ -513,7 +513,7 @@ classdef EngineClass <  handle
                     General.save_var(sol_t,mypath,['sol_t_n_' num2str(n)]);
                     General.save_var(sol_x,mypath,['sol_x_n_' num2str(n)]);
                 end
-            end       
+            end
         end
         function X = set_pert_eigvec_1(obj,eigenvectors)
             n = obj.numeigenplots;
@@ -556,7 +556,7 @@ classdef EngineClass <  handle
                 else
                     j = i+1;
                 end
-                perts_curr = perts_reduced(:,i:j);                
+                perts_curr = perts_reduced(:,i:j);
                 [new_eps, inits, is_inits_legit] = check_epsilons(obj,obj.eps,perts_curr,obj.steady_state',obj.epsThreshold,...
                     obj.epsFactor,obj.init_condition);
                 [solutions_t, solutions_x] = obj.multi_solve(obj.opts,obj.difEqSolver,inits,is_inits_legit,...
@@ -630,7 +630,7 @@ classdef EngineClass <  handle
         end
         function [new_epsilon, init_out, is_init_legit] = check_epsilon(~,eps_val, pert, ss, epsThreshold,...
                 epsFactor, init_condition_str)
-            is_init_legit = false;            
+            is_init_legit = false;
             while ~is_init_legit
                 disp(['eps = ' num2str(eps_val)]);
                 if abs(eps_val) < epsThreshold
@@ -665,7 +665,7 @@ classdef EngineClass <  handle
                 pert = General.load_var(fullfile('networks',obj.networkName,'perts',pertname));
                 eps_val = .1;ss = obj.steady_state;epsFactor = 0.9;
                 [new_epsilon, init_out, is_init_legit] = obj.check_epsilon(eps_val, pert, ss', obj.epsThreshold,...
-                epsFactor, obj.init_condition_str);
+                    epsFactor, obj.init_condition_str);
                 init = init_out;% obj.steady_state' + .1*pert;
                 stop_cond_str = 'stepEndTime >= 100*half_life';
                 [sol_t,sol_x] = obj.single_solve(obj.opts,obj.difEqSolver,init,obj.solverTimeStep,obj.maxTime,stop_cond_str);
@@ -779,7 +779,7 @@ classdef EngineClass <  handle
             t = 0;sol_t = [0];sol_x = [init'];
             pert0 = obj.steady_state - init';
             setBreak1 = false;setBreak2 = false; % stop while loop?
-            obj.adjacencyMatrix = General.load_var(fullfile('networks',obj.networkName,'adjacency_matrix'));   
+            obj.adjacencyMatrix = General.load_var(fullfile('networks',obj.networkName,'adjacency_matrix'));
             first_appendall = true;
             half_life = maxTime;a=[];
             while ~setBreak1 && ~setBreak2 && (~stopAfterAppendAll || first_appendall)
@@ -835,7 +835,7 @@ classdef EngineClass <  handle
             end
         end
         function obj = solve(obj,pertType,epsIndStart,pertIndStart,isAdjustEpsilonType,isBreakAfterHalfLife,isResetXSol)
-            obj.adjacencyMatrix = General.load_var(fullfile('networks',obj.networkName,'adjacency_matrix')); 
+            obj.adjacencyMatrix = General.load_var(fullfile('networks',obj.networkName,'adjacency_matrix'));
             %Solve the system
             tic;
             %nn=10;
@@ -854,8 +854,8 @@ classdef EngineClass <  handle
                     stop_cond_str = 'size(sol_t_1{1,pertInd,epsInd},1)>100 && max(abs(sol_x_1{1,pertInd,epsInd}(end,:)-sol_x_1{1,pertInd,epsInd}(end-100,:)))<obj.absTol';
                     solution_folder_name = 'solution';
                 case 2 % perturbations are eigenvectors
-%                     perts = [obj.eigenvectors_ana(:,1:nn), obj.eigenvectors_asy_permuted(:,1:nn),...
-%                         sum(obj.eigenvectors_ana(:,1:nn),2),sum(obj.eigenvectors_asy_permuted(:,1:nn),2)...
+                    %                     perts = [obj.eigenvectors_ana(:,1:nn), obj.eigenvectors_asy_permuted(:,1:nn),...
+                    %                         sum(obj.eigenvectors_ana(:,1:nn),2),sum(obj.eigenvectors_asy_permuted(:,1:nn),2)...
                     %                         obj.pert_eigvec_ana_1,obj.pert_eigvec_asy_1];
                     obj.eigenvectors_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana'));
                     obj.eigenvectors_asy_permuted = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_asy_permuted'));
@@ -865,7 +865,7 @@ classdef EngineClass <  handle
                     stop_cond_str = 'max(abs(sol_x_eigvec{1,pertInd,epsInd}(end,:)-obj.steady_state))<obj.absTol*100';
                     solution_folder_name = 'solution_eigvec_perts';
                 case 3 % perturbations are random and small relative to steady state
-%                     perts = obj.perturbations{1};
+                    %                     perts = obj.perturbations{1};
                     perts = General.load_var(fullfile(obj.resultsPath,'obj_properties','random_perturbations'));
                     sol_t_var_str = 'sol_t_random_perturbations';
                     sol_x_var_str = 'sol_x_random_perturbations';
@@ -881,9 +881,9 @@ classdef EngineClass <  handle
             end
             numperts = size(perts,2);
             numeps = length(eps_vals);
-%             eval([sol_t_var_str ' = {};']);
-%             eval([sol_x_var_str ' = {};']);
-
+            %             eval([sol_t_var_str ' = {};']);
+            %             eval([sol_x_var_str ' = {};']);
+            
             %%%%%% Adjust Epsilons
             switch isAdjustEpsilonType
                 case 0 %no condition
@@ -893,8 +893,8 @@ classdef EngineClass <  handle
                 case 2 %REG
                     init_condition_str = '~(any(init < 0))';
                 otherwise
-            end    
-          
+            end
+            
             epsFactor = .9;
             [new_epsilons, inits_out, is_inits_legit] = check_epsilons(obj,eps_vals,perts,ss',obj.epsThreshold,...
                 epsFactor,init_condition_str);
@@ -911,7 +911,7 @@ classdef EngineClass <  handle
             opts = odeset('RelTol',obj.relTol,'AbsTol',obj.absTol);
             clear odefun;
             odefun = @(tt,x) (obj.f_M0(x) + (obj.adjacencyMatrix*obj.f_M2(x)).*obj.f_M1(x));
-%             addpath(fullfile(obj.resultsPath,'obj_properties'));
+            %             addpath(fullfile(obj.resultsPath,'obj_properties'));
             for epsInd = epsIndStart:numeps
                 disp(['epsInd = ' num2str(epsInd)]);
                 disp(['eps_var = ' num2str(obj.eps_adjusted(epsInd))]);
@@ -933,22 +933,22 @@ classdef EngineClass <  handle
                         aa=[];
                         while ~setBreak1 && ~setBreak2
                             % check if this step passes maxTime and set stepEndTime
-%                             if t + obj.solverTimeStep >= obj.maxTime
-%                                 stepEndTime = obj.maxTime;
-%                                 setBreak1 = true;
-%                                 disp('setBreakk1 = true');
-%                             else
-                                stepEndTime = t + obj.solverTimeStep;
-%                             end
+                            %                             if t + obj.solverTimeStep >= obj.maxTime
+                            %                                 stepEndTime = obj.maxTime;
+                            %                                 setBreak1 = true;
+                            %                                 disp('setBreakk1 = true');
+                            %                             else
+                            stepEndTime = t + obj.solverTimeStep;
+                            %                             end
                             % run solver step
                             display(['stepEndTime = ' num2str(stepEndTime)]);
                             [sol_t,sol_x] = obj.difEqSolver(odefun,[t stepEndTime],init,opts);
                             t = stepEndTime;
                             init = sol_x(end,:);
                             % append results to solution_t and solution_x
-%                             eval([sol_t_var_str '{1,pertInd,epsInd}(end+1:end+length(sol_t)-1,1)=sol_t(2:end,:);']);
-%                             eval([sol_x_var_str '{1,pertInd,epsInd}(end+1:end+size(sol_x,1)-1,:)=sol_x(2:end,:);']);
-
+                            %                             eval([sol_t_var_str '{1,pertInd,epsInd}(end+1:end+length(sol_t)-1,1)=sol_t(2:end,:);']);
+                            %                             eval([sol_x_var_str '{1,pertInd,epsInd}(end+1:end+size(sol_x,1)-1,:)=sol_x(2:end,:);']);
+                            
                             if pertType ~= 1
                                 cur_sol_x = sol_x(end,:);
                                 cur_pert = obj.steady_state - cur_sol_x;
@@ -997,11 +997,11 @@ classdef EngineClass <  handle
                 end
             end
             toc;
-%             str = ['EngineClass.save_var(' sol_x_var_str ',obj.resultsPath,'obj_properties','J_ana')];
-%             eval();
+            %             str = ['EngineClass.save_var(' sol_x_var_str ',obj.resultsPath,'obj_properties','J_ana')];
+            %             eval();
             if pertType == 1
-%                 obj.solution_t = obj.solution_t{1};
-%                 obj.solution_x = obj.solution_x{1};
+                %                 obj.solution_t = obj.solution_t{1};
+                %                 obj.solution_x = obj.solution_x{1};
                 obj.set_steady_state();
                 obj.set_M2_i_bigodot();
                 obj.set_steady_state_calculated();
@@ -1015,16 +1015,16 @@ classdef EngineClass <  handle
                 obj.Dii_anabinned = obj.set_binned_vals(obj.Dii_ana,obj.bins);
                 Wij_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','Wij_ana'));
                 obj.Wij_anabinned = obj.set_binned_vals(Wij_ana(obj.adjacencyMatrix>0),obj.binsij);
-%                 obj.C_D_set = obj.find_constants_binned_sets(obj.Dii_anabinned,obj.Dii_asybinned);
-%                 obj.C_W_set = obj.find_constants_binned_sets(obj.Wij_anabinned,obj.Wij_asybinned);
-%                 [obj.C_D_v3, obj.guesses1_v3, obj.guesses2_v3, obj.errors1_v3, obj.errors2_v3, obj.eigvals_v3,obj.eigvecs_v3] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.1);
-%                 [obj.C_D_v4, obj.guesses1_v4, obj.guesses2_v4, obj.errors1_v4, obj.errors2_v4, obj.eigvals_v4,obj.eigvecs_v4] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.5,obj.permutation_eigvec_ana2asy);
+                %                 obj.C_D_set = obj.find_constants_binned_sets(obj.Dii_anabinned,obj.Dii_asybinned);
+                %                 obj.C_W_set = obj.find_constants_binned_sets(obj.Wij_anabinned,obj.Wij_asybinned);
+                %                 [obj.C_D_v3, obj.guesses1_v3, obj.guesses2_v3, obj.errors1_v3, obj.errors2_v3, obj.eigvals_v3,obj.eigvecs_v3] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.1);
+                %                 [obj.C_D_v4, obj.guesses1_v4, obj.guesses2_v4, obj.errors1_v4, obj.errors2_v4, obj.eigvals_v4,obj.eigvecs_v4] = obj.find_best_C_D(obj.eigenvalues_ana(1,1),1,5,0.5,obj.permutation_eigvec_ana2asy);
                 obj.set_eigvec_comparison_mats(true,false);
                 obj.set_permutation_eigvec_ana2asy(0);
                 obj.set_eig_asy_permuted();
                 eig_ana = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana'));
                 eig_asy_perm = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_asy_permuted'));
-%                 [eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_set, Wij_asy_set] = obj.set_eig_v2_sets(obj.Dii_asy, obj.Wij_asy, obj.C_D_set, obj.C_W_set, obj.numeigen,1);
+                %                 [eigvals_asy_v2_set, eigvecs_asy_v2_set, Dii_asy_set, Wij_asy_set] = obj.set_eig_v2_sets(obj.Dii_asy, obj.Wij_asy, obj.C_D_set, obj.C_W_set, obj.numeigen,1);
                 for i = 1:obj.numeigenplots
                     obj.binseigvecana{i,1} = obj.set_bins_generic(obj.numbins,abs(eig_ana(:,i)),1e-13,true(obj.N,1));
                     obj.binseigvecasy_permuted{i,1} = obj.set_bins_generic(obj.numbins,abs(eig_asy_perm(:,i)),1e-13,true(obj.N,1));
@@ -1046,7 +1046,7 @@ classdef EngineClass <  handle
                 end
                 obj.set_random_perturbations(isOnlyPositive,1);
                 obj.set_random_perturbations(isOnlyPositive,0);
-%                 obj.set_eigvec_comparison_mats2();
+                %                 obj.set_eigvec_comparison_mats2();
             elseif pertType==2
                 obj.split_solution_eigvec();
             end
@@ -1194,7 +1194,7 @@ classdef EngineClass <  handle
             Wij_asy = General.load_var(fullfile(obj.resultsPath,'obj_properties','Wij_asy'));
             J_asy = EngineClass.compute_J(obj.Dii_asy,Wij_asy,1,1);
             obj.save_var(J_asy,obj.resultsPath,'obj_properties','J_asy');
-        end       
+        end
         function obj = set_J_ana_degree_vector_weighted(obj)
             mydata=load(fullfile(obj.resultsPath,'obj_properties','J_ana'));J_ana=mydata.var;
             J_ana_degree_vector_weighted = EngineClass.compute_degree_vector_weighted(J_ana);
@@ -1214,7 +1214,7 @@ classdef EngineClass <  handle
             mydata=load(fullfile(obj.resultsPath,'obj_properties','J_ana'));J_ana=mydata.var;
             J_ana_k_inn = EngineClass.compute_k_inn(J_ana);
             obj.save_var(J_ana_k_inn,obj.resultsPath,'obj_properties','J_ana_k_inn');
-        end        
+        end
         function obj = set_N(obj)
             obj.N = size(obj.adjacencyMatrix,1);
         end
@@ -1357,33 +1357,33 @@ classdef EngineClass <  handle
             obj.save_var(Dii_asy_v2_set, obj.resultsPath,'obj_properties','Dii_asy_v2_set');
             obj.save_var(Wij_asy_v2_set, obj.resultsPath,'obj_properties','Wij_asy_v2_set');
             obj.save_var(Dii_asy_v2_binned_set,obj.resultsPath,'obj_properties','Dii_asy_v2_binned_set');
-            obj.save_var(Wij_asy_v2_binned_set,obj.resultsPath,'obj_properties','Wij_asy_v2_binned_set');            
+            obj.save_var(Wij_asy_v2_binned_set,obj.resultsPath,'obj_properties','Wij_asy_v2_binned_set');
         end
-%         function obj = set_eig_ana(obj)
-%             J = obj.Wij_ana;
-%             J = J - diag(diag(J));
-%             J = J + diag(obj.Dii_ana);
-%             %[v,d] = eig(J);
-%             [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
-%             obj.eigenvalues_ana = diag(d);
-%             obj.eigenvectors_ana = v;
-%             disp('Done');
-%         end
-%         function obj = set_eig_asy(obj)
-%             J = obj.Wij_asy;
-%             J = J - diag(diag(J));
-%             J = J + diag(obj.Dii_asy);
-%             %[v,d] = eig(J);
-%             [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
-%             obj.eigenvalues_asy = diag(d);
-%             obj.eigenvectors_asy = v;
-%             disp('Done');
-%         end
+        %         function obj = set_eig_ana(obj)
+        %             J = obj.Wij_ana;
+        %             J = J - diag(diag(J));
+        %             J = J + diag(obj.Dii_ana);
+        %             %[v,d] = eig(J);
+        %             [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
+        %             obj.eigenvalues_ana = diag(d);
+        %             obj.eigenvectors_ana = v;
+        %             disp('Done');
+        %         end
+        %         function obj = set_eig_asy(obj)
+        %             J = obj.Wij_asy;
+        %             J = J - diag(diag(J));
+        %             J = J + diag(obj.Dii_asy);
+        %             %[v,d] = eig(J);
+        %             [v,d] = eigs(J,min(size(J,1),obj.numeigen),'largestreal');
+        %             obj.eigenvalues_asy = diag(d);
+        %             obj.eigenvectors_asy = v;
+        %             disp('Done');
+        %         end
         function [M1, M2, M3] = compute_comparison_matrix(obj,vectors_1,vectors_2,isSaveM2,varNameStr)
             tic;
             n1 = size(vectors_1,2);
             n2 = size(vectors_2,2);
-            M1 = zeros(n1,n2);M2 = M1;M3 = M1;            
+            M1 = zeros(n1,n2);M2 = M1;M3 = M1;
             parfor i = 1:n1
                 if mod(i,100) == 0
                     disp(['i = ' num2str(i)]);
@@ -1392,17 +1392,17 @@ classdef EngineClass <  handle
                 uimat = ui + zeros(size(vectors_2));
                 m2 = abs(dot(uimat,vectors_2));M2(i,:) = m2;
                 m3 = rad2deg(acos(m2)); M3(i,:) = m3;
-%                 parfor j = 1:n2
-%                     vj = vectors_2(:,j);                    
-%                     % L2 norm of difference between vectors
-%                     %m1 = norm(ui - vj);
-%                     % dot product of vectors
-%                     m2 = abs(dot(ui,vj));
-%                     % angle between vectors
-%                     m3 = rad2deg(acos(m2));                    
-%                     %M1(i,j) = m1;
-%                     M2(i,j) = m2; M3(i,j) = m3;
-%                 end
+                %                 parfor j = 1:n2
+                %                     vj = vectors_2(:,j);
+                %                     % L2 norm of difference between vectors
+                %                     %m1 = norm(ui - vj);
+                %                     % dot product of vectors
+                %                     m2 = abs(dot(ui,vj));
+                %                     % angle between vectors
+                %                     m3 = rad2deg(acos(m2));
+                %                     %M1(i,j) = m1;
+                %                     M2(i,j) = m2; M3(i,j) = m3;
+                %                 end
             end
             toc;
             if isSaveM2
@@ -1413,7 +1413,7 @@ classdef EngineClass <  handle
             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvecs_asy_v2_set.mat'),'var');eigvecs_asy_v2_set=mydata.var;
             [~, ~, ~] = obj.compute_comparison_matrix(obj.eigenvectors_asy,eigvecs_asy_v2_set{14,1},true,'eigvec_dot_comparison_mat_asy2asy-v2-14');
             [~, ~, ~] = obj.compute_comparison_matrix(obj.eigenvectors_asy,eigvecs_asy_v2_set{15,1},true,'eigvec_dot_comparison_mat_asy2asy-v2-15');
-            [~, ~, ~] = obj.compute_comparison_matrix(obj.eigenvectors_asy,obj.eigvecs_v3,true,'eigvec_dot_comparison_mat_asy2asy-v3');            
+            [~, ~, ~] = obj.compute_comparison_matrix(obj.eigenvectors_asy,obj.eigvecs_v3,true,'eigvec_dot_comparison_mat_asy2asy-v3');
         end
         function obj = set_eigvec_comparison_mats(obj,computeRegular,computePermuted)
             if computeRegular
@@ -1425,14 +1425,14 @@ classdef EngineClass <  handle
             [dist, absdot, angles] = obj.compute_comparison_matrix(vana,vasy,false,'');
             
             if computeRegular
-%                 obj.eigvec_dist_comparison_mat_ana2asy = dist;
-%                 obj.eigvec_angle_comparison_mat_ana2asy = angles;
-%                 obj.eigvec_dot_comparison_mat_ana2asy = absdot;
+                %                 obj.eigvec_dist_comparison_mat_ana2asy = dist;
+                %                 obj.eigvec_angle_comparison_mat_ana2asy = angles;
+                %                 obj.eigvec_dot_comparison_mat_ana2asy = absdot;
                 EngineClass.save_var(absdot,obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy');
             elseif computePermuted
-%                 obj.eigvec_dist_comparison_mat_ana2asy_permuted = dist;
-%                 obj.eigvec_angle_comparison_mat_ana2asy_permuted = angles;
-%                 obj.eigvec_dot_comparison_mat_ana2asy_permuted = absdot;
+                %                 obj.eigvec_dist_comparison_mat_ana2asy_permuted = dist;
+                %                 obj.eigvec_angle_comparison_mat_ana2asy_permuted = angles;
+                %                 obj.eigvec_dot_comparison_mat_ana2asy_permuted = absdot;
                 EngineClass.save_var(absdot,obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy_permuted');
             end
             if ~isequal(real(angles),angles)
@@ -1448,12 +1448,12 @@ classdef EngineClass <  handle
             obj.eigvec_dot_comparison_mat_asy_permuted2asy_permuted = dotsasy;
             vasy1 = obj.eigenvectors_asy;
             [~, dotsasy1, ~] = obj.compute_comparison_matrix(vasy1,vasy1,false,'');
-            obj.eigvec_dot_comparison_mat_asy2asy = dotsasy1;            
+            obj.eigvec_dot_comparison_mat_asy2asy = dotsasy1;
         end
         function obj = set_permutation_eigvec_ana2asy(obj,thresh)
-%             NN = obj.eigvec_angle_comparison_mat_ana2asy;
-NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy'));
-%             NN = abs(90 - NN);
+            %             NN = obj.eigvec_angle_comparison_mat_ana2asy;
+            NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comparison_mat_ana2asy'));
+            %             NN = abs(90 - NN);
             NN = abs(0 - NN);
             [M,I] = max(NN,[],2);
             m = M < thresh;
@@ -1530,7 +1530,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             %writetable(T,fullfile(obj.resultsPath,'output.csv'));
             save(fullfile(obj.resultsPath,'output.mat'),'T');
         end
-
+        
         function obj = calculate_degree(obj)
             B = (obj.adjacencyMatrix>0);
             obj.degree_vector = sum(B,2);
@@ -1558,7 +1558,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             else
                 break1 = false;break2 = false;
                 ind = 1;
-                eval([tTargetVarStr ' = []']);eval([xTargetVarStr ' = []']);                
+                eval([tTargetVarStr ' = []']);eval([xTargetVarStr ' = []']);
                 while ~break2 || ~break1
                     if ~break1
                         try
@@ -1578,7 +1578,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                             break2 = true;
                         end
                     end
-                    ind = ind + 1;                    
+                    ind = ind + 1;
                 end
             end
         end
@@ -1612,10 +1612,12 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
         function obj = write_gephi_nodes_table_jacobian_PEV(obj)
             J = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvectors_ana'));
             nodes = 1:obj.N; nodes=nodes';
+            k = obj.degree_vector_weighted;
             eig1 = J(:,1);
             values = abs(eig1)./sum(abs(eig1));
             filepath = fullfile(obj.resultsPath,'obj_properties');filename = 'gephi_nodes_jacobian_PEV';
-            General.general_gephi_nodes_table(nodes,values,filepath,filename);
+            General.degree_radius_gephi_nodes_table(nodes,values,k,filepath,filename)
+            %             General.general_gephi_nodes_table(nodes,values,x,y,filepath,filename);
         end
         function obj = plot_results(obj, isDilute)
             if isDilute
@@ -1735,147 +1737,147 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             ylabelStr{3,3} = '$\left|\widehat{x-ss}\cdot v_i\right|$';
             ylabelStr{4,3} = '';
             ylabelStr{5,3} = '$\left|x-ss \cdot v_i\right|$';
-            for epsInd = 1:length(obj.eps)                
-                    epsStr = num2str(obj.eps(epsInd));
-                    angles_ana = cell(5,n,3);
-                    angles_asy = cell(5,n,3);
-                    for i = 1:n
-                        disp(['vec ' num2str(i)])
-                        if size(obj.isInitsLegit,2)>=i && obj.isInitsLegit(epsInd,i) && size(obj.solution_x_eigvecana,2)>=i
-                            x1 = obj.solution_x_eigvecana{1,i,epsInd};
-                            n1 = size(x1,1);                            
-                            for j = 1:n1
-                                if mod(j,1000) == 0
-                                    disp(['row ' num2str(j)]);
-                                end
-                                v1 = x1(j,:); % current state
-                                normv1 = norm(v1);
-                                u1 = v1' - ss; % current deviation from steady state
-                                normu1 = norm(u1);
-                                v1n = v1/normv1;
-                                u1n = u1/normu1;
-                                vec = obj.eigenvectors_ana(:,i);
-                                dot_u1n_ssn = dot(ssn,u1n);
-                                dot_v1n_ssn = dot(ssn,v1n);
-                                dot_u1n_vec = dot(vec,u1n);
-                                dot_u1_ssn = dot(ssn,u1);
-                                dot_v1_ssn = dot(ssn,v1);
-                                dot_u1_vec = dot(u1,vec);
-                                if j==1
-                                    dot_1 = {dot_v1n_ssn,dot_u1n_ssn,dot_u1n_vec};
-                                end
-                                angles_ana{1,i,1}(j,1) = rad2deg(real(acos(dot_v1n_ssn)));
-                                angles_ana{2,i,1}(j,1) = dot_v1n_ssn/dot_1{1};
-                                angles_ana{3,i,1}(j,1) = abs(dot_v1n_ssn);
-                                angles_ana{4,i,1}(j,1) = normv1;
-                                angles_ana{5,i,1}(j,1) = abs(dot_v1_ssn);
-                                angles_ana{1,i,2}(j,1) = rad2deg(real(acos(dot_u1n_ssn)));
-                                angles_ana{2,i,2}(j,1) = dot_u1n_ssn/dot_1{2};
-                                angles_ana{3,i,2}(j,1) = abs(dot_u1n_ssn);
-                                angles_ana{4,i,2}(j,1) = normu1;
-                                angles_ana{5,i,2}(j,1) = abs(dot_u1_ssn);
-                                angles_ana{1,i,3}(j,1) = rad2deg(real(acos(dot_u1n_vec)));
-                                angles_ana{2,i,3}(j,1) = dot_u1n_vec/dot_1{3};
-                                angles_ana{3,i,3}(j,1) = abs(dot_u1n_vec);
-                                angles_ana{4,i,3}(j,1) = 0;
-                                angles_ana{5,i,3}(j,1) = abs(dot_u1_vec);
+            for epsInd = 1:length(obj.eps)
+                epsStr = num2str(obj.eps(epsInd));
+                angles_ana = cell(5,n,3);
+                angles_asy = cell(5,n,3);
+                for i = 1:n
+                    disp(['vec ' num2str(i)])
+                    if size(obj.isInitsLegit,2)>=i && obj.isInitsLegit(epsInd,i) && size(obj.solution_x_eigvecana,2)>=i
+                        x1 = obj.solution_x_eigvecana{1,i,epsInd};
+                        n1 = size(x1,1);
+                        for j = 1:n1
+                            if mod(j,1000) == 0
+                                disp(['row ' num2str(j)]);
                             end
+                            v1 = x1(j,:); % current state
+                            normv1 = norm(v1);
+                            u1 = v1' - ss; % current deviation from steady state
+                            normu1 = norm(u1);
+                            v1n = v1/normv1;
+                            u1n = u1/normu1;
+                            vec = obj.eigenvectors_ana(:,i);
+                            dot_u1n_ssn = dot(ssn,u1n);
+                            dot_v1n_ssn = dot(ssn,v1n);
+                            dot_u1n_vec = dot(vec,u1n);
+                            dot_u1_ssn = dot(ssn,u1);
+                            dot_v1_ssn = dot(ssn,v1);
+                            dot_u1_vec = dot(u1,vec);
+                            if j==1
+                                dot_1 = {dot_v1n_ssn,dot_u1n_ssn,dot_u1n_vec};
+                            end
+                            angles_ana{1,i,1}(j,1) = rad2deg(real(acos(dot_v1n_ssn)));
+                            angles_ana{2,i,1}(j,1) = dot_v1n_ssn/dot_1{1};
+                            angles_ana{3,i,1}(j,1) = abs(dot_v1n_ssn);
+                            angles_ana{4,i,1}(j,1) = normv1;
+                            angles_ana{5,i,1}(j,1) = abs(dot_v1_ssn);
+                            angles_ana{1,i,2}(j,1) = rad2deg(real(acos(dot_u1n_ssn)));
+                            angles_ana{2,i,2}(j,1) = dot_u1n_ssn/dot_1{2};
+                            angles_ana{3,i,2}(j,1) = abs(dot_u1n_ssn);
+                            angles_ana{4,i,2}(j,1) = normu1;
+                            angles_ana{5,i,2}(j,1) = abs(dot_u1_ssn);
+                            angles_ana{1,i,3}(j,1) = rad2deg(real(acos(dot_u1n_vec)));
+                            angles_ana{2,i,3}(j,1) = dot_u1n_vec/dot_1{3};
+                            angles_ana{3,i,3}(j,1) = abs(dot_u1n_vec);
+                            angles_ana{4,i,3}(j,1) = 0;
+                            angles_ana{5,i,3}(j,1) = abs(dot_u1_vec);
                         end
-                        if size(obj.isInitsLegit,2)>=n+i && obj.isInitsLegit(epsInd,n+i)
-                            x2 = obj.solution_x_eigvecasy{1,i,epsInd};
-                            n2 = size(x2,1);
-                            for j = 1:n2
-                                v2 = x2(j,:);
-                                normv2 = norm(v2);
-                                u2 = v2' - ss;
-                                normu2 = norm(u2);
-                                v2n = v2/normv2;
-                                u2n = u2/normu2;
-                                vec = obj.eigenvectors_asy_permuted(:,i);
-                                dot_u2n_ssn = dot(ssn,u2n);
-                                dot_v2n_ssn = dot(ssn,v2n);
-                                dot_u2n_vec = dot(vec,u2n);
-                                dot_u2_ssn = dot(ssn,u2);
-                                dot_v2_ssn = dot(ssn,v2);
-                                dot_u2_vec = dot(vec,u2);
-                                if j==1
-                                    dot_1 = {dot_v2n_ssn,dot_u2n_ssn,dot_u2n_vec};
+                    end
+                    if size(obj.isInitsLegit,2)>=n+i && obj.isInitsLegit(epsInd,n+i)
+                        x2 = obj.solution_x_eigvecasy{1,i,epsInd};
+                        n2 = size(x2,1);
+                        for j = 1:n2
+                            v2 = x2(j,:);
+                            normv2 = norm(v2);
+                            u2 = v2' - ss;
+                            normu2 = norm(u2);
+                            v2n = v2/normv2;
+                            u2n = u2/normu2;
+                            vec = obj.eigenvectors_asy_permuted(:,i);
+                            dot_u2n_ssn = dot(ssn,u2n);
+                            dot_v2n_ssn = dot(ssn,v2n);
+                            dot_u2n_vec = dot(vec,u2n);
+                            dot_u2_ssn = dot(ssn,u2);
+                            dot_v2_ssn = dot(ssn,v2);
+                            dot_u2_vec = dot(vec,u2);
+                            if j==1
+                                dot_1 = {dot_v2n_ssn,dot_u2n_ssn,dot_u2n_vec};
+                            end
+                            angles_asy{1,i,1}(j,1) = rad2deg(real(acos(dot_v2_ssn)));
+                            angles_asy{2,i,1}(j,1) = dot_v2n_ssn/dot_1{1};
+                            angles_asy{3,i,1}(j,1) = abs(dot_v2n_ssn);
+                            angles_asy{4,i,1}(j,1) = normv2;
+                            angles_asy{5,i,1}(j,1) = abs(dot_v2_ssn);
+                            angles_asy{1,i,2}(j,1) = rad2deg(real(acos(dot_u2n_ssn)));
+                            angles_asy{2,i,2}(j,1) = dot_u2n_ssn/dot_1{2};
+                            angles_asy{3,i,2}(j,1) = abs(dot_u2n_ssn);
+                            angles_asy{4,i,2}(j,1) = normu2;
+                            angles_asy{5,i,2}(j,1) = abs(dot_u2_ssn);
+                            angles_asy{1,i,3}(j,1) = rad2deg(real(acos(dot_u2n_vec)));
+                            angles_asy{2,i,3}(j,1) = dot_u2n_vec/dot_1{3};
+                            angles_asy{3,i,3}(j,1) = abs(dot_u2n_vec);
+                            angles_asy{4,i,3}(j,1) = 0;
+                            angles_asy{5,i,3}(j,1) = abs(dot_u2_vec);
+                        end
+                    end
+                end
+                
+                ssstr = 'ss + ';
+                letters = ['a','b','c'];
+                name = cell(5,3);
+                fname = cell(5,3);
+                for c = 1:5
+                    for d=1:3
+                        name{c,d} = ['fig2' letters(d) '-' num2str(c) ' eps ' epsStr];
+                        fname{c,d} = ['fig2' letters(d) '-' num2str(c) ' eps ' strrep(epsStr,'.','p')];
+                    end
+                end
+                
+                numfigs = size(name,2);
+                myPlot = {@plot,@semilogy};
+                for figInd1 = 1:size(name,1)
+                    for figInd = 1:numfigs
+                        if ~isempty(figdesc{figInd1,figInd}) %&& ~isempty(obj.solution_t_eigvecana{1,i,epsInd})
+                            myPlotInd = 1;
+                            while true
+                                namestr = name{figInd1,figInd};
+                                fnamestr = fname{figInd1,figInd};
+                                if myPlotInd == 2
+                                    namestr = [namestr '-log'];
+                                    fnamestr = [fnamestr '-log'];
                                 end
-                                angles_asy{1,i,1}(j,1) = rad2deg(real(acos(dot_v2_ssn)));
-                                angles_asy{2,i,1}(j,1) = dot_v2n_ssn/dot_1{1};
-                                angles_asy{3,i,1}(j,1) = abs(dot_v2n_ssn);
-                                angles_asy{4,i,1}(j,1) = normv2;
-                                angles_asy{5,i,1}(j,1) = abs(dot_v2_ssn);
-                                angles_asy{1,i,2}(j,1) = rad2deg(real(acos(dot_u2n_ssn)));
-                                angles_asy{2,i,2}(j,1) = dot_u2n_ssn/dot_1{2};
-                                angles_asy{3,i,2}(j,1) = abs(dot_u2n_ssn);
-                                angles_asy{4,i,2}(j,1) = normu2;
-                                angles_asy{5,i,2}(j,1) = abs(dot_u2_ssn);
-                                angles_asy{1,i,3}(j,1) = rad2deg(real(acos(dot_u2n_vec)));
-                                angles_asy{2,i,3}(j,1) = dot_u2n_vec/dot_1{3};
-                                angles_asy{3,i,3}(j,1) = abs(dot_u2n_vec);
-                                angles_asy{4,i,3}(j,1) = 0;
-                                angles_asy{5,i,3}(j,1) = abs(dot_u2_vec);
+                                f = figure('Name',namestr,'NumberTitle','off');
+                                legendStr = {};
+                                for i = 1:n
+                                    if size(obj.isInitsLegit,2) >=i && obj.isInitsLegit(epsInd,i) && size(obj.solution_t_eigvecana,2)>=i && ~isempty(obj.solution_t_eigvecana{1,i,epsInd})
+                                        epsStr = num2str(obj.eps_adjusted(epsInd,i));
+                                        myPlot{myPlotInd}(obj.solution_t_eigvecana{1,i,epsInd}(1:step:end,1),angles_ana{figInd1,i,figInd}(1:step:end,1),'.','Color',CM(i,:),'MarkerSize',12);
+                                        hold on;
+                                        legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',ana}$'];
+                                    end
+                                end
+                                for i = 1:n
+                                    if size(obj.isInitsLegit,2)>=n+i && obj.isInitsLegit(n+i) && ~isempty(obj.solution_t_eigvecasy{1,i,epsInd})
+                                        epsStr = num2str(obj.eps_adjusted(epsInd,n+i));
+                                        myPlot{myPlotInd}(obj.solution_t_eigvecasy{1,i,epsInd}(1:step:end,1),angles_asy{figInd1,i,figInd}(1:step:end,1),'^','Color',CM(i,:));
+                                        hold on;
+                                        legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',asy}$'];
+                                    end
+                                end
+                                title({[namestr ' ' obj.scenarioName];figdesc{figInd1,figInd}});
+                                xlabel('Time');
+                                ylabel(ylabelStr{figInd1,figInd},'Interpreter','latex','FontSize',14);
+                                legend(legendStr,'Interpreter','latex','FontSize',14);
+                                obj.save_fig(f,fnamestr);
+                                if (figInd ~= 1 && (figInd1 == 4 || figInd1 ==5)) && (myPlotInd == 1)
+                                    myPlotInd = 2;
+                                else
+                                    break
+                                end
                             end
                         end
                     end
-                    
-                    ssstr = 'ss + ';
-                    letters = ['a','b','c'];
-                    name = cell(5,3);
-                    fname = cell(5,3);
-                    for c = 1:5
-                        for d=1:3
-                            name{c,d} = ['fig2' letters(d) '-' num2str(c) ' eps ' epsStr];
-                            fname{c,d} = ['fig2' letters(d) '-' num2str(c) ' eps ' strrep(epsStr,'.','p')];
-                        end
-                    end
-                    
-                    numfigs = size(name,2);
-                    myPlot = {@plot,@semilogy};
-                    for figInd1 = 1:size(name,1)
-                        for figInd = 1:numfigs
-                            if ~isempty(figdesc{figInd1,figInd}) %&& ~isempty(obj.solution_t_eigvecana{1,i,epsInd})
-                                myPlotInd = 1;
-                                while true
-                                    namestr = name{figInd1,figInd};
-                                    fnamestr = fname{figInd1,figInd};
-                                    if myPlotInd == 2
-                                        namestr = [namestr '-log'];
-                                        fnamestr = [fnamestr '-log'];
-                                    end
-                                    f = figure('Name',namestr,'NumberTitle','off');
-                                    legendStr = {};
-                                    for i = 1:n
-                                        if size(obj.isInitsLegit,2) >=i && obj.isInitsLegit(epsInd,i) && size(obj.solution_t_eigvecana,2)>=i && ~isempty(obj.solution_t_eigvecana{1,i,epsInd})
-                                            epsStr = num2str(obj.eps_adjusted(epsInd,i));
-                                            myPlot{myPlotInd}(obj.solution_t_eigvecana{1,i,epsInd}(1:step:end,1),angles_ana{figInd1,i,figInd}(1:step:end,1),'.','Color',CM(i,:),'MarkerSize',12);
-                                            hold on;
-                                            legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',ana}$'];
-                                        end
-                                    end
-                                    for i = 1:n
-                                        if size(obj.isInitsLegit,2)>=n+i && obj.isInitsLegit(n+i) && ~isempty(obj.solution_t_eigvecasy{1,i,epsInd})
-                                            epsStr = num2str(obj.eps_adjusted(epsInd,n+i));
-                                            myPlot{myPlotInd}(obj.solution_t_eigvecasy{1,i,epsInd}(1:step:end,1),angles_asy{figInd1,i,figInd}(1:step:end,1),'^','Color',CM(i,:));
-                                            hold on;
-                                            legendStr{end+1} = ['$x_0 = ' ssstr epsStr ' * v_{' num2str(i) ',asy}$'];                                            
-                                        end
-                                    end
-                                    title({[namestr ' ' obj.scenarioName];figdesc{figInd1,figInd}});
-                                    xlabel('Time');
-                                    ylabel(ylabelStr{figInd1,figInd},'Interpreter','latex','FontSize',14);
-                                    legend(legendStr,'Interpreter','latex','FontSize',14);
-                                    obj.save_fig(f,fnamestr);
-                                    if (figInd ~= 1 && (figInd1 == 4 || figInd1 ==5)) && (myPlotInd == 1)
-                                        myPlotInd = 2;
-                                    else
-                                        break
-                                    end
-                                end
-                            end
-                        end
-                    end
+                end
                 
             end
             %% fig2e fig2f, fig2e-polar, fig2f-polar
@@ -1990,12 +1992,12 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                         angles{a1,a2} = zeros(ms{r},n);
                     end
                 end
-%                 angles{1,1} = zeros(ms{r},n); % angles with analytical eigenvectors
-%                 angles{2,1} = zeros(ms{r},n); % normalized dot product with analytical eigenvectors
-%                 angles{3,1} = zeros(ms{r},n); % abs(dot(pert,eig_ana))
-%                 angles{1,2} = zeros(ms{r},n); % angles with asymptotic eigenvectors
-%                 angles{2,2} = zeros(ms{r},n); % normalized dot product with asymptotic eigenvectors
-%                 angles{3,2} = zeros(ms{r},n); % abs(dot(pert,eig_asy))
+                %                 angles{1,1} = zeros(ms{r},n); % angles with analytical eigenvectors
+                %                 angles{2,1} = zeros(ms{r},n); % normalized dot product with analytical eigenvectors
+                %                 angles{3,1} = zeros(ms{r},n); % abs(dot(pert,eig_ana))
+                %                 angles{1,2} = zeros(ms{r},n); % angles with asymptotic eigenvectors
+                %                 angles{2,2} = zeros(ms{r},n); % normalized dot product with asymptotic eigenvectors
+                %                 angles{3,2} = zeros(ms{r},n); % abs(dot(pert,eig_asy))
                 
                 for v = 1:n
                     vec_ana = obj.eigenvectors_ana(:,v);
@@ -2430,15 +2432,15 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             for i1 = 1:size(namepre,2)
                 for i2 = 1:size(namesuf,2)
                     for i3 = 1:size(namesuf2,2)
-                    name = [namepre{i1} namesuf{i2} namesuf2{i3}];
-                    figdesc = [figdescstr1{i1} ' Jacobian Eigenvectors ' figdescstr3{i3} figdescstr2{i2} ' Comparison Matrix'];
-                    f = figure('Name',name,'NumberTitle','off');
-                    image(myfun{i3}(mat{i1}),'CDatamapping','scaled');
-                    colorbar;
-                    ylabel([figdescstr1{i1} ' Eigenvectors']);
-                    xlabel([figdescstr1{i1} ' Eigenvectors']);
-                    title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\mid v_i \cdot v_j \mid$'},'interpreter','latex');
-                    obj.save_fig(f,name);
+                        name = [namepre{i1} namesuf{i2} namesuf2{i3}];
+                        figdesc = [figdescstr1{i1} ' Jacobian Eigenvectors ' figdescstr3{i3} figdescstr2{i2} ' Comparison Matrix'];
+                        f = figure('Name',name,'NumberTitle','off');
+                        image(myfun{i3}(mat{i1}),'CDatamapping','scaled');
+                        colorbar;
+                        ylabel([figdescstr1{i1} ' Eigenvectors']);
+                        xlabel([figdescstr1{i1} ' Eigenvectors']);
+                        title({[name ' ' obj.scenarioName];obj.desc;figdesc;'$\mid v_i \cdot v_j \mid$'},'interpreter','latex');
+                        obj.save_fig(f,name);
                     end
                 end
             end
@@ -2536,7 +2538,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 suffix4 = '-binned';
             else
                 suffix4 = '';
-            end                
+            end
             CM = jet(n);
             %% fig7a fig7b
             name = [fnumab suffix suffix2 suffix3 suffix4];
@@ -2691,11 +2693,11 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
         %% fig9*
         function plot_network1(obj)
             sizes = [.01 .1 .5 .75 1 ...
-                      1.25 1.5  1.75  2 2.25 ...
-                      2.5  2.75  3  5 10];
+                1.25 1.5  1.75  2 2.25 ...
+                2.5  2.75  3  5 10];
             %colors = jet(obj.numbins);
-%             layouts = {'force','force3','subspace','subspace3'};
-%             linestyle = {'none','-'};
+            %             layouts = {'force','force3','subspace','subspace3'};
+            %             linestyle = {'none','-'};
             layouts = {'force','subspace'};
             linestyle = {'-'};
             linewidthsstr = {'none','0.1'};
@@ -2704,10 +2706,10 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             tickinds = [1 10 11 12 13 14 15];
             ssbins = obj.set_bins_generic(obj.numbins,1-obj.steady_state',1e-13,true(obj.N,1));
             ssbinned = obj.set_binned_vals(1-obj.steady_state',ssbins);
-%             sstickvals = ssbinned(tickinds);sstickvals = sstickvals(end:-1:1);
-%             sstickstr = string(ssbinned(tickinds));sstickstr = sstickstr(end:-1:1);
-%             ssbins = ssbins(end:-1:1);
-%             ssbinned = 1-ssbinned(end:-1:1);
+            %             sstickvals = ssbinned(tickinds);sstickvals = sstickvals(end:-1:1);
+            %             sstickstr = string(ssbinned(tickinds));sstickstr = sstickstr(end:-1:1);
+            %             ssbins = ssbins(end:-1:1);
+            %             ssbinned = 1-ssbinned(end:-1:1);
             colors_list{1} = {jet(size(obj.bins,1))};
             colorstemp = jet(size(ssbins,1));
             colors_list{2} = {colorstemp(end:-1:1,:)};
@@ -2719,7 +2721,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 binseigvecasy{i} = obj.binseigvecasy_permuted{i,1}(obj.eigenvectors_asy_permuted_binned_self{i}~=0);
                 valseigvecasy{i} = obj.eigenvectors_asy_permuted_binned_self{i}(obj.eigenvectors_asy_permuted_binned_self{i}~=0);
                 valseigvec{i} = sort([valseigvecana{i};valseigvecasy{i}],'ascend');
-                colors34{i} = jet(size(valseigvec{i},1));                
+                colors34{i} = jet(size(valseigvec{i},1));
                 caxis_lim34{i} = [log10(valseigvec{i}(1)) log10(valseigvec{i}(end))];
             end
             colors_list{3} = colors34;colors_list{4} = colors34;
@@ -2733,7 +2735,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             a = obj.adjacencyMatrix;
             a_uw = (a>0); %uw = unweighted
             g_uw = graph(a_uw);
-            p = {};            
+            p = {};
             ind = 1;
             for i1 = 1:length(layouts)
                 for i2 = 1:length(linestyle)
@@ -2847,11 +2849,11 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             for i1 = 1:m1
                 map_struct = map_structs{1,i1};
                 n1 = size(map_struct.is_inits_legit,2);
-                marker = markers(i1);                
+                marker = markers(i1);
                 first = true;
                 for i = 1:n1
                     if map_struct.is_inits_legit(1,i)
-                        if isfield(map_struct,'factors1')                            
+                        if isfield(map_struct,'factors1')
                             if i<=length(map_struct.factors1)
                                 str = ['x_0 = ' num2str(map_struct.factors1(i)) '*' map_struct.v1str ' + ' map_struct.v2str];
                             else
@@ -2882,7 +2884,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                         for j = 1:numfigs
                             myplot{j}(hax{j},x{j},y{j},marker);
                             if first
-                            hold(hax{j},'on');
+                                hold(hax{j},'on');
                             end
                             legend(hax{j},legendStr);
                         end
@@ -2938,12 +2940,12 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 node_knn_ind,node_minkinn_ind];
             node_bins = {obj.bins, obj.binskinn};
             sol_t_runs = {{obj.solution_t},obj.solution_t_eigvecana,obj.solution_t_eigvecasy,...
-                obj.solution_t_perturbations}; 
+                obj.solution_t_perturbations};
             sol_x_runs = {{obj.solution_x},obj.solution_x_eigvecana,obj.solution_x_eigvecasy,...
                 obj.solution_x_perturbations};
             figdesc1 = {'pert = rand', 'pert = v_{i,ana}', 'pert = v_{i,asy}', 'pert = .1*rand*ss'};
             figdesc2 = {'max(k_j)', 'mean(k_j)', 'min(k_j)', 'max(k_{j,nn})',...
-                'mean(k_{j,nn})', 'min(k_{j,nn})','max(pert)'};         
+                'mean(k_{j,nn})', 'min(k_{j,nn})','max(pert)'};
             figdesc1b = {'k', 'k_{nn}'};
             % pert_0 = rand, obj.solution_t,...
             num_nodes = size(node_ids,2);num_runs = size(sol_t_runs,2);
@@ -3170,22 +3172,22 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 str = ['wdpm' num2str(i) '= mydata.var;'];
                 eval(str);
             end
-%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_1'),'var');
-%             wdp1 = mydata.var;
-%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_1'),'var');
-%             wdpm1 = mydata.var;
-%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_2'),'var');
-%             wdp2 = mydata.var;
-%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_2'),'var');
-%             wdpm2 = mydata.var;
-%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_3'),'var');
-%             wdp3 = mydata.var;
-%             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_3'),'var');
-%             wdpm3 = mydata.var;
+            %             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_1'),'var');
+            %             wdp1 = mydata.var;
+            %             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_1'),'var');
+            %             wdpm1 = mydata.var;
+            %             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_2'),'var');
+            %             wdp2 = mydata.var;
+            %             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_2'),'var');
+            %             wdpm2 = mydata.var;
+            %             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_3'),'var');
+            %             wdp3 = mydata.var;
+            %             mydata = load(fullfile(obj.resultsPath,'obj_properties','eigvec_ana_asy_perm_weighted_dot_products_mean_3'),'var');
+            %             wdpm3 = mydata.var;
             name = 'fig17-1';
             f = figure('Name',name,'NumberTitle','off');
             figdesc = 'Weighted dot products (using only $k_i > k_0$) of corresponding eigenvectors';
-%            semilogx(obj.eigenvalues_ana,abs(wdp1),'o');
+            %            semilogx(obj.eigenvalues_ana,abs(wdp1),'o');
             m = size(wdp1,2);
             legendStr1 = cell(m,1);
             for i=1:m
@@ -3200,7 +3202,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             name = 'fig17-2';
             f = figure('Name',name,'NumberTitle','off');
             figdesc = 'Weighted dot products (using only $k_i < k_0$) of corresponding eigenvectors';
-%            semilogx(obj.eigenvalues_ana,abs(wdp2),'o');
+            %            semilogx(obj.eigenvalues_ana,abs(wdp2),'o');
             m = size(wdp2,2);
             legendStr2 = cell(m,1);
             for i=1:m
@@ -3259,7 +3261,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             yticks(ytickstep:ytickstep:s);yticklabels(strsplit(num2str(s - ytickstep:-ytickstep:ytickstep)));
             ylabel('Percentile of eigenvectors (0 = all, 99 = first 60)');
             obj.save_fig(f,name);
-            %%%%%            
+            %%%%%
             name = 'fig17-8';
             f = figure('Name',name,'NumberTitle','off');
             figdesc = 'Average Weighted dot products of corresponding eigenvectors (reverse order)';
@@ -3317,13 +3319,13 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 end
             end
             %%% fig18-2
-            %%% fig18-3            
+            %%% fig18-3
             w2 = obj.degree_vector_weighted/norm(obj.degree_vector_weighted) .* ones(size(obj.eigenvectors_ana));
             ws = {w,w2};
             x1 = 1:size(obj.eigenvectors_ana,2);
             x2 = -1./obj.eigenvalues_ana;x3 = real(obj.eigenvalues_ana);
             x2asy = -1./obj.eigenvalues_asy_permuted;
-            x = {x1,x2,x3}; xasy = {x1,x2asy};suf = {'','-2','-3'}; 
+            x = {x1,x2,x3}; xasy = {x1,x2asy};suf = {'','-2','-3'};
             xlabs = {'$v^{(i)}$','$Re(-1/\lambda_i)$','$Re(\lambda_i)$'};
             midstr = {'','\mid'};
             
@@ -3354,7 +3356,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             %%% fig18-4
             ws1 = abs(dot(obj.eigenvectors_ana,w2));
             [maxana,imaxana] = max(ws1); [minana,iminana] = min(ws1);
-            ws2 = abs(dot(obj.eigenvectors_asy_permuted,w2));            
+            ws2 = abs(dot(obj.eigenvectors_asy_permuted,w2));
             [maxasy,imaxasy] = max(ws2); [minasy,iminasy] = min(ws2);
             [B,I] = sort(obj.degree_vector_weighted);
             parvecana = obj.eigenvectors_ana(I,imaxana);
@@ -3443,8 +3445,8 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
         %% fig19* **fig20* fig21*
         function obj = plot_localization(obj)
             namepre = 'fig19-';
-            figdesc = {'Perturbation Weighted Std',...                
-                'Perturbation Weighted Mean',...                
+            figdesc = {'Perturbation Weighted Std',...
+                'Perturbation Weighted Mean',...
                 'Perturbation node max mass'};
             
             ylabs = {'$\hat{\sigma}_k$','$\hat{\mu}_k$','$\mid pert_{i,max}\mid /\sum_i \mid pert_i \mid$';...
@@ -3498,34 +3500,34 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                         clear mydata;
                         num_quants = 1;
                         pert_x = (obj.steady_state' - sol_x')';clear sol_x;
-                         if i2 == 1 % weiging by degree
+                        if i2 == 1 % weiging by degree
                             weights = obj.degree_vector_weighted;
-                         elseif i2 == 2 %weighing by distance from initial mass concentration node
+                        elseif i2 == 2 %weighing by distance from initial mass concentration node
                             pert_x0 = pert_x(1,:);
                             [~,i] = max(abs(pert_x0));
                             weights = shortest_distances(i,:)';
-                         end
+                        end
                         [means, vars, pert_x_ordered_quants] = EngineClass.compute_wmeans_wvars(abs(pert_x'), weights);
                         pert_x_ordered_quants = pert_x_ordered_quants';
-%                         [bdegree,Idegree] = sort(obj.degree_vector_weighted);
-%                         sd = shortest_distances(i,:)';
-%                         [bdistance,Idistance] = sort(sd);
-%                         spread_space = {bdegree,bdistance};
-%                         spread_space_ind = {Idegree,Idistance};
-%                         B = spread_space{i2};I = spread_space_ind{i2};
-%                         pert_x_ordered = pert_x(:,I);clear pert_x;
-%                         sum_pert_x_ordered = sum(abs(pert_x_ordered),2);
-%                         pert_x_ordered_proportions = abs(pert_x_ordered)./sum_pert_x_ordered;clear pert_x_ordered sum_pert_x_ordered;
-%                         pert_x_ordered_quants = num_quants*pert_x_ordered_proportions;clear pert_x_ordered_proportions;
-%                         
-%                         B_mat = B.*ones(size(pert_x_ordered_quants'));
-%                         means = dot(B_mat,pert_x_ordered_quants')/num_quants;clear B_mat;
-%                         prevar1 = B - means; %B is the ordered degree vector, should be a column,
-%                         % means should be a row vector
-%                         prevar2 = prevar1.^2; clear prevar1;
-%                         prevar3 = pert_x_ordered_quants' .* prevar2; clear prevar2
-%                         prevar4 = sum(prevar3,1); clear prevar3;
-%                         var = sqrt(prevar4 / num_quants); clear prevar4;
+                        %                         [bdegree,Idegree] = sort(obj.degree_vector_weighted);
+                        %                         sd = shortest_distances(i,:)';
+                        %                         [bdistance,Idistance] = sort(sd);
+                        %                         spread_space = {bdegree,bdistance};
+                        %                         spread_space_ind = {Idegree,Idistance};
+                        %                         B = spread_space{i2};I = spread_space_ind{i2};
+                        %                         pert_x_ordered = pert_x(:,I);clear pert_x;
+                        %                         sum_pert_x_ordered = sum(abs(pert_x_ordered),2);
+                        %                         pert_x_ordered_proportions = abs(pert_x_ordered)./sum_pert_x_ordered;clear pert_x_ordered sum_pert_x_ordered;
+                        %                         pert_x_ordered_quants = num_quants*pert_x_ordered_proportions;clear pert_x_ordered_proportions;
+                        %
+                        %                         B_mat = B.*ones(size(pert_x_ordered_quants'));
+                        %                         means = dot(B_mat,pert_x_ordered_quants')/num_quants;clear B_mat;
+                        %                         prevar1 = B - means; %B is the ordered degree vector, should be a column,
+                        %                         % means should be a row vector
+                        %                         prevar2 = prevar1.^2; clear prevar1;
+                        %                         prevar3 = pert_x_ordered_quants' .* prevar2; clear prevar2
+                        %                         prevar4 = sum(prevar3,1); clear prevar3;
+                        %                         var = sqrt(prevar4 / num_quants); clear prevar4;
                         plot(ax{i2,1},sol_t,vars);
                         plot(ax{i2,2},sol_t,means);
                         if ~isempty(ylabs{i2,3})
@@ -3586,27 +3588,27 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             k = General.load_var(fullfile(networkPath,'degree_vector'));
             A = General.load_var(fullfile(networkPath,'adjacency_matrix'));
             dist = General.load_var(fullfile(networkPath,'shortest_distances'));
-%             [~,start_node] = max(k);
+            %             [~,start_node] = max(k);
             
             
-%             sol_path_t = fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_t_hub');
-%             sol_path_x = fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_x_hub');
-%             sol_t = General.load_var(sol_path_t);
-%             sol_x = General.load_var(sol_path_x);
-%             ss = obj.steady_state;
-%             pert_x = (sol_x' - ss')';
-%             [means, vars, pert_x_ordered_quants] = EngineClass.compute_wmeans_wvars(abs(pert_x'), dist_start_node');
-%             TF = find(islocalmax(vars) | islocalmin(vars));            
-%             num_rows = size(pert_x,1);
-%             step = floor(num_rows/(num_times-1));
-% %             pert_inds = 1:step:num_rows;
-%             pert_inds = [1 floor(TF(1)/2) TF];
-%             if abs(vars(TF(end)) - vars(end)) > .1
-%                 pert_inds = [pert_inds num_rows];
-%             end
-%             l = length(pert_inds);
-%             num_tiles_rows = floor(sqrt(l));
-%             num_tiles_cols = ceil(l/num_tiles_rows);
+            %             sol_path_t = fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_t_hub');
+            %             sol_path_x = fullfile(obj.resultsPath,'obj_properties','eigvec_pert_max_hub','sol_x_hub');
+            %             sol_t = General.load_var(sol_path_t);
+            %             sol_x = General.load_var(sol_path_x);
+            %             ss = obj.steady_state;
+            %             pert_x = (sol_x' - ss')';
+            %             [means, vars, pert_x_ordered_quants] = EngineClass.compute_wmeans_wvars(abs(pert_x'), dist_start_node');
+            %             TF = find(islocalmax(vars) | islocalmin(vars));
+            %             num_rows = size(pert_x,1);
+            %             step = floor(num_rows/(num_times-1));
+            % %             pert_inds = 1:step:num_rows;
+            %             pert_inds = [1 floor(TF(1)/2) TF];
+            %             if abs(vars(TF(end)) - vars(end)) > .1
+            %                 pert_inds = [pert_inds num_rows];
+            %             end
+            %             l = length(pert_inds);
+            %             num_tiles_rows = floor(sqrt(l));
+            %             num_tiles_cols = ceil(l/num_tiles_rows);
             
             num_tiles_rows = 2;num_tiles_cols = 2;pert_norm_hat_snapshots = [1,.5,.1,.02];
             threshold = 1e-5;
@@ -3614,7 +3616,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             for i2 = 1:length(ids)
                 id = ids(i2);
                 [~,~,pert_x,~,pert_x_norm_hat] = obj.get_pert(id);
-                start_node = id;                
+                start_node = id;
                 for i = pert_norm_hat_snapshots
                     ind = find(pert_x_norm_hat<=i,1);
                     pert_x1 = abs(pert_x(ind,:));
@@ -3633,9 +3635,9 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 name = ['fig22a-id-' num2str(id)];
                 f = figure('Name',name,'NumberTitle','off');
                 t = tiledlayout(num_tiles_rows,num_tiles_cols);
-%                 dist_start_node = dist(start_node,:);
-%                 [dist_start_node_sorted,inds] = sort(dist_start_node);
-%                 inds_top_num_nodes = inds(1:num_nodes);
+                %                 dist_start_node = dist(start_node,:);
+                %                 [dist_start_node_sorted,inds] = sort(dist_start_node);
+                %                 inds_top_num_nodes = inds(1:num_nodes);
                 A_num_nodes = A(inds_top_num_nodes,inds_top_num_nodes);
                 k_num_nodes = k(inds_top_num_nodes);
                 k_max = max(k_num_nodes);
@@ -3648,7 +3650,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 for i1 = pert_norm_hat_snapshots
                     nexttile;
                     p=plot(G,'LineWidth',.1,'LineStyle','-','Marker','o','layout','force','WeightEffect','direct','NodeLabel',{});%'Center',find(inds_top_num_nodes==id,1), 'WeightEffect','inverse'
-%                         p=plot(G,'LineWidth',.1,'LineStyle','-','Marker','o','layout','subspace','NodeLabel',{});
+                    %                         p=plot(G,'LineWidth',.1,'LineStyle','-','Marker','o','layout','subspace','NodeLabel',{});
                     for i = 1:length(inds_top_num_nodes)
                         k_i = k_num_nodes(i);
                         markerSize = (k_i-k_min)/k_range*max_marker_size+4;
@@ -3669,11 +3671,11 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                         pert_x1_i = pert_x1_num_nodes(i);
                         marker_color1 = (pert_x1_i - pert_x1_min)/pert_x1_range;
                         marker_color = 1/(1 - log10(marker_color1));
-%                         marker_color = log10(pert_x1_i * pert_x1_max / pert_x1_min) / (log10(pert_x1_max) - log10(pert_x1_min));
+                        %                         marker_color = log10(pert_x1_i * pert_x1_max / pert_x1_min) / (log10(pert_x1_max) - log10(pert_x1_min));
                         highlight(p,i,'NodeColor',[1 1-marker_color 1-marker_color]);
                     end
                     
-                    title(['$\mid pert \mid = ' num2str(i1) '*\mid pert_0 \mid$'],'Interpreter','latex');                    
+                    title(['$\mid pert \mid = ' num2str(i1) '*\mid pert_0 \mid$'],'Interpreter','latex');
                 end
                 title(t,{[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
                 obj.save_fig(f,name);
@@ -3685,7 +3687,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             name = 'fig23-1-t'; fname{1} = name;%pert_norm vs t
             f{1} = figure('Name',name,'NumberTitle','off');
             hax{1} = axes;hold on;xlabel('t','Interpreter','latex');ylabel('$\mid pert \mid$','Interpreter','latex');
-            desc1 = 'Perturbation norm vs t'; 
+            desc1 = 'Perturbation norm vs t';
             title({[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
             name = 'fig23-1-tau'; fname{2} = name;%pert_norm vs tau
             f{2} = figure('Name',name,'NumberTitle','off');
@@ -3736,7 +3738,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             for i = 1:length(files)
                 file = files(i);
                 if file.name(1) ~= '.' && file.name(5) == 't'
-%                     names{i} = files.name;
+                    %                     names{i} = files.name;
                     ind1 = find(file.name == '.');
                     ids(ind) = str2double(file.name(7:ind1-1));
                     ind = ind+1;
@@ -3768,14 +3770,14 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             name = 'fig24a';fname{1} = name;%pert_norm/pert0_norm vs t
             f{1} = figure('Name',name,'NumberTitle','off');
             hax{1} = axes;hold on;xlabel('t','Interpreter','latex');ylabel('$\mid pert \mid / \mid pert_0 \mid$','Interpreter','latex');
-            desc1 = 'Perturbation norm (relative to $pert_0$) vs $t$, $pert_0 = \delta(i)$'; 
+            desc1 = 'Perturbation norm (relative to $pert_0$) vs $t$, $pert_0 = \delta(i)$';
             title({[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
-
+            
             name = 'fig24b';fname{2} = name;%tau vs k_i
             f{2} = figure('Name',name,'NumberTitle','off');
             hax{2} = axes;hold on;xlabel('$k_i$','Interpreter','latex');ylabel('$\tau$','Interpreter','latex');
-            desc1 = '$\tau = $ time when $\mid pert \mid = .02*\mid pert_0 \mid$'; 
-            title({[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');            
+            desc1 = '$\tau = $ time when $\mid pert \mid = .02*\mid pert_0 \mid$';
+            title({[name ' ' obj.scenarioName];obj.desc;desc1},'interpreter','latex');
             
             taus = zeros(length(ids_sorted_by_deg,1));legendInd = 1;legendStr = cell(1,length(ids));
             for i = 1:length(ids_sorted_by_deg)
@@ -3849,7 +3851,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 pert_0 = General.load_var(fullfile(solPath,['n_' num2str(n)]));
                 sol_t = General.load_var(fullfile(solPath,['sol_t_n_' num2str(n)]));
                 sol_x = General.load_var(fullfile(solPath,['sol_x_n_' num2str(n)]));
-%                 pert_0 = sol_x(1,:);
+                %                 pert_0 = sol_x(1,:);
                 r = size(sol_x,1);concentration = zeros(r,1);conservation = zeros(r,1);
                 for i = 1:r
                     pert_t = sol_x(i,:) - obj.steady_state;
@@ -3910,88 +3912,32 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
         end
         %% fig28*
         function plot_pert_amp_phase_vs_t(obj)
-%             foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
-%                 'eigvec_pert_min_hub_1','eigvec_power_law',...
-%                 'random_sample_perts','single_node_pert_sol',...
-%                 'sol_pert_k_power','solution_random_perts'};
-%             foldernames = {'solution_random_perts'};
-%             foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
-%                 'solution_random_perts','solution_random_perts_2'};
+            %             foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
+            %                 'eigvec_pert_min_hub_1','eigvec_power_law',...
+            %                 'random_sample_perts','single_node_pert_sol',...
+            %                 'sol_pert_k_power','solution_random_perts'};
+            %             foldernames = {'solution_random_perts'};
+            %             foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
+            %                 'solution_random_perts','solution_random_perts_2'};
             foldernames = {'solution_random_perts','solution_random_perts_2','single_node_pert_sol','solution_eigvec_perts'};
             colors = {'b','r','k','m','g','c'};
             markers = {'o','s','^','*','+','x','v','<','>','.','d','p','h','_','|'};
             marksize = 6;
-            name = 'fig28a'; fname{1,1} = name;desc = 'Perturbation Amplitude vs t'; %pert_norm vs t
-            f{1,1} = figure('Name',name,'NumberTitle','off');hax{1,1} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('t','Interpreter','latex');ylabel('$\|\delta(t)\|$','Interpreter','latex');
-            name = 'fig28b'; fname{1,2} = name;desc = 'Perturbation Amplitude normed vs t';%pert_norm_normed vs t
-            f{1,2} = figure('Name',name,'NumberTitle','off');hax{1,2} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('t','Interpreter','latex');ylabel('$A(t)$','Interpreter','latex'); %  = \dfrac{\mathbf{\|\delta x(t)\|}}{\mathbf{\|\delta x(0)\|}}$'
-            
-            name = 'fig28c'; fname{1,3} = name;desc = 'Perturbation Phase [deg] vs t';%pert_phase vs t
-            f{1,3} = figure('Name',name,'NumberTitle','off');hax{1,3} = axes; hold on;
-            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-            xlabel('t','Interpreter','latex');ylabel('$\phi(t)$','Interpreter','latex');% = \arccos{\left( \mathbf{\widehat{\delta x(t)}}\cdot \widehat{\mathbf{\delta x(0)}}$'
-            
-            for i1 = 1:length(obj.sys_half_life_amp)
-                desc1 = ['$\tau_{A_' num2str(i1) '}$ vs Q'];ylab =['$\tau_{A_' num2str(i1) '}$'];
-                
-                name = ['fig28d-' num2str(i1)]; fname{i1,4} = name;desc = [desc1 '1'];%\tau_A vs Q1
-                f{i1,4} = figure('Name',name,'NumberTitle','off');hax{i1,4} = axes; hold on;
-                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('Q','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
-%                 
-%                 name = 'fig28e'; fname{5} = name;desc = '$\tau_{A_2}$ vs Q';%\tau_A_2 vs Q
-%                 f{5} = figure('Name',name,'NumberTitle','off');hax{5} = axes; hold on;
-%                 title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-%                 xlabel('Q','Interpreter','latex');ylabel('$\tau_{A_2}$','Interpreter','latex');
-                
-                name = ['fig28f-' num2str(i1)]; fname{i1,6} = name;desc = [desc1 '2'];%\tau_A vs Q2
-                f{i1,6} = figure('Name',name,'NumberTitle','off');hax{i1,6} = axes; hold on;
-                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('Q2','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
-                
-                name = ['fig28g-' num2str(i1)]; fname{i1,7} = name;desc = [desc1 '3'];%\tau_A vs Q3
-                f{i1,7} = figure('Name',name,'NumberTitle','off');hax{i1,7} = axes; hold on;
-                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('Q3','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
-                
-                name = ['fig28h-' num2str(i1)]; fname{i1,8} = name;desc = [desc1 '4'];%\tau_A vs Q4
-                f{i1,8} = figure('Name',name,'NumberTitle','off');hax{i1,8} = axes; hold on;
-                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('Q4','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
-                
-                name = ['fig28i-' num2str(i1)]; fname{i1,9} = name;desc = [desc1 '5'];%\tau_A vs Q5
-                f{i1,9} = figure('Name',name,'NumberTitle','off');hax{i1,9} = axes; hold on;
-                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('Q5','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
-                
-                name = ['fig28j-' num2str(i1)]; fname{i1,10} = name;desc = [desc1 '6'];%\tau_A vs Q6
-                f{i1,10} = figure('Name',name,'NumberTitle','off');hax{i1,10} = axes; hold on;
-                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('Q6','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
-                
-                name = ['fig28k-' num2str(i1)]; fname{i1,11} = name;desc = [desc1 '7'];%\tau_A vs Q7
-                f{i1,11} = figure('Name',name,'NumberTitle','off');hax{i1,11} = axes; hold on;
-                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('$Q7 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 \max{(k)}}$','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
-                
-                name = ['fig28l-' num2str(i1)]; fname{i1,12} = name;desc = [desc1 '8'];%\tau_A vs Q8
-                f{i1,12} = figure('Name',name,'NumberTitle','off');hax{i1,12} = axes; hold on;
-                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('$Q8 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
-                
-                name = ['fig28m-' num2str(i1)]; fname{i1,13} = name;desc = [desc1 '9'];%\tau_A vs Q9
-                f{i1,13} = figure('Name',name,'NumberTitle','off');hax{i1,13} = axes; hold on;
-                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('$Q9 = \frac{\mathbf{\delta x(0)}\cdot k^{-\mu} \cdot \mathbf{ss}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
-                
-                name = ['fig28n-' num2str(i1)]; fname{i1,14} = name;desc = [desc1 '10'];%\tau_A vs Q10
-                f{i1,14} = figure('Name',name,'NumberTitle','off');hax{i1,14} = axes; hold on;
-                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
-                xlabel('$Q10 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)}\cdot k^{-\xi} \|_1 }$','Interpreter','latex');ylabel(ylab,'Interpreter','latex');
+            nameroot = 'fig28';suf1s = {'a','b','c','d','e','f','g','h','i','j','k','l','m','n'};
+            funs = {@plot,@loglog};funssuf = {'','-loglog'};
+            for i3 = 1:length(suf1s)
+                suf1 = suf1s{i3};
+                for i2 = 1:length(funs)
+                    suf = funssuf{i2};
+                    names{1,i3,i2} = [nameroot suf1 suf]; fname{1,i3,i2} = names{1,i3,i2};
+                    f{1,i3,i2} = figure('Name',names{1,i3,i2},'NumberTitle','off');hax{1,i3,i2} = axes; %hold on;
+                    if i3>3
+                        for i1 = 1:length(obj.sys_half_life_amp)
+                            names{i1,i3,i2} = [nameroot suf1 '-' num2str(i1) suf]; fname{i1,i3,i2} = names{i1,i3,i2};
+                            f{i1,i3,i2} = figure('Name',names{i1,i3,i2},'NumberTitle','off');hax{i1,i3,i2} = axes;% hold on;
+                        end
+                    end
+                end
             end
             legendStr = {};
             for j1 = 1:length(foldernames)
@@ -4002,7 +3948,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 for i1 = 1:length(files)
                     file = files(i1);
                     name = file.name;
-                    ind1 = strfind(name,'_');
+%                     ind1 = strfind(name,'_');
                     if length(ind1)>1
                         ind1 = ind1(2);
                     else
@@ -4012,68 +3958,93 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                     ind3 = strfind(name,'_norms_normed');
                     ind4 = strfind(name,'_thetas');
                     if ~isempty(ind2) && isempty(ind3)
-                        indsuf = ind2;                        
+                        indsuf = ind2;
                         legendStr{end+1} = EngineClass.filename2legend(name(ind1+1:indsuf-1));
-                        yvalues = General.load_var(fullfile(folderpath,name));
-                        tvalues = General.load_var(fullfile(folderpath,[name(1:ind1-2) 't' name(ind1:indsuf-1)]));
-                        plot(hax{1,1},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',marksize);%hold on;
-                        yvalues = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_norms_normed']));
-                        plot(hax{1,2},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',marksize);%hold on;
-                        yvalues = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_thetas']));
-                        plot(hax{1,3},tvalues,rad2deg(abs(yvalues)),colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',marksize);%hold on;
-                        Q = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q']));
-                        Q2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q2']));
-                        Q3 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q3']));
-                        Q4 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q4']));
-                        Q5 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q5']));
-                        Q6 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q6']));
-                        Q7 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q7']));
-                        Q8 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q8']));
-                        Q9 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q9']));
-                        Q10 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q10']));
-                        tau_A = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A']));
-                        for i1 = 1:length(tau_A)
-                            tau = tau_A{i1};
-                            plot(hax{i1,4},Q,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
-%                         tau_A_2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A_2']));
-%                         plot(hax{5},Q,tau_A_2,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
-                        
-                            plot(hax{i1,6},Q2,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
-
-                            plot(hax{i1,7},Q3,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
-
-                            plot(hax{i1,8},Q4,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
-
-                            plot(hax{i1,9},Q5,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
-
-                            plot(hax{i1,10},Q6,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
-
-                            plot(hax{i1,11},Q7,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
-
-                            plot(hax{i1,12},Q8,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
-                            plot(hax{i1,13},Q9,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
-                            plot(hax{i1,14},Q10,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);
+                        for i2 = 1:length(funs)
+                            fun = funs{i2};
+                            
+                            
+                            yvalues = General.load_var(fullfile(folderpath,name));
+                            tvalues = General.load_var(fullfile(folderpath,[name(1:ind1-2) 't' name(ind1:indsuf-1)]));
+                            fun(hax{1,1,i2},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',marksize);hold(hax{1,1,i2},'on');
+                            yvalues = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_norms_normed']));
+                            fun(hax{1,2,i2},tvalues,yvalues,colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',marksize);hold(hax{1,2,i2},'on');
+                            yvalues = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_thetas']));
+                            fun(hax{1,3,i2},tvalues,rad2deg(abs(yvalues)),colors{j1},'LineStyle','-','Marker',markers{ind},'MarkerSize',marksize);hold(hax{1,3,i2},'on');
+                            Q = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q']));
+                            Q2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q2']));
+                            Q3 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q3']));
+                            Q4 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q4']));
+                            Q5 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q5']));
+                            Q6 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q6']));
+                            Q7 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q7']));
+                            Q8 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q8']));
+                            Q9 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q9']));
+                            Q10 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q10']));
+                            tau_A = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A']));
+                            for i1 = 1:length(tau_A)
+                                tau = tau_A{i1};
+                                fun(hax{i1,4,i2},Q,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);hold(hax{i1,4,i2},'on');
+                                %                         tau_A_2 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A_2']));
+                                %                         plot(hax{5},Q,tau_A_2,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',size);
+                                
+                                fun(hax{i1,6,i2},Q2,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);hold(hax{i1,6,i2},'on');
+                                
+                                fun(hax{i1,7,i2},Q3,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);hold(hax{i1,7,i2},'on');
+                                
+                                fun(hax{i1,8,i2},Q4,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);hold(hax{i1,8,i2},'on');
+                                
+                                fun(hax{i1,9,i2},Q5,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);hold(hax{i1,9,i2},'on');
+                                
+                                fun(hax{i1,10,i2},Q6,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);hold(hax{i1,10,i2},'on');
+                                
+                                fun(hax{i1,11,i2},Q7,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);hold(hax{i1,11,i2},'on');
+                                
+                                fun(hax{i1,12,i2},Q8,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);hold(hax{i1,12,i2},'on');
+                                fun(hax{i1,13,i2},Q9,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);hold(hax{i1,13,i2},'on');
+                                fun(hax{i1,14,i2},Q10,tau,colors{j1},'LineStyle','none','Marker',markers{ind},'MarkerSize',marksize);hold(hax{i1,14,i2},'on');
+                            end
                         end
                         ind = ind+1;
                         if ind > length(markers)
                             ind = 1;
                             marksize = marksize + 4;
                         end
-                    end                    
-                end
-            end
-            for i3 = 1:size(f,1)
-                for i4 = 1:size(f,2)
-                    if ~isempty(f{i3,i4})
-                        legend(hax{i3,i4},legendStr);
-                        General.save_fig(f{i3,i4},fname{i3,i4},fullfile(obj.resultsPath,'figs'));
+                        
                     end
                 end
             end
-            
-            
-            
-            
+            descs = {'Perturbation Amplitude vs t','Perturbation Amplitude normed vs t',...
+                'Perturbation Phase [deg] vs t'};
+            desc1 = ['$\tau_{A_' num2str(i1) '}$ vs Q'];
+            ylabs = {'$\|\delta(t)\|$','$A(t)$','$\phi(t)$'};
+            xlabs = {'$Q7 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 \max{(k)}}$',...
+                '$Q8 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 }$',...
+                '$Q9 = \frac{\mathbf{\delta x(0)}\cdot k^{-\mu} \cdot \mathbf{ss}}{\| \mathbf{\delta x(0)} \|_1 }$',...
+                '$Q10 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)}\cdot k^{-\xi} \|_1 }$',};
+
+            for i3 = 1:size(f,1)
+                for i4 = 1:size(f,2)
+                    if i4<4
+                        xlab = 't';ylab = ylabs{i4};desc = descs{i4};
+                    else
+                        xlab = ['Q' num2str(i4-3)];ylab =['$\tau_{A_' num2str(i3) '}$'];
+                        desc = [desc1 num2str(i4-3)];
+                    end
+                    if i4>10
+                        xlab = xlabs{i4-7-3};
+                    end
+                    for i5 = 1:size(f,3)
+                        if ~isempty(f{i3,i4,i5})
+                            title(hax{i3,i4,i5},{[names{i3,i4,i5} ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                            xlabel(hax{i3,i4,i5},xlab,'Interpreter','latex');
+                            ylabel(hax{i3,i4,i5},ylab,'Interpreter','latex');
+                            legend(hax{i3,i4,i5},legendStr);
+                            General.save_fig(f{i3,i4,i5},fname{i3,i4,i5},fullfile(obj.resultsPath,'figs'));
+                        end
+                    end
+                end
+            end            
         end
         %%
         %% fig29*
@@ -4110,7 +4081,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 plot(hax{1},partial_sums{i1},'-*');
             end
             legend(hax{1},legendStr);
-
+            
             
         end
         %%
@@ -4185,7 +4156,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 
             end
         end
-
+        
     end
     methods (Static)
         function [] = save_var(var,path,folder_name,filename)
@@ -4216,9 +4187,9 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             x_pert_init = x_pert(1,:);
             abs_x_init = abs(x(1,:));
             x_init = x(1,:);
-%             Q = dot(abs_x_pert_init/norm(abs_x_pert_init),k_mu/norm(k_mu));
+            %             Q = dot(abs_x_pert_init/norm(abs_x_pert_init),k_mu/norm(k_mu));
             Q = dot(x_pert_init/norm(x_pert_init),k_mu/norm(k_mu));
-%             Q = dot(abs_x_init/norm(abs_x_init),k_mu/norm(k_mu));
+            %             Q = dot(abs_x_init/norm(abs_x_init),k_mu/norm(k_mu));
             Q2 = dot(x_pert_init/norm(x_pert_init,1),k_mu/norm(k_mu,1));
             Q3 = dot(abs(x_pert_init)/norm(x_pert_init,1),abs(k_mu)/norm(k_mu,1));
             Q4 = dot(abs(x_pert_init)/norm(x_pert_init,1),k_mu);
@@ -4232,7 +4203,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             Q10 = dot(abs(x_init),k_alpha)/(dot(abs(x_init),k_xi));
             x_normed = x'./norms;
             x_normed_init = x_normed(:,1);
-            thetas = acos(dot(repmat(x_normed_init,1,size(x_normed,2)),x_normed));   
+            thetas = acos(dot(repmat(x_normed_init,1,size(x_normed,2)),x_normed));
             for i1 = 1:length(sys_half_life_amp)
                 tau_A{i1} = H_A/sys_half_life_amp{i1};
             end
@@ -4242,7 +4213,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             sol_t = General.load_var(fullfile(path,t_filename));
             [norms,norms_normed,thetas,H_A,tau_A,Q,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,Q10] = EngineClass.calc_norms_thetas(sol_x,ss,sol_t,sys_half_life_amp,mu,k,xi);
             General.save_var(norms,path,[x_filename '_norms']);
-            General.save_var(thetas,path,[x_filename '_thetas']); 
+            General.save_var(thetas,path,[x_filename '_thetas']);
             General.save_var(norms_normed,path,[x_filename '_norms_normed']);
             General.save_var(H_A,path,[x_filename '_H_A']);
             General.save_var(tau_A,path,[x_filename '_tau_A' sufstr]);
@@ -4285,14 +4256,14 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             ind = find(solution_t>=time,1);
             values = (solution_x(ind,:))';
             General.general_gephi_nodes_table(nodes,values,filepath,filename);
-%             T = array2table([nodes,nodes,values],'VariableNames',{'ID','Label','value'});
-%             writetable(T,fullfile(filepath,[filename '.csv']));            
+            %             T = array2table([nodes,nodes,values],'VariableNames',{'ID','Label','value'});
+            %             writetable(T,fullfile(filepath,[filename '.csv']));
         end
         function [ind_bins_var,bins_edges,ind_bins_var_sizes] = set_bins_generic(numbins,values_vec,tol,cond_vec)
             ind_bins_var = cell(numbins,1);
             bins_edges = [];
             ind_bins_var_sizes = [];
-%             ind_bins_var = {};
+            %             ind_bins_var = {};
             values_vec = values_vec(cond_vec);
             max_val = max(values_vec);
             min_val = min(values_vec);
@@ -4318,11 +4289,11 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                     ind = find(values_vec>c^ns(k-1) & values_vec<=c^ns(k)+tol);
                     bins_edges(end+1) = c^ns(k-1);
                 end
-%                 if ~isempty(ind)
-                    ind_bins_var{k-1,1} = ind;
-                    ind_bins_var_sizes(end+1) = size(ind,1);
-                    s = s + size(ind,1);
-%                 end
+                %                 if ~isempty(ind)
+                ind_bins_var{k-1,1} = ind;
+                ind_bins_var_sizes(end+1) = size(ind,1);
+                s = s + size(ind,1);
+                %                 end
             end
             bins_edges(end+1) = c^ns(k);
             %Check bins
@@ -4371,9 +4342,9 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
             weights_mat = weights_ordered + zeros(size(columns));
             s = sum(columns);
             columns_prop_ordered = columns(weights_ordered_ind,:)./s;
-            d = columns_prop_ordered.*weights_mat;clear weights_mat;            
+            d = columns_prop_ordered.*weights_mat;clear weights_mat;
             wmeans = sum(d);clear d;
-            wvars = sqrt(sum(columns_prop_ordered.*(weights_ordered-wmeans).^2));            
+            wvars = sqrt(sum(columns_prop_ordered.*(weights_ordered-wmeans).^2));
         end
         function J = compute_J(Dii,Wij,C_D,C_W)
             J = C_W*(Wij - diag(diag(Wij))) + C_D*(diag(Dii));
@@ -4420,12 +4391,12 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
         end
         function [ind_bins_var,binned_vals] = set_bins_percentiles(numbins,values_vec)
             n = size(values_vec,1);
-            bin_size = floor(n/numbins);            
+            bin_size = floor(n/numbins);
             [B,I] = sort(values_vec);
-%             sz = [bin_size,numbins];
+            %             sz = [bin_size,numbins];
             sz = [bin_size,n/bin_size];
             ind_bins_var = reshape(I,sz);
-            binned_vals = reshape(B,sz);            
+            binned_vals = reshape(B,sz);
         end
         function [ind_bins_var,bins_edges,ind_bins_var_sizes] = set_bins_nonlog(num_bins,values_vec)
             ind_bins_var = cell(num_bins,1);bins_edges = [];ind_bins_var_sizes = [];
@@ -4440,7 +4411,7 @@ NN = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigvec_dot_comp
                 end
                 ind_bins_var{k,1} = ind;
                 bins_edges(end+1) = minval + step*k;ind_bins_var_sizes(end+1,1) = length(ind);
-            end                
+            end
         end
         function [ordered_eigs] = reorder_eigvecs_nodes(eigvec_set, new_ordering)
             ordered_eigs = eigvec_set(new_ordering,:);
