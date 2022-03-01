@@ -43,7 +43,7 @@ classdef EngineSet2 < handle
         obj = save_obj(obj)
         obj = save_fig(obj,f,name)
         obj = addengine(obj,foldernamestr,lengendnamestr)
-
+        obj = plot_pert_props_vs_times(obj)
         function outputArg = method1(obj,inputArg)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
