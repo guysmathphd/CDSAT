@@ -12,6 +12,8 @@ classdef EngineSet2 < handle
         path
         figs_path
         legendNames
+        legendNames2
+        dynamicNames
     end
     
     methods
@@ -44,6 +46,7 @@ classdef EngineSet2 < handle
         obj = save_fig(obj,f,name)
         obj = addengine(obj,foldernamestr,lengendnamestr)
         obj = plot_pert_props_vs_times(obj)
+        obj = plot_pert_props_vs_times_1(obj,solution_folders,t_file_node_ids_str)
         function outputArg = method1(obj,inputArg)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here

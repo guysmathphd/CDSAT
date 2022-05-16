@@ -14,7 +14,7 @@ try
 catch
 end
 k_out_prop = k_out;
-k_in_prop = k_in;
+%k_in_prop = k_in;
 
 % name = 'Net01a';
 % f = figure('Name',name,'NumberTitle','off');

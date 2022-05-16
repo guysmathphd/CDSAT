@@ -2,8 +2,14 @@ classdef General
     %GENERAL Summary of this class goes here
     %   Detailed explanation goes here
     
-    properties
-        
+    properties (Constant)
+        colors1 = [0 0.4470 0.7410;
+            0.8500 0.3250 0.0980;
+            0.9290 0.6940 0.1250;
+            0.4940 0.1840 0.5560;
+            0.4660 0.6740 0.1880;
+            0.3010 0.7450 0.9330;
+            0.6350 0.0780 0.1840];
     end
     
     methods
@@ -22,6 +28,7 @@ classdef General
         batchFunction(set_obj,function_handle,inds)
         general_gephi_nodes_table(nodes,values,x,y,filepath,filename);
         degree_radius_gephi_nodes_table(nodes,values,degree_vector,filepath,filename);
+        make_fig_bold(folderpath)
     end
 end
 

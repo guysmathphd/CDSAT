@@ -290,6 +290,7 @@ classdef EngineClass <  handle
                 obj.sys_half_life_amp{i2} = mean(half_lives);
             end
             obj.save_obj();
+            General.save_var(obj.sys_half_life_amp,fullfile(obj.resultsPath,'obj_properties'),'sys_half_life_amp');
         end
         function set_sys_half_life_amp_2(obj)
             mypath = fullfile(obj.resultsPath,'obj_properties','solution_random_perts_2');
@@ -426,11 +427,11 @@ classdef EngineClass <  handle
             obj.set_random_perturbations(isOnlyPositive,false);
         end
         function solve_random_perturbations(obj)
-            obj.solve(3,1,1,0,false,false);
+            obj.solve(3,1,1,0,true,false);
             %             obj.solve(4,1,1,0,true,false);
         end
         function solve_random_perturbations_2(obj)
-            obj.solve(4,1,1,0,false,false);
+            obj.solve(4,1,1,0,true,false);
         end
         function write_norms_thetas_multi_folders(obj)
             foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
@@ -719,12 +720,12 @@ classdef EngineClass <  handle
         end
         function obj = solve_single_node_pert(obj,node_id)
             pert = zeros(obj.N,1);pert(node_id) = 1/sqrt(length(node_id));
-            stop_cond_str = 'stepEndTime >= 100*half_life';
+            stop_cond_str =  'a(end) < .01'; %'stepEndTime >= 100*half_life';
             eps_val = 1;ss = obj.steady_state;epsFactor = 0.9;
             [new_epsilon, init_out, is_init_legit] = obj.check_epsilon(eps_val, pert, ss', obj.epsThreshold,...
                 epsFactor, obj.init_condition_str);
             foldernamestr = 'single_node_pert_sol';
-            [sol_t,sol_x] = obj.single_solve(obj.opts,obj.difEqSolver,init_out,obj.solverTimeStep,obj.maxTime,stop_cond_str,true);
+            [sol_t,sol_x] = obj.single_solve(obj.opts,obj.difEqSolver,init_out,obj.solverTimeStep,obj.maxTime,stop_cond_str,false);
             obj.save_var(sol_t,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,['sol_t_' EngineClass.array2str(node_id)]);
             obj.save_var(sol_x,fullfile(obj.resultsPath,'obj_properties'),foldernamestr,['sol_x_' EngineClass.array2str(node_id)]);
         end
@@ -750,7 +751,11 @@ classdef EngineClass <  handle
         function obj = solve_single_node_perts_batch(obj)
             [~,i] = sort(obj.degree_vector_weighted,'descend');
             node_ids = i(1:10);node_ids(end+1) = floor(obj.N/2);
+            a=0;
             for node_id = node_ids'
+                if a
+                    continue
+                end
                 obj.solve_single_node_pert(node_id);
             end
         end
@@ -781,7 +786,7 @@ classdef EngineClass <  handle
             setBreak1 = false;setBreak2 = false; % stop while loop?
             obj.adjacencyMatrix = General.load_var(fullfile('networks',obj.networkName,'adjacency_matrix'));
             first_appendall = true;
-            half_life = maxTime;a=[];
+            half_life = maxTime;a=[];first_step = true;
             while ~setBreak1 && ~setBreak2 && (~stopAfterAppendAll || first_appendall)
                 % check if this step passes maxTime and set stepEndTime
                 if t + timeStep >= maxTime
@@ -801,7 +806,7 @@ classdef EngineClass <  handle
                 cur_pert_prop = cur_pert./obj.steady_state;
                 a(end+1) = norm(cur_pert_prop)/norm(pert0./obj.steady_state);
                 disp(['a = ' num2str(a(end))]);
-                appendall = first_appendall && (a(end) < .5*norm(pert0));
+                appendall = (first_appendall && (a(end) < .5*norm(pert0))) || first_step;
                 if ~appendall
                     sol_t(end+1,:)=step_sol_t(end,:);
                     sol_x(end+1,:)=step_sol_x(end,:);
@@ -811,6 +816,7 @@ classdef EngineClass <  handle
                     half_life = step_sol_t(end);
                     first_appendall = false;
                 end
+                first_step = false;
                 eval(['setBreak2 = ' stop_cond_str]);
                 if setBreak2
                     disp('setBreak2 = true');
@@ -930,7 +936,7 @@ classdef EngineClass <  handle
                         if pertType~=1
                             pert0 = init-obj.steady_state;a=[];
                         end
-                        aa=[];
+                        aa=[];first_step = true;
                         while ~setBreak1 && ~setBreak2
                             % check if this step passes maxTime and set stepEndTime
                             %                             if t + obj.solverTimeStep >= obj.maxTime
@@ -955,7 +961,11 @@ classdef EngineClass <  handle
                                 cur_pert_prop = cur_pert./obj.steady_state;
                                 a(end+1) = norm(cur_pert_prop)/norm(pert0./obj.steady_state);
                                 disp(['a = ' num2str(a(end))]);
-                                appendall = first_appendall && (a(end) < .5); %(norm(obj.steady_state - sol_x(end,:)) < .5*norm(pert0));
+                                appendall = (first_appendall && (a(end) < .5)) || first_step; %(norm(obj.steady_state - sol_x(end,:)) < .5*norm(pert0));
+                                if isBreakAfterHalfLife && a(end) < .01
+                                    setBreak1 = true;
+                                    disp('isBreakAfterHalfLife true, setBreak1 = true');
+                                end
                             else
                                 appendall = false;
                             end
@@ -971,11 +981,9 @@ classdef EngineClass <  handle
                                 eval([sol_t_var_str '{1,pertInd,epsInd}(end+1:end+length(sol_t)-1,1)=sol_t(2:end,:);']);
                                 eval([sol_x_var_str '{1,pertInd,epsInd}(end+1:end+size(sol_x,1)-1,:)=sol_x(2:end,:);']);
                                 first_appendall = false;
-                                if isBreakAfterHalfLife
-                                    setBreak1 = true;
-                                    disp('isBreakAfterHalfLife true, setBreak1 = true');
-                                end
+
                             end
+                            first_step = false;
                             if pertType == 1
                                 aa(end+1)=max(abs(sol_x_1{1,pertInd,epsInd}(end,:)-sol_x_1{1,pertInd,epsInd}(end-1,:)));
                                 plot(aa,'.');
@@ -4084,6 +4092,130 @@ classdef EngineClass <  handle
             
             
         end
+        %% fig30*
+        function plot_network_dts(obj)
+            fname = 'fig30a';
+            sfactor = 1;
+            network = obj.networkName;
+            netpath = fullfile('networks/',network);
+            k = General.load_var(fullfile(netpath,'degree_vector'));
+            [k_sorted,I] = sort(k,'descend');
+            A = General.load_var(fullfile(netpath,'adjacency_matrix'));
+            f = openfig(fullfile(netpath,'figs/',"net09a.fig"));
+            hax = f.Children;
+            nodes = hax.Children;
+            sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                'single_node_pert_sol','sol_x_1.mat'));
+            tau_As = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                'single_node_pert_sol/','sol_x_1_tau_A.mat'));
+            tau_A = tau_As{1};
+            pert = (sol_x' - obj.steady_state')';
+            pert0 = pert(1,:);
+            R = General.load_var(fullfile(netpath,'net09-R'));
+            thetas = General.load_var(fullfile(netpath,'net09-thetas'));
+            phis = General.load_var(fullfile(netpath,'net09-phis'));
+            
+            f.Name = fname;
+            ind = find(abs(pert0) >0,1,'first');
+            node = nodes(end+1-ind);
+            
+            R_max = max(R);
+            old_R = R(ind);
+            theta = thetas(ind);phi=phis(ind);
+            new_R =(1 + pert0(ind)*sfactor)*R_max;
+            [node.XData,node.YData,node.ZData] = sph2cart(...
+                theta,phi,new_R);
+            
+            A_ind = A(ind,:);
+            num_links_to_draw = 5;num_links_drawn = 0;
+            for i1 = 1:obj.N
+                if A_ind(I(i1)) > 0
+                    node2 = nodes(end+1-I(i1));
+                    x = [node.XData, node2.XData];
+                    y = [node.YData, node2.YData];
+                    z = [node.ZData, node2.ZData];
+                    plot3(x,y,z,'LineStyle','--',...
+                        'Color',node2.Color,...
+                        'LineWidth',0.1);
+                    num_links_drawn = num_links_drawn+1;
+                    if num_links_drawn > num_links_to_draw
+                        break
+                    end
+                end
+            end
+            General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
+            
+           % fig30b
+           fname = 'fig30b';
+           f.Name = fname;
+           
+           max_steps = 10;
+           min_steps = 1;
+           tau_A = floor(2*tau_A);
+           if tau_A > 2
+               num_steps = min(max_steps,tau_A);
+           elseif tau_A < 2
+               num_steps = max(min_steps,tau_A);
+           else
+               num_steps = 2;
+           end
+           R_step_size = (new_R - old_R)/num_steps;
+           Rs = new_R:-R_step_size:old_R;
+           [x,y,z] = sph2cart(theta,phi,Rs(2:end));
+           orig_color = node.MarkerFaceColor;
+           white_diff = [1 1 1] - orig_color;
+           shades = 1:-1/(num_steps+1):1/(num_steps+1);
+           white_diffs = white_diff'.*shades;
+           new_colors = ([1;1;1] - white_diffs)';
+           
+           node.MarkerFaceColor = new_colors(end,:);
+           node.MarkerEdgeColor = new_colors(end,:);
+           for i1 = 1:num_steps
+               plot3(x(i1),y(i1),z(i1),'o','MarkerSize',node.MarkerSize,...
+                   'MarkerFaceColor',new_colors(end-i1,:),...
+                   'MarkerEdgeColor',new_colors(end-i1,:));hold on;
+           end
+           General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
+        end
+        %% fig31*
+        function plot_network_dts_2(obj)
+            %fig31a
+            fname = 'fig31a';
+            sfactor = 1;
+            network = obj.networkName;
+            netpath = fullfile('networks/',network);
+            f = openfig(fullfile(netpath,'figs/',"net09c.fig"));
+            hax = f.Children;
+            nodes = hax.Children;
+            sol_t = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                'single_node_pert_sol','sol_t_2_4_1_22_10.mat'));
+            sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                'single_node_pert_sol','sol_x_2_4_1_22_10.mat'));
+            pert = (sol_x' - obj.steady_state')';max_pert = max(abs(pert),[],'all');
+            pert = pert/max_pert;
+            pert0 = pert(1,:);
+            nodes.ZData = abs(pert0);
+            General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
+            
+            %fig31b
+            fname = 'fig31b';
+            tau_As = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                'single_node_pert_sol/','sol_x_2_4_1_22_10_tau_A.mat'));
+            tau_A = tau_As{1};
+            nodes.MarkerFaceAlpha = .1;nodes.MarkerEdgeAlpha = .1;
+            num_taus = 2;frames_per_tau = 10;
+            hold on;
+            X = nodes.XData;Y = nodes.YData;C = nodes.CData;
+            for i1 = 1:num_taus*frames_per_tau
+                ind = find(sol_t>=i1*tau_A/frames_per_tau,1,'first');
+                pert_ind = pert(ind,:);
+                s = scatter3(X,Y,abs(pert_ind),'MarkerFaceAlpha',.1,...
+                    'MarkerFaceColor',C,'MarkerEdgeColor',C,...
+                    'MarkerEdgeAlpha',.1);
+            end
+            General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
+        end
+        
         %%
         function obj = set_networkNameSF1(obj)
             obj.networkName = 'SF1';

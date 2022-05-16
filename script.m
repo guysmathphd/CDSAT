@@ -1227,7 +1227,7 @@ EngineClass.write_norms_thetas_multi_sol(fullfile(obj.resultsPath,'obj_propertie
 %%
 obj.batchFunction(@set_sys_half_life_amp,1:7);
 %%
-set.batchFunction(@write_norms_thetas_multi_folders,1:7);
+obj.batchFunction(@write_norms_thetas_multi_folders,1:7);
 %%
 set.batchFunction(@plot_pert_amp_phase_vs_t,1:7);
 %%
@@ -1338,7 +1338,11 @@ disp('now solving');
 %%
 REG4.solve(1,1,1,2,false,true);
 %%
-obj.batchFunction(@solve_random_perturbations,6:6);
+obj.batchFunction(@solve_random_perturbations,2:7);
+%%
+obj.batchFunction(@solve_single_node_perts_batch,6:7);
+obj.batchFunction(@solve_single_node_combs_perts_batch,1:7);
+obj.batchFunction(@solve_single_node_sum_perts_batch,1:7);
 
 %%
     %% test34REG5 A = BA1 N=5000 a=1/4
@@ -1440,3 +1444,65 @@ obj.write_gephi_nodes_table_PEV();
 obj.plot_eigvecs_mass();
 %%
 obj.batchFunction(@write_gephi_nodes_table_jacobian_PEV,1:7);
+%%
+folderpath = fullfile('tests','test27set2/','setfigs','forBaruch/');
+General.make_fig_bold(folderpath);
+%%
+xs = [];ys=[];
+for i=1:length(h)
+    xs = [xs h(i).XData];
+    ys = [ys h(i).YData];
+end
+xmin = min(xs);xmax=max(xs);
+ymin = min(ys);ymax=max(ys);
+xlim = get(gca,'XLim');
+ylim = get(gca,'YLim');
+loglog([xmin xmax],[ymin ymax],'k','LineWidth',3);
+%%
+get(gca,'XLim')
+set(gca,'XLim',[.0030/2,3330/5]);
+%%
+get(gca,'YLim')
+set(gca,'YLim',[.001*7 1045.430/5]);
+%%
+set(gca,'XTick',[1e-5,1e-3,1e-1,10,1e3])
+set(gca,'YLim',[1e-2,1])
+set(gca,'YLim',[0,1])
+set(gca,'YTick',[1e-1,1])
+set(gca,'YScale','linear')
+set(gca,'XMinorTick','on')
+set(gca,'YMinorTick','on')
+set(gca,'XTickMode','auto')
+set(gca,'XTick',[])
+ha.XRuler.MinorTickValues = [2*1e-3:1e-3:9*1e-3,...
+    2*1e-2:1e-2:9*1e-2,2*1e-1:1e-1:9*1e-1,2:9,20:10:90,...
+    200:100:900]
+ha.YRuler.MinorTickValues = [2*1e-3:1e-3:9*1e-3,...
+    2*1e-2:1e-2:9*1e-2,2*1e-1:1e-1:9*1e-1,2:9,20:10:90,...
+    200:100:900]
+
+set(gca,'XTick',[1e-2,1e-1,1,10,1e2])
+set(gca,'XTickLabels',{'10^{-2}','','10^0','','10^2'})
+set(gca,'YTick',[1e-2,1e-1,1,10,1e2])
+set(gca,'YTickLabels',{'10^{-2}','','10^0','','10^2'})
+set(gca,'TickLength',[.015 .025])
+set(gca,'YTick',0:.2:1)
+ha.YRuler.MinorTick = 'on'
+ha.YRuler.MinorTickValues = .1:.2:.9
+%%
+obj.plot_pert_props_vs_times_1({'single_node_pert_sol'},{'2'});
+%%
+close all;
+reg4.plot_network_dts();
+%%
+close all;
+set.batchFunction(@plot_network_dts,1:7);
+%%
+close all;
+obj.plotNet02();
+%%
+close all;
+obj.plot_network_dts_2();
+%%
+close all;
+set.batchFunction(@plot_network_dts_2,1:7);

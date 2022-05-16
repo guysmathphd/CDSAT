@@ -3,7 +3,7 @@ function plotTauVsQ(obj)
 % foldernames = {'eigvec_pert_max_hub','eigvec_pert_min_hub',...
 %     'solution_random_perts','single_node_pert_sol'};
 foldernames = {'solution_random_perts','solution_random_perts_2','single_node_pert_sol','solution_eigvec_perts'};
-colors = {'b','r','k','m','g','c','y'};
+colors = General.colors1;
 markers = {'o','s','^','*','+','x','v','<','>','.','d','p','h','_','|'};
 suf = {'','-loglog'};plotfun = {@plot,@loglog};suf_tau = {'1','2'};
 for j = 1:length(suf)
@@ -66,32 +66,33 @@ for j = 1:length(suf)
                     tau_As = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A']));
                     tau_A = tau_As{j1};
                     Q4 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q4']));
-                    p = plotfun{j}(hax{1},Q4,tau_A,colors{i1},'Marker',markers{i1},'MarkerSize',size);hold(hax{1},'on');
+                    p = plotfun{j}(hax{1},Q4,tau_A,'MarkerEdgeColor',colors(i1,:),...
+                        'MarkerFaceColor',colors(i1,:),'Marker','o','MarkerSize',size);hold(hax{1},'on');
                     title(hax{1},tit1,'interpreter','latex');
                     xlabel(hax{1},'$Q4 = \frac{\mathbf{pert(0)}\cdot k^{-\mu}}{\| \mathbf{pert(0)} \|_1 }$','Interpreter','latex');ylabel(hax{1},[desc1  suf{j}],'Interpreter','latex');
                     
                     Q6 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q6']));
-                    p = plotfun{j}(hax{2},Q6,tau_A,colors{i1},'Marker',markers{i1},'MarkerSize',size);hold(hax{2},'on');
+                    p = plotfun{j}(hax{2},Q6,tau_A,'MarkerEdgeColor',colors(i1,:),'Marker',markers{i1},'MarkerSize',size);hold(hax{2},'on');
                     title(hax{2},tit2,'interpreter','latex');
                     xlabel(hax{2},'Q6','Interpreter','latex');ylabel(hax{2},[desc1 suf{j}],'Interpreter','latex');
                     
                     Q7 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q7']));
-                    plotfun{j}(hax{3},Q7,tau_A,colors{i1},'Marker',markers{i1},'MarkerSize',size);hold(hax{3},'on');
+                    plotfun{j}(hax{3},Q7,tau_A,'MarkerEdgeColor',colors(i1,:),'Marker',markers{i1},'MarkerSize',size);hold(hax{3},'on');
                     title(hax{3},tit3,'interpreter','latex');
                     xlabel(hax{3},'$Q7 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 \max{(k)}}$','Interpreter','latex');ylabel(hax{3},[desc1 suf{j}],'Interpreter','latex');
 
                     Q8 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q8']));
-                    plotfun{j}(hax{4},Q8,tau_A,colors{i1},'Marker',markers{i1},'MarkerSize',size);hold(hax{4},'on');
+                    plotfun{j}(hax{4},Q8,tau_A,'MarkerEdgeColor',colors(i1,:),'Marker',markers{i1},'MarkerSize',size);hold(hax{4},'on');
                     title(hax{4},tit4,'interpreter','latex');
                     xlabel(hax{4},'$Q8 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel(hax{4},[desc1 suf{j}],'Interpreter','latex');
                     
                     Q9 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q9']));
-                    plotfun{j}(hax{5},Q9,tau_A,colors{i1},'Marker',markers{i1},'MarkerSize',size);hold(hax{5},'on');
+                    plotfun{j}(hax{5},Q9,tau_A,'MarkerEdgeColor',colors(i1,:),'Marker',markers{i1},'MarkerSize',size);hold(hax{5},'on');
                     title(hax{5},tit5,'interpreter','latex');
                     xlabel(hax{5},'$Q9 = \frac{\mathbf{\delta x(0)}\cdot k^{-\mu} \cdot \mathbf{ss}}{\| \mathbf{\delta x(0)} \|_1 }$','Interpreter','latex');ylabel(hax{5},[desc1 suf{j}],'Interpreter','latex');
                     
                     Q10 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q10']));
-                    plotfun{j}(hax{6},Q10,tau_A,colors{i1},'Marker',markers{i1},'MarkerSize',size);hold(hax{6},'on');
+                    plotfun{j}(hax{6},Q10,tau_A,'MarkerEdgeColor',colors(i1,:),'Marker',markers{i1},'MarkerSize',size);hold(hax{6},'on');
                     title(hax{6},tit6,'interpreter','latex');
                     xlabel(hax{6},'$Q10 = \frac{\mathbf{\delta x(0)}\cdot k^{\alpha}}{\| \mathbf{\delta x(0)} \cdot k^{-\xi}\|_1 }$','Interpreter','latex');ylabel(hax{6},[desc1 suf{j}],'Interpreter','latex');
 
