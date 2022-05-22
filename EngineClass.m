@@ -4180,13 +4180,11 @@ classdef EngineClass <  handle
         %% fig31*
         function plot_network_dts_2(obj)
             %fig31a
-            fname = 'fig31a';
+            
+            myfuncs = {@abs,@(x) log10(abs(x)*9+1)};figsufs = {'','-zlog'};
             sfactor = 1;
             network = obj.networkName;
-            netpath = fullfile('networks/',network);
-            f = openfig(fullfile(netpath,'figs/',"net09c.fig"));
-            hax = f.Children;
-            nodes = hax.Children;
+            netpath = fullfile('networks/',network);            
             sol_t = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
                 'single_node_pert_sol','sol_t_2_4_1_22_10.mat'));
             sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
@@ -4194,25 +4192,54 @@ classdef EngineClass <  handle
             pert = (sol_x' - obj.steady_state')';max_pert = max(abs(pert),[],'all');
             pert = pert/max_pert;
             pert0 = pert(1,:);
-            nodes.ZData = abs(pert0);
-            General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
-            
-            %fig31b
-            fname = 'fig31b';
-            tau_As = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
-                'single_node_pert_sol/','sol_x_2_4_1_22_10_tau_A.mat'));
-            tau_A = tau_As{1};
-            nodes.MarkerFaceAlpha = .1;nodes.MarkerEdgeAlpha = .1;
-            num_taus = 2;frames_per_tau = 10;
-            hold on;
-            X = nodes.XData;Y = nodes.YData;C = nodes.CData;
-            for i1 = 1:num_taus*frames_per_tau
-                ind = find(sol_t>=i1*tau_A/frames_per_tau,1,'first');
-                pert_ind = pert(ind,:);
-                s = scatter3(X,Y,abs(pert_ind),'MarkerFaceAlpha',.1,...
-                    'MarkerFaceColor',C,'MarkerEdgeColor',C,...
-                    'MarkerEdgeAlpha',.1);
+            for i2 = 1:length(figsufs)
+                fnamepre = 'fig31a';
+                fname = [fnamepre figsufs{i2}];
+                f = openfig(fullfile(netpath,'figs/',"net09c.fig"));
+                f.Name = fname;
+                hax = f.Children;
+                nodes = hax.Children;
+                nodes.ZData = myfuncs{i2}(pert0);
+                General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
+                
+                %fig31b
+                fnamepre = 'fig31b';
+                fname = [fnamepre figsufs{i2}];
+                f.Name = fname;
+                tau_As = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                    'single_node_pert_sol/','sol_x_2_4_1_22_10_tau_A.mat'));
+                tau_A = tau_As{1};
+                nodes.MarkerFaceAlpha = .1;nodes.MarkerEdgeAlpha = .1;
+                num_taus = 2;frames_per_tau = 10;
+                hold on;
+                X = nodes.XData;Y = nodes.YData;C = nodes.CData;
+                for i1 = 1:num_taus*frames_per_tau
+                    ind = find(sol_t>=i1*tau_A/frames_per_tau,1,'first');
+                    pert_ind = pert(ind,:);
+                    s = scatter3(X,Y,myfuncs{i2}(pert_ind),'MarkerFaceAlpha',.1,...
+                        'MarkerFaceColor',C,'MarkerEdgeColor',C,...
+                        'MarkerEdgeAlpha',.1);
+                end
+                General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
             end
+        end
+        function plot_network_dts_3(obj)
+            %fig32a
+            fname = 'fig32a';
+            subnetsize = 500;
+            network = obj.networkName;
+            netpath = fullfile('networks/',network);
+            k = General.load_var(fullfile(netpath,'degree_vector'));
+            [K,I] = sort(k,'descend');
+            k_sub = k(I(1:subnetsize));
+            sol_t = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                'single_node_pert_sol','sol_t_2_4_1_22_10.mat'));
+            sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                'single_node_pert_sol','sol_x_2_4_1_22_10.mat'));
+            pert = (sol_x' - obj.steady_state')';max_pert = max(abs(pert),[],'all');
+            pert = pert/max_pert;
+            pert0 = pert(1,:);
+            f = General.ThreeDim_network_layout_visualization(k_sub,log10(abs(pert0(I(1:subnetsize)))*9+1),subnetsize,fname);
             General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
         end
         

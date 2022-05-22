@@ -66,6 +66,7 @@ classdef Network
         obj = plot_eigvecs_mass(obj);
         obj = plotNet02(obj);
         obj = set_single_node_combs_perts(obj)
+        obj = plotNet03(obj);
         function outputArg = method1(obj,inputArg)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
