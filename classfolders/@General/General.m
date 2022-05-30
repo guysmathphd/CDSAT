@@ -29,7 +29,7 @@ classdef General
         general_gephi_nodes_table(nodes,values,x,y,filepath,filename);
         degree_radius_gephi_nodes_table(nodes,values,degree_vector,filepath,filename);
         make_fig_bold(folderpath);
-        f=ThreeDim_network_layout_visualization(d,v,n,fname);
+        hax=ThreeDim_network_layout_visualization(d,v,n,fname,hax);
     end
 end
 

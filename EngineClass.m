@@ -4239,7 +4239,25 @@ classdef EngineClass <  handle
             pert = (sol_x' - obj.steady_state')';max_pert = max(abs(pert),[],'all');
             pert = pert/max_pert;
             pert0 = pert(1,:);
-            f = General.ThreeDim_network_layout_visualization(k_sub,log10(abs(pert0(I(1:subnetsize)))*9+1),subnetsize,fname);
+            f=figure('Name',fname,'NumberTitle','off');hax = axes;
+%             f = figure(20);f.Name = fname;f.NumberTitle = 'off';
+            hax = General.ThreeDim_network_layout_visualization(k_sub,log10(abs(pert0(I(1:subnetsize)))*9+1),subnetsize,fname,hax);
+            General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
+            
+            fnamepre = 'fig32b';
+            fname = [fnamepre];% figsufs{i2}];
+            f.Name = fname;
+            tau_As = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                'single_node_pert_sol/','sol_x_2_4_1_22_10_tau_A.mat'));
+            tau_A = tau_As{1};
+%            nodes.MarkerFaceAlpha = .1;nodes.MarkerEdgeAlpha = .1;
+            num_taus = 2;frames_per_tau = 3;
+            hold(hax,'on');
+            for i1 = 1:num_taus*frames_per_tau
+                ind = find(sol_t>=i1*tau_A/frames_per_tau,1,'first');
+                pert_ind = pert(ind,:);
+                hax = General.ThreeDim_network_layout_visualization(k_sub,log10(abs(pert_ind(I(1:subnetsize)))*9+1),subnetsize,fname,hax);
+            end
             General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
         end
         

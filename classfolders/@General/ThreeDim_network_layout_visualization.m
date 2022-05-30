@@ -1,4 +1,4 @@
-function f = ThreeDim_network_layout_visualization(d,v,n,fname)
+function hax = ThreeDim_network_layout_visualization(d,v,n,fname,hax)
 %% Input of the function 
 % d is the degree vector of the network
 % v is the quantity on the z axis
@@ -251,9 +251,9 @@ for i=1:n
           end
       end
     end
-    f = figure(20);f.Name = fname;f.NumberTitle = 'off';
+%     f = figure(20);f.Name = fname;f.NumberTitle = 'off';
     
-    s = surf(X, Y, pdf);
+    s = surf(hax,X, Y, pdf);
     alpha 0.1;
     s.FaceColor = fcolor;
     s.EdgeColor = 'None';
