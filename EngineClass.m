@@ -4180,8 +4180,9 @@ classdef EngineClass <  handle
         %% fig31*
         function plot_network_dts_2(obj)
             %fig31a
-            
+
             myfuncs = {@abs,@(x) log10(abs(x)*9+1)};figsufs = {'','-zlog'};
+            basefigs = {'net09c.fig','net10a.fig'};
             sfactor = 1;
             network = obj.networkName;
             netpath = fullfile('networks/',network);            
@@ -4191,36 +4192,60 @@ classdef EngineClass <  handle
                 'single_node_pert_sol','sol_x_2_4_1_22_10.mat'));
             pert = (sol_x' - obj.steady_state')';max_pert = max(abs(pert),[],'all');
             pert = pert/max_pert;
-            pert0 = pert(1,:);
+            pert0 = pert(1,:);nodes_sub_inds = find(pert0~=0);
             for i2 = 1:length(figsufs)
-                fnamepre = 'fig31a';
-                fname = [fnamepre figsufs{i2}];
-                f = openfig(fullfile(netpath,'figs/',"net09c.fig"));
-                f.Name = fname;
-                hax = f.Children;
-                nodes = hax.Children;
-                nodes.ZData = myfuncs{i2}(pert0);
-                General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
-                
-                %fig31b
-                fnamepre = 'fig31b';
-                fname = [fnamepre figsufs{i2}];
-                f.Name = fname;
-                tau_As = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
-                    'single_node_pert_sol/','sol_x_2_4_1_22_10_tau_A.mat'));
-                tau_A = tau_As{1};
-                nodes.MarkerFaceAlpha = .1;nodes.MarkerEdgeAlpha = .1;
-                num_taus = 2;frames_per_tau = 10;
-                hold on;
-                X = nodes.XData;Y = nodes.YData;C = nodes.CData;
-                for i1 = 1:num_taus*frames_per_tau
-                    ind = find(sol_t>=i1*tau_A/frames_per_tau,1,'first');
-                    pert_ind = pert(ind,:);
-                    s = scatter3(X,Y,myfuncs{i2}(pert_ind),'MarkerFaceAlpha',.1,...
-                        'MarkerFaceColor',C,'MarkerEdgeColor',C,...
-                        'MarkerEdgeAlpha',.1);
+                for i3 = 1:length(basefigs)
+                    basefig = basefigs{i3};
+                    fnamepre = 'fig31a';
+                    fname = [fnamepre '-' num2str(i3) figsufs{i2}];
+                    f = openfig(fullfile(netpath,'figs/',basefig));
+                    colormap(parula);
+                    cmap = colormap;cmap_size = size(cmap,1);
+%                     set(gca,'Color','k');
+                    f.Name = fname;
+                    hax = f.Children;
+                    nodes = hax.Children;
+%                     nodes.MarkerFaceColor = 'w';nodes.MarkerEdgeColor = 'w';
+                    nodes.ZData = myfuncs{i2}(pert0);
+                    f.InvertHardcopy = 'off';
+                    General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
+                    
+                    %fig31b
+                    markalpha = .2;
+                    fnamepre = 'fig31b';
+                    fname = [fnamepre '-' num2str(i3) figsufs{i2}];
+                    f.Name = fname;
+                    tau_As = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                        'single_node_pert_sol/','sol_x_2_4_1_22_10_tau_A.mat'));
+                    tau_A = tau_As{1};
+                    nodes.MarkerFaceAlpha = markalpha;nodes.MarkerEdgeAlpha = markalpha;
+                    num_taus = 1;frames_per_tau = 256;
+                    hold on;
+                    X = nodes.XData(nodes_sub_inds);Y = nodes.YData(nodes_sub_inds);C = [1 1 1];%nodes.CData;
+                    sz = nodes.SizeData;prev_ind = 1;same_ind_count = 1;C_ind = 1;
+                    for i1 = 1:num_taus*frames_per_tau
+                        ind = find(sol_t<=i1*tau_A/frames_per_tau,1,'last');
+                        disp(num2str(ind));
+                        
+                        if ind ~= prev_ind
+                            pert_ind = pert(ind,:);
+                            pert_prev_ind = pert(prev_ind,:);
+                            for i4 = 1:same_ind_count
+                                C = cmap(C_ind,:);
+                                z = pert_prev_ind - (i4*(pert_prev_ind-pert_ind)/same_ind_count);
+                                s = scatter3(X,Y,myfuncs{i2}(z(nodes_sub_inds)),sz,'MarkerFaceAlpha',markalpha,...
+                                    'MarkerFaceColor',C,'MarkerEdgeColor',C,...
+                                    'MarkerEdgeAlpha',markalpha);
+                                C_ind = C_ind + 1;
+                            end
+                            same_ind_count = 1;
+                            prev_ind = ind;
+                        else
+                            same_ind_count = same_ind_count + 1;
+                        end
+                    end
+                    General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
                 end
-                General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
             end
         end
         function plot_network_dts_3(obj)

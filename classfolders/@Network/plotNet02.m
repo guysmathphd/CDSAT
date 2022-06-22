@@ -52,11 +52,14 @@ General.save_fig(f,fname,fullfile(obj.path,'figs'));
 fname = 'net09c';
 f = figure('Name',fname,'NumberTitle','off');
 num_circles = 7;node_inds = (1:obj.N)';
-R1 = 2*floor(num_circles*node_inds/(obj.N+1)) + 2;
+% R1 = 2*floor(num_circles*node_inds/(obj.N+1)) + 2;
+R1 = 2*floor(num_circles*rand(obj.N,1)) + 2;
 [X,Y,Z] = pol2cart(thetas, R1, zeros(size(R1)));S = 20;
-C = [0 0.4470 0.7410];
+% C = [0 0.4470 0.7410];
+C = [1 1 1];
 s = scatter3(X,Y,Z,S,C,'MarkerFaceColor', C);
-ax = gca;ax.ZLim = [0 1];ax.XLim = [-max(R1),max(R1)];
+ax = gca;ax.Color = 'k';
+ax.ZLim = [0 1];ax.XLim = [-max(R1),max(R1)];
 ax.YLim = [ax.XLim];
 General.save_fig(f,fname,fullfile(obj.path,'figs'));
 end

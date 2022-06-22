@@ -7,6 +7,7 @@ try
 catch exception
     disp(exception.message);
 end
+
 try
     saveas(f,fullfile(path,name),'png');
 catch exception

@@ -1505,7 +1505,7 @@ close all;
 obj.plot_network_dts_2();
 %%
 close all;
-set.batchFunction(@plot_network_dts_2,1:7);
+set.batchFunction(@plot_network_dts_2,1:5);
 %%
 obj.plotNet03();
 %%
