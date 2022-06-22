@@ -4190,9 +4190,19 @@ classdef EngineClass <  handle
                 'single_node_pert_sol','sol_t_2_4_1_22_10.mat'));
             sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
                 'single_node_pert_sol','sol_x_2_4_1_22_10.mat'));
+%             sol_t = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+%                 'single_node_pert_sol','sol_t_2_4_1_22_10_19_9_46_18_62.mat'));
+%             sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+%                 'single_node_pert_sol','sol_x_2_4_1_22_10_19_9_46_18_62.mat'));
+%             sol_t = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+%                 'solution_random_perts','sol_t_random_perturbations_1.mat'));
+%             sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+%                 'solution_random_perts','sol_x_random_perturbations_1.mat'));
+            
+            
             pert = (sol_x' - obj.steady_state')';max_pert = max(abs(pert),[],'all');
             pert = pert/max_pert;
-            pert0 = pert(1,:);nodes_sub_inds = find(pert0~=0);
+            pert0 = pert(1,:);nodes_sub_inds = 1:size(pert0,2); %find(pert0~=0);
             for i2 = 1:length(figsufs)
                 for i3 = 1:length(basefigs)
                     basefig = basefigs{i3};
@@ -4223,9 +4233,16 @@ classdef EngineClass <  handle
                     hold on;
                     X = nodes.XData(nodes_sub_inds);Y = nodes.YData(nodes_sub_inds);C = [1 1 1];%nodes.CData;
                     sz = nodes.SizeData;prev_ind = 1;same_ind_count = 1;C_ind = 1;
+                    if length(sz) == 1
+                        mysz = sz;
+                    else
+                        mysz = sz(nodes_sub_inds);
+                    end
                     for i1 = 1:num_taus*frames_per_tau
                         ind = find(sol_t<=i1*tau_A/frames_per_tau,1,'last');
-                        disp(num2str(ind));
+                        disp(['i1 = ' num2str(i1)]);
+                        disp(['ind = ' num2str(ind)]);
+                        
                         
                         if ind ~= prev_ind
                             pert_ind = pert(ind,:);
@@ -4233,10 +4250,12 @@ classdef EngineClass <  handle
                             for i4 = 1:same_ind_count
                                 C = cmap(C_ind,:);
                                 z = pert_prev_ind - (i4*(pert_prev_ind-pert_ind)/same_ind_count);
-                                s = scatter3(X,Y,myfuncs{i2}(z(nodes_sub_inds)),sz,'MarkerFaceAlpha',markalpha,...
+                                s = scatter3(X,Y,myfuncs{i2}(z(nodes_sub_inds)),mysz,'MarkerFaceAlpha',markalpha,...
                                     'MarkerFaceColor',C,'MarkerEdgeColor',C,...
                                     'MarkerEdgeAlpha',markalpha);
+                                disp(['C_ind = ' num2str(C_ind)]);
                                 C_ind = C_ind + 1;
+                                
                             end
                             same_ind_count = 1;
                             prev_ind = ind;
@@ -4244,6 +4263,9 @@ classdef EngineClass <  handle
                             same_ind_count = same_ind_count + 1;
                         end
                     end
+                    cbh = colorbar('southoutside');cbh.Ticks = [0 .5 1];
+                    cbh.TickLabels = {'$t=0$','$t=0.5\tau$','$t=1\tau$'};
+                    cbh.TickLabelInterpreter = 'latex';
                     General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
                 end
             end
