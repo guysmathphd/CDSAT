@@ -1511,3 +1511,5 @@ obj.plotNet03();
 %%
 close all;
 set.batchFunction(@plot_network_dts_3,1:7);
+%%
+set.batchFunction(@solve_random_bin_perts,2:5);

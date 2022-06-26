@@ -1,5 +1,5 @@
 function obj = plotNet04(obj)
-netpath = obj.path;maxmarksize = 10;
+netpath = obj.path;maxmarksize = 20;
 % R = General.load_var(fullfile(netpath,'net09-R'));
 k = General.load_var(fullfile(netpath,'degree_vector'));
 rng(2);N=obj.N; marksize = log10(k./min(k));

@@ -516,6 +516,19 @@ classdef EngineClass <  handle
                 end
             end
         end
+        function obj = solve_random_bin_perts(obj)
+            disp('Started solve_random_bin_perts');
+           pert = General.load_var(fullfile('networks',obj.networkName,'random_bin_perts','pert1'));
+           mypath = fullfile(obj.resultsPath,'obj_properties','random_bin_perts');
+           eps_val = 1
+           stop_cond_str = 'stepEndTime >= 100*half_life';stop_after_append_all = false;
+           [~, init_out, ~] = obj.check_epsilon(eps_val, pert, obj.steady_state', obj.epsThreshold,...
+               obj.epsFactor, obj.init_condition_str);
+           [sol_t,sol_x] = obj.single_solve(obj.opts,obj.difEqSolver,init_out,obj.solverTimeStep,obj.maxTime,stop_cond_str,stop_after_append_all);
+           General.save_var(sol_t,mypath,['sol_t_pert1']);
+           General.save_var(sol_x,mypath,['sol_x_pert1']);
+           disp('Finished solving_random_bin_perts');
+        end
         function X = set_pert_eigvec_1(obj,eigenvectors)
             n = obj.numeigenplots;
             V = eigenvectors(:,1:n)';
@@ -4186,10 +4199,10 @@ classdef EngineClass <  handle
             sfactor = 1;
             network = obj.networkName;
             netpath = fullfile('networks/',network);            
-            sol_t = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
-                'single_node_pert_sol','sol_t_2_4_1_22_10.mat'));
-            sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
-                'single_node_pert_sol','sol_x_2_4_1_22_10.mat'));
+%             sol_t = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+%                 'single_node_pert_sol','sol_t_2_4_1_22_10.mat'));
+%             sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+%                 'single_node_pert_sol','sol_x_2_4_1_22_10.mat'));
 %             sol_t = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
 %                 'single_node_pert_sol','sol_t_2_4_1_22_10_19_9_46_18_62.mat'));
 %             sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
@@ -4198,7 +4211,10 @@ classdef EngineClass <  handle
 %                 'solution_random_perts','sol_t_random_perturbations_1.mat'));
 %             sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
 %                 'solution_random_perts','sol_x_random_perturbations_1.mat'));
-            
+            sol_t = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                'random_bin_perts','sol_t_pert1.mat'));
+            sol_x = General.load_var(fullfile(obj.resultsPath,'obj_properties',...
+                'random_bin_perts','sol_x_pert1.mat'));
             
             pert = (sol_x' - obj.steady_state')';max_pert = max(abs(pert),[],'all');
             pert = pert/max_pert;
@@ -4238,15 +4254,28 @@ classdef EngineClass <  handle
                     else
                         mysz = sz(nodes_sub_inds);
                     end
-                    for i1 = 1:num_taus*frames_per_tau
-                        ind = find(sol_t<=i1*tau_A/frames_per_tau,1,'last');
+                    num_iter = num_taus*frames_per_tau;
+                    for i1 = 1:num_iter
+                        cur_t = i1*tau_A/frames_per_tau;
+                        ind = find(sol_t<=cur_t,1,'last');
                         disp(['i1 = ' num2str(i1)]);
                         disp(['ind = ' num2str(ind)]);
                         
                         
-                        if ind ~= prev_ind
-                            pert_ind = pert(ind,:);
+                        if (ind ~= prev_ind) || i1 == num_iter
                             pert_prev_ind = pert(prev_ind,:);
+                            
+                            if ind==prev_ind && ind < size(pert,1)
+%                                 same_ind_count = same_ind_count+1;
+                                ind = prev_ind+1;
+                                pert_ind = pert(ind,:);
+                            elseif ind == size(pert,1)
+                                pert_ind = pert_prev_ind - (pert_prev_ind - pert(prev_ind - 1,:));
+                            else
+                                pert_ind = pert(ind,:);
+                            end
+                            
+                            
                             for i4 = 1:same_ind_count
                                 C = cmap(C_ind,:);
                                 z = pert_prev_ind - (i4*(pert_prev_ind-pert_ind)/same_ind_count);
@@ -4262,6 +4291,7 @@ classdef EngineClass <  handle
                         else
                             same_ind_count = same_ind_count + 1;
                         end
+                        
                     end
                     cbh = colorbar('southoutside');cbh.Ticks = [0 .5 1];
                     cbh.TickLabels = {'$t=0$','$t=0.5\tau$','$t=1\tau$'};
