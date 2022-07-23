@@ -70,6 +70,7 @@ classdef Network
         obj = plotNet04(obj)
         obj = set_logarithmic_bins(obj)
         obj = set_random_bin_perts(obj)
+        obj = set_random_binary_perts(obj)
         function outputArg = method1(obj,inputArg)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here

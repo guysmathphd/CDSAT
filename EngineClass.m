@@ -1640,6 +1640,23 @@ classdef EngineClass <  handle
             General.degree_radius_gephi_nodes_table(nodes,values,k,filepath,filename)
             %             General.general_gephi_nodes_table(nodes,values,x,y,filepath,filename);
         end
+        function obj = calc_Q_distribution(obj)
+            disp('Begin calc Q distributions');
+           rand_binary_perts = General.load_var(fullfile('networks',obj.networkName,'rand_binary_perts'));
+           num_perts = size(rand_binary_perts,2);
+           Qs = zeros(num_perts,1);t = 0;sys_half_life_amp = obj.sys_half_life_amp;
+           mu = obj.mu; k = obj.degree_vector_weighted; xi = obj.xi;ss = obj.steady_state;
+           for i1 = 1:num_perts
+               pert = rand_binary_perts(:,i1)';               
+               x = ss + pert;
+               [~, ~, ~,~,~,Q,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,Q10] = obj.calc_norms_thetas(x,ss,t,sys_half_life_amp,mu,k,xi);
+               Qs(i1) = Q10;
+           end
+           disp('Finished calculating Qs. Saving...');
+            General.save_var(Qs,fullfile(obj.resultsPath,'obj_properties/'),'Q10s_rand_binary_perts');
+            disp('Finished saving.');
+        end
+        % figures / plots
         function obj = plot_results(obj, isDilute)
             if isDilute
                 step = 100;
@@ -4337,6 +4354,18 @@ classdef EngineClass <  handle
             end
             General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
         end
+        %fig33
+        function obj = plot_Qs_distribution(obj)
+            name = 'fig33';desc = '$10^5$ Random binary perturbations $Q_{10}$ Distribution';
+            f=figure('Name',name,'NumberTitle','off');
+            Qs = General.load_var(fullfile(obj.resultsPath,'obj_properties/','Q10s_rand_binary_perts'));
+            histogram(Qs);
+            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            xlabel('$Q_{10}$','Interpreter','latex');
+%             ylabel('Interpreter','latex');
+            legend;
+            General.save_fig(f,name,fullfile(obj.resultsPath,'figs'));
+        end
         
         %%
         function obj = set_networkNameSF1(obj)
@@ -4432,7 +4461,7 @@ classdef EngineClass <  handle
             x = (x'./ss')';
             norms = vecnorm(x');
             norms_normed = norms/norms(1);
-            disp(['norms_normed(1) = ' num2str(norms_normed(1))]);
+%             disp(['norms_normed(1) = ' num2str(norms_normed(1))]);
             ind = find(norms_normed <= norms_normed(1)/2,1,'first');
             H_A = t(ind);
             
@@ -4454,7 +4483,7 @@ classdef EngineClass <  handle
             Q8 = dot(abs(x_init)/norm(x_init,1),k_alpha);
             Q9 = dot(abs(x_init)/norm(x_init,1),k_mu.*ss');
             k_xi = k.^(-xi);
-            Q10 = dot(abs(x_init),k_alpha)/(dot(abs(x_init),k_xi));
+            Q10 = dot(abs(x_init),k_alpha)/(dot(abs(x_init),k_xi)); %set4f
             x_normed = x'./norms;
             x_normed_init = x_normed(:,1);
             thetas = acos(dot(repmat(x_normed_init,1,size(x_normed,2)),x_normed));
