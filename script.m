@@ -1516,3 +1516,5 @@ set.batchFunction(@solve_random_bin_perts,2:5);
 %%
 set.batchFunction(@calc_Q_distribution,2:5);
 set.batchFunction(@plot_Qs_distribution,2:5);
+%%
+set.batchFunction(@calc_Q_distribution,1:4)

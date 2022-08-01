@@ -1642,19 +1642,49 @@ classdef EngineClass <  handle
         end
         function obj = calc_Q_distribution(obj)
             disp('Begin calc Q distributions');
-           rand_binary_perts = General.load_var(fullfile('networks',obj.networkName,'rand_binary_perts'));
-           num_perts = size(rand_binary_perts,2);
-           Qs = zeros(num_perts,1);t = 0;sys_half_life_amp = obj.sys_half_life_amp;
+%            rand_binary_perts = General.load_var(fullfile('networks',obj.networkName,'rand_binary_perts'));
+%            cur_perts = rand_binary_perts;
+%            filename = 'Q10s_rand_binary_perts';
+           filenames = {};
+           [~,single_node_combs] = sort(obj.degree_vector_weighted,'descend');
+           filenames{end+1} = 'Q10s_single_node_perts';
+           
+           double_node_combs = General.load_var(fullfile('networks/',obj.networkName,'node_combs','doubles'));
+%            cur_perts = zeros(obj.N,size(double_node_combs,1));
+%            for i=1:size(cur_perts,2)
+%                cur_perts(double_node_combs(i,:),i) = 1;
+%            end
+           filenames{end+1} = 'Q10s_double_node_perts';
+%            cur_perts = double_node_combs';
+           
+           triple_node_combs = General.load_var(fullfile('networks/',obj.networkName,'node_combs/','triples.mat'));
+           filenames{end+1} = 'Q10s_triple_node_perts';
+           
+           node_combs = {single_node_combs,double_node_combs,triple_node_combs};
+%            num_perts = size(cur_perts,2);
+           
+           t = 0;sys_half_life_amp = obj.sys_half_life_amp;
            mu = obj.mu; k = obj.degree_vector_weighted; xi = obj.xi;ss = obj.steady_state;
-           for i1 = 1:num_perts
-               pert = rand_binary_perts(:,i1)';               
-               x = ss + pert;
-               [~, ~, ~,~,~,Q,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,Q10] = obj.calc_norms_thetas(x,ss,t,sys_half_life_amp,mu,k,xi);
-               Qs(i1) = Q10;
+           for i2 = 1:length(filenames)
+               cur_perts = node_combs{i2}';
+               num_perts = size(cur_perts,2);
+               Qs = zeros(num_perts,1);
+               filename = filenames{i2};
+               parfor i1 = 1:num_perts
+                   if(mod(i1,10000) ==0)
+                       disp(['i1 = ' num2str(i1)])
+                   end
+                   pert = zeros(1,obj.N);
+                   pert(cur_perts(:,i1)) = 1;
+                   %                pert = cur_perts(:,i1)';
+                   x = ss + pert;
+                   [~, ~, ~,~,~,Q,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,Q10] = obj.calc_norms_thetas(x,ss,t,sys_half_life_amp,mu,k,xi);
+                   Qs(i1) = Q10;
+               end
+               disp('Finished calculating Qs. Saving...');
+               General.save_var(Qs,fullfile(obj.resultsPath,'obj_properties/'),filename);
+               disp('Finished saving.');
            end
-           disp('Finished calculating Qs. Saving...');
-            General.save_var(Qs,fullfile(obj.resultsPath,'obj_properties/'),'Q10s_rand_binary_perts');
-            disp('Finished saving.');
         end
         % figures / plots
         function obj = plot_results(obj, isDilute)
@@ -4354,12 +4384,26 @@ classdef EngineClass <  handle
             end
             General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
         end
-        %fig33
+        %fig33*
         function obj = plot_Qs_distribution(obj)
-            name = 'fig33';desc = '$10^5$ Random binary perturbations $Q_{10}$ Distribution';
+            name = 'fig33a';desc = '$10^5$ Random binary perturbations $Q_{10}$ Distribution';
             f=figure('Name',name,'NumberTitle','off');
             Qs = General.load_var(fullfile(obj.resultsPath,'obj_properties/','Q10s_rand_binary_perts'));
             histogram(Qs);
+            title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+            xlabel('$Q_{10}$','Interpreter','latex');
+%             ylabel('Interpreter','latex');
+            legend;
+            General.save_fig(f,name,fullfile(obj.resultsPath,'figs'));
+        end
+        function obj = plot_Qs_distribution_2(obj)
+            name = 'fig33b';desc = '$Q_{10}$ Distribution';
+            f=figure('Name',name,'NumberTitle','off');
+            Qs1 = General.load_var(fullfile(obj.resultsPath,'obj_properties/','Q10s_single_node_perts.mat'));
+            Qs2 = General.load_var(fullfile(obj.resultsPath,'obj_properties/','Q10s_double_node_perts.mat'));
+            Qs3 = General.load_var(fullfile(obj.resultsPath,'obj_properties/','Q10s_triple_node_perts.mat'));
+            Qs = [Qs1; Qs2; Qs3];
+            h = histogram(Qs); h.Normalization = 'probability'; set(gca,'YScale','log');
             title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
             xlabel('$Q_{10}$','Interpreter','latex');
 %             ylabel('Interpreter','latex');
