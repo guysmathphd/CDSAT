@@ -65,6 +65,10 @@ for j = 1:length(suf)
                     tvalues = General.load_var(fullfile(folderpath,[name(1:ind1-2) 't' name(ind1:indsuf-1)]));
                     tau_As = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_tau_A']));
                     tau_A = tau_As{j1};
+                    if isempty(tau_A)
+                        disp([fullfile(folderpath,[name(1:indsuf-1) '_tau_A']) '(' num2str(j1) ') is empty']);
+                        continue
+                    end
                     Q4 = General.load_var(fullfile(folderpath,[name(1:indsuf-1) '_Q4']));
                     p = plotfun{j}(hax{1},Q4,tau_A,'MarkerEdgeColor',colors(i1,:),...
                         'MarkerFaceColor',colors(i1,:),'Marker','o','MarkerSize',size);hold(hax{1},'on');

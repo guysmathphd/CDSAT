@@ -305,15 +305,16 @@ classdef EngineClass <  handle
             obj.sys_half_life_amp_2 = mean(half_lives);
             obj.save_obj();
         end
-        function [vals_binned,vals_binned_mins,vals_binned_maxs] = set_binned_vals(~,values_vec,bins)
-            n = size(bins,1);m=size(values_vec,2);
-            vals_binned = zeros(n,m);vals_binned_mins = zeros(n,m);vals_binned_maxs = zeros(n,m);
+        function [vals_binned_means,vals_binned_mins,vals_binned_maxs,vals_binned] = set_binned_vals(~,values_vec,bins)
+            n = size(bins,1);m=size(values_vec,2);vals_binned = cell(n,m);
+            vals_binned_means = zeros(n,m);vals_binned_mins = zeros(n,m);vals_binned_maxs = zeros(n,m);
             for j = 1:m
                 values_vec_j = values_vec(:,j);
                 for i=1:n
                     ind = bins{i,1};
                     if ~isempty(ind)
-                        vals_binned(i,j) = mean(values_vec_j(ind));
+                        vals_binned{i,j} = values_vec_j(ind);
+                        vals_binned_means(i,j) = mean(values_vec_j(ind));
                         [vals_binned_mins(i,j),~] = min(values_vec_j(ind));
                         [vals_binned_maxs(i,j),~] = max(values_vec_j(ind));
                     end
@@ -1670,7 +1671,7 @@ classdef EngineClass <  handle
                num_perts = size(cur_perts,2);
                Qs = zeros(num_perts,1);
                filename = filenames{i2};
-               parfor i1 = 1:num_perts
+               for i1 = 1:num_perts %parfor
                    if(mod(i1,10000) ==0)
                        disp(['i1 = ' num2str(i1)])
                    end
@@ -1685,6 +1686,29 @@ classdef EngineClass <  handle
                General.save_var(Qs,fullfile(obj.resultsPath,'obj_properties/'),filename);
                disp('Finished saving.');
            end
+        end
+        function obj = bin_Qs(obj)
+            filenames = {'Q10s_single_node_perts','Q10s_double_node_perts','Q10s_triple_node_perts'};
+            Qs = [];
+           for i1 = 1:length(filenames)
+               filename = filenames{i1};
+               Q_cur = General.load_var(fullfile(obj.resultsPath,'obj_properties/',filename));
+               Qs = [Qs;Q_cur];
+           end
+           tol = 1e-13;numbins = 25; cond_vec = true(size(Qs));
+           my_funcs = {@(x) (real(x)), @(x) 1./real(x)};sufs = {'','recip'};
+           for i2 = 1:length(my_funcs)
+               my_func = my_funcs{i2};
+               suf = sufs{i2};
+               values_vec = my_func(Qs);
+               
+               [ind_bins_var,bins_edges,ind_bins_var_sizes] = EngineClass.set_bins_generic(numbins,values_vec,tol,cond_vec);
+               [vals_binned_means,vals_binned_mins,vals_binned_maxs,vals_binned] = obj.set_binned_vals(values_vec,ind_bins_var);
+               General.save_var(bins_edges,fullfile(obj.resultsPath,'obj_properties/'),['Qs_binned_edges_' suf]);
+               General.save_var(ind_bins_var_sizes,fullfile(obj.resultsPath,'obj_properties/'),['Qs_bin_counts_' suf]);
+           end
+
+           
         end
         % figures / plots
         function obj = plot_results(obj, isDilute)
@@ -4384,7 +4408,7 @@ classdef EngineClass <  handle
             end
             General.save_fig(f,fname,fullfile(obj.resultsPath,'figs'));
         end
-        %fig33*
+        %% fig33*
         function obj = plot_Qs_distribution(obj)
             name = 'fig33a';desc = '$10^5$ Random binary perturbations $Q_{10}$ Distribution';
             f=figure('Name',name,'NumberTitle','off');
@@ -4403,14 +4427,86 @@ classdef EngineClass <  handle
             Qs2 = General.load_var(fullfile(obj.resultsPath,'obj_properties/','Q10s_double_node_perts.mat'));
             Qs3 = General.load_var(fullfile(obj.resultsPath,'obj_properties/','Q10s_triple_node_perts.mat'));
             Qs = [Qs1; Qs2; Qs3];
-            h = histogram(Qs); h.Normalization = 'probability'; set(gca,'YScale','log');
+            h = histogram(Qs); h.Normalization = 'probability'; set(gca,'YScale','log');set(gca,'XScale','log');
             title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
             xlabel('$Q_{10}$','Interpreter','latex');
 %             ylabel('Interpreter','latex');
             legend;
             General.save_fig(f,name,fullfile(obj.resultsPath,'figs'));
         end
-        
+        function obj = plot_Qs_distribution_3(obj)
+            xlabs = {'$|Re(\lambda)|$','$1/|Re(\lambda)|$'};
+            sufs = {'', 'recip'};
+            for i1 = 1:length(sufs)
+                suf = sufs{i1};xlab = xlabs{i1};
+                bin_edges = General.load_var(fullfile(obj.resultsPath, 'obj_properties/',['Qs_binned_edges_' suf]));
+                bin_counts = General.load_var(fullfile(obj.resultsPath,'obj_properties/',['Qs_bin_counts_' suf]));
+                bin_counts_normed = zeros(size(bin_counts));
+                for i2 = 1:size(bin_counts,2)
+                    bin_size = bin_edges(1,i2+1)-bin_edges(1,i2);
+                    bin_counts_normed(1,i2) = bin_counts(1,i2)/bin_size;
+                end
+                name = ['fig33c' '-' suf]; desc = '$Q_{10}$ Distribution Log Binned';
+                f = figure('Name',name,'NumberTitle','off');
+                h = histogram('BinCounts',bin_counts_normed,'BinEdges',bin_edges);set(gca,'YScale','log');set(gca,'XScale','log');
+                h.Normalization = 'probability';
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel(xlab,'Interpreter','latex');ylabel('Counts/bin size','interpreter','latex');
+                General.save_fig(f,name,fullfile(obj.resultsPath,'figs'));
+            end
+        end
+        %% fig34*
+        function obj = plot_eigval_distribution(obj)
+            names = {'fig34a','fig34b'};desc = 'Eigenvalues Distribution';
+            myfuncs = {@(x) (real(x)), @(x) (-1./real(x))};xlabs = {'$Re(\lambda)$','$-1/Re(\lambda)$'};
+            eigvals = General.load_var(fullfile(obj.resultsPath,'obj_properties','eigenvalues_ana'));
+            for i1 = 1:length(names)
+                name = names{i1};
+                myfunc = myfuncs{i1};
+                x = myfunc(eigvals);xlab = xlabs{i1};
+                f = figure('Name',name,'NumberTitle','off');
+                h = histogram(x);h.Normalization = 'probability'; set(gca,'YScale','log');set(gca,'XScale','log');
+                title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                xlabel(xlab,'Interpreter','latex');
+                legend;
+                General.save_fig(f,name,fullfile(obj.resultsPath,'figs'));
+            end
+        end
+        %% fig35*
+        function obj = plot_eigval_dist_log_bin(obj)
+            mypath = fullfile(obj.resultsPath,'obj_properties');
+            xlabs = {'$|Re(\lambda)|$','$1/|Re(\lambda)|$'};file_sufs = {'','_recip'};
+            fig_sufs = {'a','b'};
+            for i1 = 1:length(file_sufs)
+                file_suf = file_sufs{i1};
+                xlab = xlabs{i1};
+                fig_suf = fig_sufs{i1};
+                bin_edges = General.load_var(fullfile(mypath, ['eigenvalues_ana_hist_bins_edges' file_suf]));
+                bin_counts = General.load_var(fullfile(mypath, ['eigenvalues_ana_hist_bins_counts' file_suf]));
+                bin_counts_normed = zeros(size(bin_counts));
+                for i2 = 1:size(bin_counts,2)
+                    bin_size = bin_edges(1,i2+1)-bin_edges(1,i2);
+                    bin_counts_normed(1,i2) = bin_counts(1,i2)/bin_size;
+                end
+                counts = {bin_counts, bin_counts_normed}; fig_sufs_2 = {'','_counts_normed'};
+                ylabs = {'Counts','Counts/bin size'};
+                for i3 = 1:length(fig_sufs_2)
+                    fig_suf_2 = fig_sufs_2{i3};count = counts{i3};
+                    ylab = ylabs{i3};
+                    name = ['fig35' fig_suf fig_suf_2];
+                    desc = 'Eigenvalues distribution (log binned, probability normalization)';
+                    f = figure('Name',name,'NumberTitle','off');
+                    h = histogram('BinCounts',count,'BinEdges',bin_edges);set(gca,'YScale','log');set(gca,'XScale','log');
+                    %                 h = histogram('BinCounts',bin_counts_normed,'BinEdges',bin_edges);set(gca,'YScale','log');set(gca,'XScale','log');
+                    h.Normalization='probability';
+                    title({[name ' ' obj.scenarioName];obj.desc;desc},'interpreter','latex');
+                    xlabel(xlab,'Interpreter','latex');
+                    ylabel(ylab,'Interpreter','latex');
+                    %                 legend;
+                    General.save_fig(f,name,fullfile(obj.resultsPath,'figs'));
+                end
+            end
+        end
         %%
         function obj = set_networkNameSF1(obj)
             obj.networkName = 'SF1';
@@ -4482,6 +4578,23 @@ classdef EngineClass <  handle
                 obj.save_fig(f,name);
                 
             end
+        end
+        function obj = bin_eigenvalues(obj)
+            mypath = fullfile(obj.resultsPath,'obj_properties');
+            ev = General.load_var(fullfile(mypath,'eigenvalues_ana'));
+            myfuncs = {@(x) (x), @(x) (1./x)};file_sufs = {'','_recip'};
+            tol = 1e-13;numbins = 25; cond_vec = true(size(ev));
+            for i1 = 1:length(myfuncs)
+                myfunc = myfuncs{i1};
+                values_vec = abs(real(myfunc(ev)));
+                file_suf = file_sufs{i1};
+                [ind_bins_var,bins_edges,ind_bins_var_sizes] = EngineClass.set_bins_generic(numbins,values_vec,tol,cond_vec);
+                [vals_binned_means,vals_binned_mins,vals_binned_maxs,vals_binned] = obj.set_binned_vals(values_vec,ind_bins_var);
+                General.save_var(vals_binned,mypath,['eigenvalues_ana_binned' file_suf]);
+                General.save_var(bins_edges, mypath,['eigenvalues_ana_hist_bins_edges' file_suf]);
+%                 General.save_var([vals_binned_mins', vals_binned_maxs(end)], mypath,['eigenvalues_ana_hist_bins_edges' file_suf]);
+                General.save_var(ind_bins_var_sizes,mypath,['eigenvalues_ana_hist_bins_counts' file_suf]);
+            end            
         end
         
     end

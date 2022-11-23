@@ -1518,3 +1518,16 @@ set.batchFunction(@calc_Q_distribution,2:5);
 set.batchFunction(@plot_Qs_distribution,2:5);
 %%
 set.batchFunction(@calc_Q_distribution,1:4)
+%%
+set.batchFunction(@plot_Qs_distribution_2,1:4);
+%%
+set.batchFunction(@plot_eigval_distribution,1:5);
+%%
+set.batchFunction(@bin_eigenvalues,1:7);
+set.batchFunction(@plot_eigval_dist_log_bin,1:7);
+%%
+set.batchFunction(@bin_Qs,3:5);
+%%
+set.batchFunction(@plot_Qs_distribution_3,3:7);
+%%
+set.batchFunction(@plot_eigval_dist_log_bin,2:7);
